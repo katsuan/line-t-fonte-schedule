@@ -1,119 +1,307 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>予定シェア</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>予定シェア</title>
 
-<style>
-body{
-  font-family:sans-serif;
-  margin:20px;
-  background:#f7f8fa;
-}
-.card{
-  background:#fff;
-  border-radius:16px;
-  padding:16px;
-  margin-bottom:12px;
-  box-shadow:0 2px 8px rgba(0,0,0,.08);
-}
-.title{
-  font-size:20px;
-  font-weight:bold;
-  margin-bottom:8px;
-}
-.item{
-  padding:10px 0;
-  border-bottom:1px solid #eee;
-}
-.item:last-child{
-  border-bottom:none;
-}
-button{
-  width:100%;
-  padding:14px;
-  border:none;
-  border-radius:12px;
-  background:#06c755;
-  color:#fff;
-  font-size:16px;
-}
-#status{
-  margin-top:12px;
-  color:#666;
-}
-</style>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f7f8fa;
+      color: #222;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.08);
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .preview-text {
+      white-space: pre-wrap;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    .button {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+
+    .button-primary {
+      background: #06c755;
+      color: #fff;
+    }
+
+    .button-secondary {
+      background: #e9edf2;
+      color: #333;
+    }
+
+    .button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .status {
+      color: #666;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #666;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 3px solid #ddd;
+      border-top-color: #06c755;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
+
 <body>
+  <div class="card">
+    <div class="title">予定プレビュー</div>
 
-<div class="card">
-  <div class="title">予定プレビュー</div>
-  <div id="preview">読込み中...</div>
-</div>
-
-<button id="shareBtn" disabled>LINEで送る</button>
-<p id="status"></p>
-
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-
-<script>
-const LIFF_ID = "2009927582-9QtOstUK";
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
-
-let shareMessages = [];
-
-async function main(){
-  await liff.init({ liffId: LIFF_ID });
-
-  if(!liff.isLoggedIn()){
-    liff.login();
-    return;
-  }
-
-  const res = await fetch(GAS_URL);
-  const data = await res.json();
-
-  shareMessages = data.messages;
-
-  renderPreview(data.preview);
-
-  document.getElementById("shareBtn").disabled = false;
-}
-
-function renderPreview(preview){
-
-  const area = document.getElementById("preview");
-
-  area.innerHTML = `
-    <div style="font-weight:bold;font-size:18px;margin-bottom:8px">
-      ${preview.title}
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <span>予定を読み込み中...</span>
     </div>
 
-    <div style="margin-bottom:12px;color:#666">
-      ${preview.intro}
-    </div>
+    <div id="preview" class="preview-text hidden"></div>
+  </div>
 
-    ${preview.records.map(r => `
-      <div class="item">
-        <div><b>${r.memo1}</b></div>
-        <div>${r.date} ${r.start}-${r.end}</div>
-        <div>${r.place}</div>
-      </div>
-    `).join("")}
+  <button id="shareBtn" class="button button-primary hidden">LINEで送る</button>
+  <button id="reloadBtn" class="button button-secondary hidden">再読み込み</button>
 
-    <div style="margin-top:12px;color:#666">
-      ${preview.closing}
-    </div>
-  `;
-}
+  <p id="status" class="status">初期化中...</p>
 
-document.getElementById("shareBtn").onclick = async () => {
-  await liff.shareTargetPicker(shareMessages);
-};
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-main();
-</script>
+  <script>
+    const LIFF_ID = "2009927582-9QtOstUK";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
 
+    const els = {
+      loading: document.getElementById("loading"),
+      preview: document.getElementById("preview"),
+      shareBtn: document.getElementById("shareBtn"),
+      reloadBtn: document.getElementById("reloadBtn"),
+      status: document.getElementById("status"),
+    };
+
+    let shareMessages = [];
+
+    async function main() {
+      setLoading();
+
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        if (!liff.isApiAvailable("shareTargetPicker")) {
+          throw new Error("この環境ではシェア機能を利用できません。");
+        }
+
+        const data = await fetchShareData();
+        console.log("GAS response:", data);
+
+        shareMessages = normalizeMessages(data);
+
+        if (!shareMessages.length) {
+          throw new Error("送信できるメッセージがありません。");
+        }
+
+        renderPreviewFromMessages(shareMessages);
+        setReady();
+
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+      }
+    }
+
+    async function fetchShareData() {
+      const res = await fetch(GAS_URL, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error("GASへの接続に失敗しました。");
+      }
+
+      return await res.json();
+    }
+
+    function normalizeMessages(data) {
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (Array.isArray(data.messages)) {
+        return data.messages;
+      }
+
+      if (Array.isArray(data.data)) {
+        return data.data;
+      }
+
+      if (data.type) {
+        return [data];
+      }
+
+      return [];
+    }
+
+    function renderPreviewFromMessages(messages) {
+      const first = messages[0];
+
+      if (!first) {
+        els.preview.textContent = "プレビューできるメッセージがありません。";
+        return;
+      }
+
+      if (first.type === "text") {
+        els.preview.textContent = first.text || "";
+        return;
+      }
+
+      if (first.type === "flex") {
+        const altText = first.altText || "Flex Message";
+        const extractedText = extractTextFromFlex(first.contents);
+
+        els.preview.textContent = [
+          altText,
+          "",
+          extractedText || "Flex Messageを読み込みました。"
+        ].join("\n");
+
+        return;
+      }
+
+      els.preview.textContent = JSON.stringify(first, null, 2);
+    }
+
+    function extractTextFromFlex(node) {
+      const texts = [];
+
+      walkFlex(node, texts);
+
+      return texts.join("\n");
+    }
+
+    function walkFlex(node, texts) {
+      if (!node || typeof node !== "object") return;
+
+      if (node.type === "text" && node.text) {
+        texts.push(node.text);
+      }
+
+      if (Array.isArray(node.contents)) {
+        node.contents.forEach(child => walkFlex(child, texts));
+      }
+
+      if (node.header) walkFlex(node.header, texts);
+      if (node.hero) walkFlex(node.hero, texts);
+      if (node.body) walkFlex(node.body, texts);
+      if (node.footer) walkFlex(node.footer, texts);
+    }
+
+    async function handleShare() {
+      try {
+        els.shareBtn.disabled = true;
+        els.shareBtn.textContent = "送信先を選択中...";
+
+        const result = await liff.shareTargetPicker(shareMessages, {
+          isMultiple: true,
+        });
+
+        if (result) {
+          els.shareBtn.textContent = "送信しました";
+          els.status.textContent = "LINEへの送信が完了しました。";
+        } else {
+          els.shareBtn.disabled = false;
+          els.shareBtn.textContent = "LINEで送る";
+          els.status.textContent = "送信をキャンセルしました。";
+        }
+
+      } catch (err) {
+        console.error(err);
+        els.shareBtn.disabled = false;
+        els.shareBtn.textContent = "LINEで送る";
+        els.status.textContent = "送信失敗: " + err.message;
+      }
+    }
+
+    function setLoading() {
+      els.loading.classList.remove("hidden");
+      els.preview.classList.add("hidden");
+      els.shareBtn.classList.add("hidden");
+      els.reloadBtn.classList.add("hidden");
+      els.status.textContent = "読み込み中...";
+    }
+
+    function setReady() {
+      els.loading.classList.add("hidden");
+      els.preview.classList.remove("hidden");
+      els.shareBtn.classList.remove("hidden");
+      els.reloadBtn.classList.add("hidden");
+      els.shareBtn.disabled = false;
+      els.shareBtn.textContent = "LINEで送る";
+      els.status.textContent = "送信準備OK";
+    }
+
+    function setError(message) {
+      els.loading.classList.add("hidden");
+      els.preview.classList.remove("hidden");
+      els.shareBtn.classList.add("hidden");
+      els.reloadBtn.classList.remove("hidden");
+      els.preview.textContent = "🚨 読み込みに失敗しました。\n\n" + (message || "不明なエラー");
+      els.status.textContent = "再読み込みしてください。";
+    }
+
+    els.shareBtn.addEventListener("click", handleShare);
+    els.reloadBtn.addEventListener("click", main);
+
+    main();
+  </script>
 </body>
 </html>
