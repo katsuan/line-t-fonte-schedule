@@ -1,75 +1,119 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>予定シェア</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>予定シェア</title>
+
+<style>
+body{
+  font-family:sans-serif;
+  margin:20px;
+  background:#f7f8fa;
+}
+.card{
+  background:#fff;
+  border-radius:16px;
+  padding:16px;
+  margin-bottom:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+.title{
+  font-size:20px;
+  font-weight:bold;
+  margin-bottom:8px;
+}
+.item{
+  padding:10px 0;
+  border-bottom:1px solid #eee;
+}
+.item:last-child{
+  border-bottom:none;
+}
+button{
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:12px;
+  background:#06c755;
+  color:#fff;
+  font-size:16px;
+}
+#status{
+  margin-top:12px;
+  color:#666;
+}
+</style>
 </head>
 <body>
-  <h1>予定シェア</h1>
 
-  <button id="shareBtn" disabled>予定をLINEでシェア</button>
-  <p id="status">初期化中...</p>
+<div class="card">
+  <div class="title">予定プレビュー</div>
+  <div id="preview">読込み中...</div>
+</div>
 
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <script>
-    const LIFF_ID = "2009927582-9QtOstUK";
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+<button id="shareBtn" disabled>LINEで送る</button>
+<p id="status"></p>
 
-    const shareBtn = document.getElementById("shareBtn");
-    const statusEl = document.getElementById("status");
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-    let shareMessages = [];
+<script>
+const LIFF_ID = "2009927582-9QtOstUK";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
 
-    async function main() {
-      try {
-        await liff.init({ liffId: LIFF_ID });
+let shareMessages = [];
 
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
+async function main(){
+  await liff.init({ liffId: LIFF_ID });
 
-        if (!liff.isApiAvailable("shareTargetPicker")) {
-          statusEl.textContent = "この環境ではシェアターゲットピッカーを利用できません。";
-          return;
-        }
+  if(!liff.isLoggedIn()){
+    liff.login();
+    return;
+  }
 
-        const res = await fetch(GAS_WEB_APP_URL);
-        const data = await res.json();
+  const res = await fetch(GAS_URL);
+  const data = await res.json();
 
-        if (!data.ok) {
-          throw new Error(data.message || "GASからメッセージを取得できませんでした。");
-        }
+  shareMessages = data.messages;
 
-        shareMessages = data.messages;
+  renderPreview(data.preview);
 
-        shareBtn.disabled = false;
-        statusEl.textContent = "送信準備OK";
+  document.getElementById("shareBtn").disabled = false;
+}
 
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "エラー: " + err.message;
-      }
-    }
+function renderPreview(preview){
 
-    shareBtn.addEventListener("click", async () => {
-      try {
-        const result = await liff.shareTargetPicker(shareMessages, {
-          isMultiple: true
-        });
+  const area = document.getElementById("preview");
 
-        statusEl.textContent = result
-          ? "送信しました"
-          : "キャンセルされました";
+  area.innerHTML = `
+    <div style="font-weight:bold;font-size:18px;margin-bottom:8px">
+      ${preview.title}
+    </div>
 
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "送信失敗: " + err.message;
-      }
-    });
+    <div style="margin-bottom:12px;color:#666">
+      ${preview.intro}
+    </div>
 
-    main();
-  </script>
+    ${preview.records.map(r => `
+      <div class="item">
+        <div><b>${r.memo1}</b></div>
+        <div>${r.date} ${r.start}-${r.end}</div>
+        <div>${r.place}</div>
+      </div>
+    `).join("")}
+
+    <div style="margin-top:12px;color:#666">
+      ${preview.closing}
+    </div>
+  `;
+}
+
+document.getElementById("shareBtn").onclick = async () => {
+  await liff.shareTargetPicker(shareMessages);
+};
+
+main();
+</script>
+
 </body>
 </html>
