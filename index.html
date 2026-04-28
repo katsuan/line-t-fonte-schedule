@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LIFF Share</title>
+</head>
+<body>
+  <h1>LIFF Share</h1>
+
+  <button id="shareBtn" disabled>LINEでシェア</button>
+  <p id="status">初期化中...</p>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    const LIFF_ID = "2009927582-9QtOstUK";
+
+    const shareBtn = document.getElementById("shareBtn");
+    const statusEl = document.getElementById("status");
+
+    async function main() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        shareBtn.disabled = false;
+        statusEl.textContent = "準備完了";
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "LIFF初期化エラー: " + err.message;
+      }
+    }
+
+    shareBtn.addEventListener("click", async () => {
+      try {
+        const result = await liff.shareTargetPicker([
+          {
+            type: "text",
+            text: "GitHub Pages + LIFF からシェアしています！"
+          }
+        ]);
+
+        if (result) {
+          statusEl.textContent = "送信しました";
+        } else {
+          statusEl.textContent = "キャンセルされました";
+        }
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "シェア失敗: " + err.message;
+      }
+    });
+
+    main();
+  </script>
+</body>
+</html>
