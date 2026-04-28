@@ -125,38 +125,40 @@
 
     let shareMessages = [];
 
-    async function main() {
-      setLoading();
+async function main() {
+  setLoading();
 
-      try {
-        await liff.init({ liffId: LIFF_ID });
+  try {
+    await liff.init({ liffId: LIFF_ID });
 
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-
-        if (!liff.isApiAvailable("shareTargetPicker")) {
-          throw new Error("この環境ではシェア機能を利用できません。");
-        }
-
-        const data = await fetchShareData();
-        console.log("GAS response:", data);
-
-        shareMessages = normalizeMessages(data);
-
-        if (!shareMessages.length) {
-          throw new Error("送信できるメッセージがありません。");
-        }
-
-        renderPreviewFromMessages(shareMessages);
-        setReady();
-
-      } catch (err) {
-        console.error(err);
-        setError(err.message);
-      }
+    if (!liff.isLoggedIn()) {
+      els.status.textContent = "LINEログインへ移動します...";
+      els.loading.classList.add("hidden");
+      liff.login();
+      return;
     }
+
+    if (!liff.isApiAvailable("shareTargetPicker")) {
+      throw new Error("この環境ではシェア機能を利用できません。");
+    }
+
+    const data = await fetchShareData();
+    console.log("GAS response:", data);
+
+    shareMessages = normalizeMessages(data);
+
+    if (!shareMessages.length) {
+      throw new Error("送信できるメッセージがありません。");
+    }
+
+    renderPreviewFromMessages(shareMessages);
+    setReady();
+
+  } catch (err) {
+    console.error(err);
+    setError(err.message);
+  }
+}
 
     async function fetchShareData() {
       const res = await fetch(GAS_URL, {
@@ -289,14 +291,17 @@
       els.status.textContent = "送信準備OK";
     }
 
-    function setError(message) {
-      els.loading.classList.add("hidden");
-      els.preview.classList.remove("hidden");
-      els.shareBtn.classList.add("hidden");
-      els.reloadBtn.classList.remove("hidden");
-      els.preview.textContent = "🚨 読み込みに失敗しました。\n\n" + (message || "不明なエラー");
-      els.status.textContent = "再読み込みしてください。";
-    }
+function setError(message) {
+  els.loading.classList.add("hidden");
+  els.preview.classList.remove("hidden");
+  els.shareBtn.classList.add("hidden");
+  els.reloadBtn.classList.remove("hidden");
+
+  els.preview.textContent =
+    "🚨 読み込みに失敗しました。\n\n" + (message || "不明なエラー");
+
+  els.status.textContent = "再読み込みしてください。";
+}
 
     els.shareBtn.addEventListener("click", handleShare);
     els.reloadBtn.addEventListener("click", main);
