@@ -565,7 +565,11 @@
 
         if (result) {
           els.shareBtn.textContent = "送信しました";
-          els.status.textContent = "LINEへの送信が完了しました。";
+          els.status.textContent = "トークを確認してください。";
+
+          setTimeout(() => {
+            liff.closeWindow();
+          }, 1200);
         } else {
           els.shareBtn.disabled = false;
           els.shareBtn.textContent = "LINEで送る";
