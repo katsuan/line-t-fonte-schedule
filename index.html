@@ -226,6 +226,15 @@
 
         item.contents = item.contents.filter(child => child.type !== "button");
       });
+
+      bodyContents.push({
+        type: "text",
+        text: "※各予定をタップでGoogleカレンダーに追加できます",
+        size: "xs",
+        color: "#888888",
+        wrap: true,
+        margin: "md"
+      });
     }
 
     function isScheduleBox(item) {
