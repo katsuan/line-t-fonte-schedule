@@ -153,7 +153,7 @@
 
         shareMessages = createShareMessages(originalMessages);
 
-        renderPreviewFromMessages(originalMessages);
+        renderPreviewFromMessages(shareMessages);
         setReady();
 
       } catch (err) {
@@ -184,21 +184,86 @@
     }
 
     function createShareMessages(messages) {
-      const first = messages[0];
-
-      if (!first) return [];
-
-      if (first.type === "text") {
-        const flex = createFlexFromTextMessage(first.text || "");
-
-        if (flex) {
-          return [flex];
+      return messages.map(message => {
+        if (message.type === "flex") {
+          const cloned = cloneObject(message);
+          addCalendarButtonsToFlex(cloned);
+          return cloned;
         }
 
-        return messages;
+        if (message.type === "text") {
+          const flex = createFlexFromTextMessage(message.text || "");
+          return flex || message;
+        }
+
+        return message;
+      });
+    }
+
+    function cloneObject(value) {
+      if (typeof structuredClone === "function") {
+        return structuredClone(value);
       }
 
-      return messages;
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function addCalendarButtonsToFlex(flexMessage) {
+      const bodyContents = flexMessage?.contents?.body?.contents;
+
+      if (!Array.isArray(bodyContents)) return;
+
+      bodyContents.forEach(item => {
+        if (!isScheduleBox(item)) return;
+        if (hasCalendarButton(item)) return;
+
+        const record = extractRecordFromScheduleBox(item);
+        const calendarUrl = createGoogleCalendarUrlFromRecord(record);
+
+        item.contents.push({
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          margin: "sm",
+          action: {
+            type: "uri",
+            label: "Googleカレンダーに登録",
+            uri: calendarUrl
+          }
+        });
+      });
+    }
+
+    function isScheduleBox(item) {
+      if (!item || item.type !== "box") return false;
+      if (!Array.isArray(item.contents)) return false;
+
+      const texts = item.contents
+        .filter(child => child.type === "text")
+        .map(child => child.text || "");
+
+      return texts.length >= 3 && looksLikeDateTimeLine(texts[1]);
+    }
+
+    function hasCalendarButton(item) {
+      return item.contents.some(child =>
+        child.type === "button" &&
+        child.action &&
+        child.action.type === "uri" &&
+        child.action.label === "Googleカレンダーに登録"
+      );
+    }
+
+    function extractRecordFromScheduleBox(item) {
+      const texts = item.contents
+        .filter(child => child.type === "text")
+        .map(child => child.text || "");
+
+      return {
+        title: texts[0] || "予定",
+        dateLine: texts[1] || "",
+        place: texts[2] || ""
+      };
     }
 
     function createFlexFromTextMessage(text) {
@@ -294,10 +359,10 @@
           memo1,
           dateLine,
           placeLine,
-          googleCalendarUrl: createGoogleCalendarUrlFromParsed({
+          googleCalendarUrl: createGoogleCalendarUrlFromRecord({
             title: memo1,
             dateLine,
-            placeLine,
+            place: placeLine,
             details: [text, extraLink].filter(Boolean).join("\n")
           })
         });
@@ -366,11 +431,15 @@
       };
     }
 
-    function createGoogleCalendarUrlFromParsed(record) {
+    function createGoogleCalendarUrlFromRecord(record) {
       const parsedDate = parseDateTimeLine(record.dateLine);
       const title = record.title || "予定";
-      const location = record.placeLine || "";
-      const details = record.details || "";
+      const location = record.place || record.placeLine || "";
+      const details = record.details || [
+        title,
+        record.dateLine || "",
+        location
+      ].filter(Boolean).join("\n");
 
       const params = new URLSearchParams({
         action: "TEMPLATE",
@@ -387,7 +456,6 @@
     function parseDateTimeLine(line) {
       const now = new Date();
       const currentYear = now.getFullYear();
-
       const cleaned = String(line).replace(/\s+/g, " ");
 
       const dateMatch = cleaned.match(/(\d{1,2})[\/月](\d{1,2})(?:日)?/);
