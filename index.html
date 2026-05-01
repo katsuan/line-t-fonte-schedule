@@ -125,40 +125,42 @@
 
     let shareMessages = [];
 
-async function main() {
-  setLoading();
+    async function main() {
+      setLoading();
 
-  try {
-    await liff.init({ liffId: LIFF_ID });
+      try {
+        await liff.init({ liffId: LIFF_ID });
 
-    if (!liff.isLoggedIn()) {
-      els.status.textContent = "LINEログインへ移動します...";
-      els.loading.classList.add("hidden");
-      liff.login();
-      return;
+        if (!liff.isLoggedIn()) {
+          els.status.textContent = "LINEログインへ移動します...";
+          els.loading.classList.add("hidden");
+          liff.login();
+          return;
+        }
+
+        if (!liff.isApiAvailable("shareTargetPicker")) {
+          throw new Error("この環境ではシェア機能を利用できません。");
+        }
+
+        const data = await fetchShareData();
+        console.log("GAS response:", data);
+
+        const originalMessages = normalizeMessages(data);
+
+        if (!originalMessages.length) {
+          throw new Error("送信できるメッセージがありません。");
+        }
+
+        shareMessages = createShareMessages(originalMessages);
+
+        renderPreviewFromMessages(originalMessages);
+        setReady();
+
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+      }
     }
-
-    if (!liff.isApiAvailable("shareTargetPicker")) {
-      throw new Error("この環境ではシェア機能を利用できません。");
-    }
-
-    const data = await fetchShareData();
-    console.log("GAS response:", data);
-
-    shareMessages = normalizeMessages(data);
-
-    if (!shareMessages.length) {
-      throw new Error("送信できるメッセージがありません。");
-    }
-
-    renderPreviewFromMessages(shareMessages);
-    setReady();
-
-  } catch (err) {
-    console.error(err);
-    setError(err.message);
-  }
-}
 
     async function fetchShareData() {
       const res = await fetch(GAS_URL, {
@@ -174,23 +176,269 @@ async function main() {
     }
 
     function normalizeMessages(data) {
-      if (Array.isArray(data)) {
-        return data;
-      }
-
-      if (Array.isArray(data.messages)) {
-        return data.messages;
-      }
-
-      if (Array.isArray(data.data)) {
-        return data.data;
-      }
-
-      if (data.type) {
-        return [data];
-      }
-
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.messages)) return data.messages;
+      if (Array.isArray(data.data)) return data.data;
+      if (data.type) return [data];
       return [];
+    }
+
+    function createShareMessages(messages) {
+      const first = messages[0];
+
+      if (!first) return [];
+
+      if (first.type === "text") {
+        const flex = createFlexFromTextMessage(first.text || "");
+
+        if (flex) {
+          return [flex];
+        }
+
+        return messages;
+      }
+
+      return messages;
+    }
+
+    function createFlexFromTextMessage(text) {
+      const parsed = parseReminderText(text);
+
+      if (!parsed.records.length) {
+        return null;
+      }
+
+      return {
+        type: "flex",
+        altText: parsed.title || "予定のお知らせ",
+        contents: {
+          type: "bubble",
+          size: "mega",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#4284F3",
+            paddingAll: "16px",
+            contents: [
+              {
+                type: "text",
+                text: parsed.title || "予定のお知らせ",
+                color: "#ffffff",
+                weight: "bold",
+                size: "lg",
+                wrap: true
+              },
+              {
+                type: "text",
+                text: parsed.intro || "直近の予定はこちらです👇",
+                color: "#ffffff",
+                size: "sm",
+                margin: "sm",
+                wrap: true
+              }
+            ]
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "md",
+            contents: [
+              ...parsed.records.map(createRecordBox),
+              {
+                type: "separator",
+                margin: "md"
+              },
+              {
+                type: "text",
+                text: parsed.closing || "よろしくお願いします！",
+                size: "sm",
+                color: "#555555",
+                wrap: true,
+                margin: "md"
+              }
+            ]
+          }
+        }
+      };
+    }
+
+    function parseReminderText(text) {
+      const lines = String(text)
+        .split("\n")
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      const title = lines[0] || "予定のお知らせ";
+      const intro = lines[1] || "";
+
+      const records = [];
+      let closing = "";
+      let extraLink = "";
+
+      for (let i = 2; i < lines.length; i++) {
+        const memo1 = lines[i];
+        const dateLine = lines[i + 1] || "";
+        const placeLine = lines[i + 2] || "";
+
+        if (isUrl(memo1)) {
+          extraLink = memo1;
+          break;
+        }
+
+        if (!looksLikeDateTimeLine(dateLine)) {
+          closing = memo1;
+          continue;
+        }
+
+        records.push({
+          memo1,
+          dateLine,
+          placeLine,
+          googleCalendarUrl: createGoogleCalendarUrlFromParsed({
+            title: memo1,
+            dateLine,
+            placeLine,
+            details: [text, extraLink].filter(Boolean).join("\n")
+          })
+        });
+
+        i += 2;
+      }
+
+      if (!closing) {
+        const last = lines[lines.length - 1] || "";
+        if (!looksLikeDateTimeLine(last) && !isUrl(last)) {
+          closing = last;
+        }
+      }
+
+      return {
+        title,
+        intro,
+        closing,
+        records
+      };
+    }
+
+    function createRecordBox(record) {
+      return {
+        type: "box",
+        layout: "vertical",
+        spacing: "xs",
+        paddingAll: "12px",
+        backgroundColor: "#F6F8FB",
+        cornerRadius: "12px",
+        contents: [
+          {
+            type: "text",
+            text: record.memo1 || "予定",
+            weight: "bold",
+            size: "md",
+            color: "#222222",
+            wrap: true
+          },
+          {
+            type: "text",
+            text: record.dateLine || "",
+            size: "sm",
+            color: "#555555",
+            wrap: true
+          },
+          {
+            type: "text",
+            text: record.placeLine || "",
+            size: "sm",
+            color: "#555555",
+            wrap: true
+          },
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            margin: "sm",
+            action: {
+              type: "uri",
+              label: "Googleカレンダーに登録",
+              uri: record.googleCalendarUrl
+            }
+          }
+        ]
+      };
+    }
+
+    function createGoogleCalendarUrlFromParsed(record) {
+      const parsedDate = parseDateTimeLine(record.dateLine);
+      const title = record.title || "予定";
+      const location = record.placeLine || "";
+      const details = record.details || "";
+
+      const params = new URLSearchParams({
+        action: "TEMPLATE",
+        text: title,
+        dates: `${formatGoogleDate(parsedDate.start)}/${formatGoogleDate(parsedDate.end)}`,
+        details,
+        location,
+        ctz: "Asia/Tokyo"
+      });
+
+      return `https://calendar.google.com/calendar/render?${params.toString()}`;
+    }
+
+    function parseDateTimeLine(line) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+
+      const cleaned = String(line).replace(/\s+/g, " ");
+
+      const dateMatch = cleaned.match(/(\d{1,2})[\/月](\d{1,2})(?:日)?/);
+      const timeMatch = cleaned.match(/(\d{1,2}):(\d{2})\s*[-〜~－]\s*(\d{1,2}):(\d{2})/);
+
+      if (!dateMatch || !timeMatch) {
+        const start = new Date(now.getTime() + 60 * 60 * 1000);
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+        return { start, end };
+      }
+
+      const month = Number(dateMatch[1]);
+      const day = Number(dateMatch[2]);
+
+      const startHour = Number(timeMatch[1]);
+      const startMinute = Number(timeMatch[2]);
+      const endHour = Number(timeMatch[3]);
+      const endMinute = Number(timeMatch[4]);
+
+      const start = new Date(currentYear, month - 1, day, startHour, startMinute, 0);
+      const end = new Date(currentYear, month - 1, day, endHour, endMinute, 0);
+
+      if (end <= start) {
+        end.setDate(end.getDate() + 1);
+      }
+
+      return { start, end };
+    }
+
+    function formatGoogleDate(date) {
+      const yyyy = date.getFullYear();
+      const MM = pad2(date.getMonth() + 1);
+      const dd = pad2(date.getDate());
+      const hh = pad2(date.getHours());
+      const mm = pad2(date.getMinutes());
+      const ss = "00";
+
+      return `${yyyy}${MM}${dd}T${hh}${mm}${ss}`;
+    }
+
+    function pad2(num) {
+      return String(num).padStart(2, "0");
+    }
+
+    function looksLikeDateTimeLine(line) {
+      return /\d{1,2}[\/月]\d{1,2}/.test(line) &&
+        /\d{1,2}:\d{2}\s*[-〜~－]\s*\d{1,2}:\d{2}/.test(line);
+    }
+
+    function isUrl(value) {
+      return /^https?:\/\//.test(String(value || ""));
     }
 
     function renderPreviewFromMessages(messages) {
@@ -207,15 +455,8 @@ async function main() {
       }
 
       if (first.type === "flex") {
-        const altText = first.altText || "Flex Message";
         const extractedText = extractTextFromFlex(first.contents);
-
-        els.preview.textContent = [
-          altText,
-          "",
-          extractedText || "Flex Messageを読み込みました。"
-        ].join("\n");
-
+        els.preview.textContent = extractedText || "Flex Messageを読み込みました。";
         return;
       }
 
@@ -224,9 +465,7 @@ async function main() {
 
     function extractTextFromFlex(node) {
       const texts = [];
-
       walkFlex(node, texts);
-
       return texts.join("\n");
     }
 
@@ -291,17 +530,17 @@ async function main() {
       els.status.textContent = "送信準備OK";
     }
 
-function setError(message) {
-  els.loading.classList.add("hidden");
-  els.preview.classList.remove("hidden");
-  els.shareBtn.classList.add("hidden");
-  els.reloadBtn.classList.remove("hidden");
+    function setError(message) {
+      els.loading.classList.add("hidden");
+      els.preview.classList.remove("hidden");
+      els.shareBtn.classList.add("hidden");
+      els.reloadBtn.classList.remove("hidden");
 
-  els.preview.textContent =
-    "🚨 読み込みに失敗しました。\n\n" + (message || "不明なエラー");
+      els.preview.textContent =
+        "🚨 読み込みに失敗しました。\n\n" + (message || "不明なエラー");
 
-  els.status.textContent = "再読み込みしてください。";
-}
+      els.status.textContent = "再読み込みしてください。";
+    }
 
     els.shareBtn.addEventListener("click", handleShare);
     els.reloadBtn.addEventListener("click", main);
