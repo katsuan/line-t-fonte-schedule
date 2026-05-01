@@ -211,6 +211,15 @@
     function addCalendarButtonsToFlex(flexMessage) {
       const bodyContents = flexMessage?.contents?.body?.contents;
 
+      bodyContents.push({
+        type: "text",
+        text: "※各予定タップでGoogleカレンダーに追加",
+        size: "xs",
+        color: "#888888",
+        wrap: true,
+        margin: "md"
+      });
+
       if (!Array.isArray(bodyContents)) return;
 
       bodyContents.forEach(item => {
@@ -225,15 +234,6 @@
         };
 
         item.contents = item.contents.filter(child => child.type !== "button");
-      });
-
-      bodyContents.push({
-        type: "text",
-        text: "※各予定タップでGoogleカレンダーに追加",
-        size: "xs",
-        color: "#888888",
-        wrap: true,
-        margin: "md"
       });
     }
 
