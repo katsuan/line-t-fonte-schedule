@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>予定シェア</title>
+  <title>T-FONTE 予定シェア</title>
 
   <style>
     body {
@@ -215,22 +215,16 @@
 
       bodyContents.forEach(item => {
         if (!isScheduleBox(item)) return;
-        if (hasCalendarButton(item)) return;
-
+        
         const record = extractRecordFromScheduleBox(item);
         const calendarUrl = createGoogleCalendarUrlFromRecord(record);
 
-        item.contents.push({
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          margin: "sm",
-          action: {
-            type: "uri",
-            label: "Googleカレンダーに登録",
-            uri: calendarUrl
-          }
-        });
+        item.action = {
+          type: "uri",
+          uri: calendarUrl
+        };
+
+        item.contents = item.contents.filter(child => child.type !== "button");
       });
     }
 
@@ -250,7 +244,7 @@
         child.type === "button" &&
         child.action &&
         child.action.type === "uri" &&
-        child.action.label === "Googleカレンダーに登録"
+        child.action.label === "🗓️ Googleカレンダー登録"
       );
     }
 
@@ -315,7 +309,7 @@
               },
               {
                 type: "text",
-                text: parsed.closing || "よろしくお願いします！",
+                text: parsed.closing + "\n※各予定をタップでGoogleカレンダーに追加できます",
                 size: "sm",
                 color: "#555555",
                 wrap: true,
@@ -415,17 +409,6 @@
             size: "sm",
             color: "#555555",
             wrap: true
-          },
-          {
-            type: "button",
-            style: "secondary",
-            height: "sm",
-            margin: "sm",
-            action: {
-              type: "uri",
-              label: "Googleカレンダーに登録",
-              uri: record.googleCalendarUrl
-            }
           }
         ]
       };
