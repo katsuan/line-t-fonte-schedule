@@ -62,7 +62,6 @@ function buildMonthlyFlexGroups_(records, now) {
     monthLabel: buildMonthLabel_(group.monthDate),
     records: group.records,
     link: findFirstLink_(group.records) || SETTING.SheetLink,
-    emphasizeNearTerm: isSameYearMonth_(group.monthDate, now.getFullYear(), now.getMonth()),
     now
   }));
 }
@@ -96,7 +95,7 @@ function buildCarouselAltText_(bubbles) {
 }
 
 function createMonthlyFlexBubble_(group) {
-  const { monthLabel, records, link, emphasizeNearTerm, now } = group;
+  const { monthLabel, records, link, now } = group;
   const title = `${monthLabel}の予定`;
 
   return {
@@ -123,7 +122,6 @@ function createMonthlyFlexBubble_(group) {
       layout: "vertical",
       spacing: "sm",
       contents: records.map(record => createRecordBox_(record, {
-        emphasizeNearTerm,
         now
       }))
     },
@@ -149,8 +147,9 @@ function createMonthlyFlexBubble_(group) {
 }
 
 function createRecordBox_(record, options) {
-  const { emphasizeNearTerm, now } = options;
-  const isNearTerm = emphasizeNearTerm && diffDaysFromToday_(record.date, now) <= 5;
+  const { now } = options;
+  const diffDays = diffDaysFromToday_(record.date, now);
+  const isNearTerm = diffDays >= 0 && diffDays <= 5;
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   const calendarUrl = createGoogleCalendarUrl_(record);
   const iconText = getCalendarIconText_(record.memo1);
