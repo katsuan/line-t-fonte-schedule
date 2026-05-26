@@ -401,6 +401,7 @@
     <script>
         const LIFF_ID = "2009927582-9QtOstUK";
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+        const PREVIEW_CACHE_KEY = "t_fonte_reminder_preview_cache_v1";
         const STATUS_TEXT = {
             noLiff: "LIFFなしのプレビュー表示です。",
             liffInitFailed: "LIFF初期化に失敗したため、プレビューのみ表示します。",
@@ -408,6 +409,7 @@
             noShareApi: "このブラウザでは送信できないため、プレビューのみ表示します。",
             loading: "読み込み中...",
             reload: "再読み込みしてください。",
+            refreshing: "前回プレビューを表示しつつ更新中..."
         };
 
         const els = {
@@ -424,11 +426,13 @@
 
         async function main() {
             setLoading();
+            renderCachedPreviewIfAvailable();
 
             try {
-                await initializeLiffMode();
-
-                const data = await fetchShareData();
+                const [_, data] = await Promise.all([
+                    initializeLiffMode(),
+                    fetchShareData()
+                ]);
                 const originalMessages = normalizeMessages(data);
 
                 if (!originalMessages.length) {
@@ -436,6 +440,7 @@
                 }
 
                 shareMessages = originalMessages.map(cloneObject);
+                savePreviewCache(shareMessages);
                 renderPreviewFromMessages(shareMessages);
                 setReady(canShareInLiff);
 
@@ -500,6 +505,47 @@
             }
 
             return JSON.parse(JSON.stringify(value));
+        }
+
+        function renderCachedPreviewIfAvailable() {
+            const cachedMessages = loadPreviewCache();
+            if (!cachedMessages.length) return;
+
+            shareMessages = cachedMessages.map(cloneObject);
+            renderPreviewFromMessages(shareMessages);
+            els.loading.classList.add("hidden");
+            els.messageList.classList.remove("hidden");
+            els.status.textContent = STATUS_TEXT.refreshing;
+        }
+
+        function savePreviewCache(messages) {
+            try {
+                const payload = {
+                    gasUrl: GAS_URL,
+                    savedAt: Date.now(),
+                    messages,
+                };
+                localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(payload));
+            } catch (err) {
+                console.warn("preview cache save skipped", err);
+            }
+        }
+
+        function loadPreviewCache() {
+            try {
+                const raw = localStorage.getItem(PREVIEW_CACHE_KEY);
+                if (!raw) return [];
+
+                const payload = JSON.parse(raw);
+                if (!payload || payload.gasUrl !== GAS_URL || !Array.isArray(payload.messages)) {
+                    return [];
+                }
+
+                return payload.messages;
+            } catch (err) {
+                console.warn("preview cache load skipped", err);
+                return [];
+            }
         }
 
         function renderPreviewFromMessages(messages) {
