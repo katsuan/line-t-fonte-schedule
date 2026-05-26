@@ -28,8 +28,10 @@ const RANDOM_TEXTS = {
 
 const UPCOMING_RECORDS_CACHE_CONFIG = {
   dateKey: "UPCOMING_RECORDS_CACHE_DATE_V1",
-  payloadKey: "UPCOMING_RECORDS_CACHE_PAYLOAD_V1",
-  maxPayloadBytes: 450 * 1024
+  monthIndexKey: "UPCOMING_RECORDS_CACHE_MONTH_INDEX_V1",
+  monthPayloadPrefix: "UPCOMING_RECORDS_CACHE_MONTH_V1_",
+  maxPayloadBytesPerMonth: 40 * 1024,
+  maxMonthCaches: 12
 };
 
 let upcomingRecordsMemoryCache_ = null;
@@ -127,6 +129,26 @@ function deserializeUpcomingRecords_(payload) {
   }));
 }
 
+function buildMonthPayloadPropertyKey_(monthKey) {
+  return `${UPCOMING_RECORDS_CACHE_CONFIG.monthPayloadPrefix}${monthKey}`;
+}
+
+function groupUpcomingRecordsByMonth_(records) {
+  const grouped = new Map();
+
+  records.forEach(record => {
+    const monthKey = buildYearMonthKey_(record.date);
+    if (!grouped.has(monthKey)) {
+      grouped.set(monthKey, []);
+    }
+    grouped.get(monthKey).push(record);
+  });
+
+  return Array.from(grouped.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(0, UPCOMING_RECORDS_CACHE_CONFIG.maxMonthCaches);
+}
+
 function loadCachedUpcomingRecords_() {
   const todayKey = getTodayCacheKey_();
 
@@ -137,14 +159,23 @@ function loadCachedUpcomingRecords_() {
 
   const props = PropertiesService.getScriptProperties();
   const cachedDate = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.dateKey);
-  const cachedPayload = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.payloadKey);
+  const monthIndexPayload = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.monthIndexKey);
 
-  if (cachedDate !== todayKey || !cachedPayload) {
+  if (cachedDate !== todayKey || !monthIndexPayload) {
     return null;
   }
 
   try {
-    const records = deserializeUpcomingRecords_(cachedPayload);
+    const monthKeys = JSON.parse(monthIndexPayload);
+    if (!Array.isArray(monthKeys) || !monthKeys.length) {
+      return [];
+    }
+
+    const records = monthKeys.flatMap(monthKey => {
+      const monthPayload = props.getProperty(buildMonthPayloadPropertyKey_(monthKey));
+      return monthPayload ? deserializeUpcomingRecords_(monthPayload) : [];
+    });
+
     upcomingRecordsMemoryCache_ = records;
     upcomingRecordsMemoryCacheDate_ = todayKey;
     Log.debug("📦 script properties cache hit");
@@ -158,20 +189,33 @@ function loadCachedUpcomingRecords_() {
 function saveCachedUpcomingRecords_(records) {
   const todayKey = getTodayCacheKey_();
   const props = PropertiesService.getScriptProperties();
-  const payload = serializeUpcomingRecords_(records);
-  const payloadBytes = Utilities.newBlob(payload).getBytes().length;
+  const previousMonthIndexPayload = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.monthIndexKey);
+  const previousMonthKeys = previousMonthIndexPayload ? JSON.parse(previousMonthIndexPayload) : [];
+  const groupedEntries = groupUpcomingRecordsByMonth_(records);
+  const nextMonthKeys = [];
+  const propertiesToSave = {
+    [UPCOMING_RECORDS_CACHE_CONFIG.dateKey]: todayKey
+  };
 
-  if (payloadBytes > UPCOMING_RECORDS_CACHE_CONFIG.maxPayloadBytes) {
-    Log.debug(`⚠️ cache payload too large for script properties: ${payloadBytes} bytes`);
-    upcomingRecordsMemoryCache_ = records;
-    upcomingRecordsMemoryCacheDate_ = todayKey;
-    return;
-  }
+  groupedEntries.forEach(([monthKey, monthRecords]) => {
+    const payload = serializeUpcomingRecords_(monthRecords);
+    const payloadBytes = Utilities.newBlob(payload).getBytes().length;
 
-  props.setProperties({
-    [UPCOMING_RECORDS_CACHE_CONFIG.dateKey]: todayKey,
-    [UPCOMING_RECORDS_CACHE_CONFIG.payloadKey]: payload
+    if (payloadBytes > UPCOMING_RECORDS_CACHE_CONFIG.maxPayloadBytesPerMonth) {
+      Log.debug(`⚠️ skip oversized month cache ${monthKey}: ${payloadBytes} bytes`);
+      return;
+    }
+
+    nextMonthKeys.push(monthKey);
+    propertiesToSave[buildMonthPayloadPropertyKey_(monthKey)] = payload;
   });
+
+  propertiesToSave[UPCOMING_RECORDS_CACHE_CONFIG.monthIndexKey] = JSON.stringify(nextMonthKeys);
+  props.setProperties(propertiesToSave);
+
+  previousMonthKeys
+    .filter(monthKey => !nextMonthKeys.includes(monthKey))
+    .forEach(monthKey => props.deleteProperty(buildMonthPayloadPropertyKey_(monthKey)));
 
   upcomingRecordsMemoryCache_ = records;
   upcomingRecordsMemoryCacheDate_ = todayKey;
