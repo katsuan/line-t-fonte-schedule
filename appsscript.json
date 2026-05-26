@@ -1,0 +1,31 @@
+{
+  "timeZone": "Asia/Tokyo",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "LINE_func",
+        "libraryId": "1X3iUxTlh3iib0FAudeUMpA8oUtPq-4pzShLkpEYxeiqDytvd_pdKr6Jk",
+        "version": "0",
+        "developmentMode": true
+      },
+      {
+        "userSymbol": "LineApiDriver",
+        "version": "0",
+        "libraryId": "1t27cAX2GRQhtEIpGJCTCBtnakqrjhE7PDeO1dMYiyigfpWEUyhVQImWP",
+        "developmentMode": true
+      },
+      {
+        "userSymbol": "LoggerLib",
+        "version": "0",
+        "libraryId": "1iaWabnS5b5xJZlhumYh2x_j1EDGRs3TvBdi0Hp1rd3rygHtckibroezY",
+        "developmentMode": true
+      }
+    ]
+  },
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "ANYONE_ANONYMOUS"
+  }
+}
