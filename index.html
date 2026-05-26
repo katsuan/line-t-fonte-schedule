@@ -155,6 +155,13 @@
             color: var(--text);
         }
 
+        .message-card-subtitle {
+            margin: 4px 0 0;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--muted);
+        }
+
         .message-card-type {
             font-size: 11px;
             font-weight: 800;
@@ -221,6 +228,32 @@
 
         .schedule-item.near {
             border-color: #ffd6a1;
+        }
+
+        .schedule-layout {
+            display: flex;
+            align-items: stretch;
+            gap: 12px;
+        }
+
+        .schedule-icon {
+            width: 52px;
+            min-width: 52px;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: #e6eef9;
+            color: #1f2937;
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .schedule-content {
+            flex: 1;
+            min-width: 0;
         }
 
         .schedule-head {
@@ -329,7 +362,7 @@
     <main class="shell">
         <section class="hero">
             <div class="hero-kicker">T-FONTE REMINDER</div>
-            <h1 class="hero-title">予定を確認してから送信</h1>
+            <h1 class="hero-title">予定を確認して送信</h1>
         </section>
 
         <section class="panel">
@@ -484,11 +517,22 @@
             title.className = "message-card-title";
             title.textContent = createMessageTitle(message, index);
 
+            const titleWrap = document.createElement("div");
+            titleWrap.appendChild(title);
+
+            const altText = getMessageAltText(message);
+            if (altText && altText !== title.textContent) {
+                const subtitle = document.createElement("p");
+                subtitle.className = "message-card-subtitle";
+                subtitle.textContent = `件名: ${altText}`;
+                titleWrap.appendChild(subtitle);
+            }
+
             const type = document.createElement("div");
             type.className = "message-card-type";
             type.textContent = message.type === "flex" ? "FLEX" : "TEXT";
 
-            head.append(title, type);
+            head.append(titleWrap, type);
 
             const body = document.createElement("div");
             body.className = "message-card-body";
@@ -505,6 +549,11 @@
 
         function createMessageTitle(message, index) {
             if (message.type === "flex") {
+                const altText = getMessageAltText(message);
+                if (altText) {
+                    return altText;
+                }
+
                 const firstBubble = getFirstBubble(message);
                 const headerTitle = extractTexts(firstBubble?.header)[0] || "";
                 return headerTitle || `Flexメッセージ ${index + 1}`;
@@ -649,6 +698,17 @@
             const article = document.createElement("article");
             article.className = `schedule-item${item.isNear ? " near" : ""}`;
 
+            const layout = document.createElement("div");
+            layout.className = "schedule-layout";
+
+            const icon = document.createElement("div");
+            icon.className = "schedule-icon";
+            icon.textContent = item.iconText || "予";
+            layout.appendChild(icon);
+
+            const content = document.createElement("div");
+            content.className = "schedule-content";
+
             const head = document.createElement("div");
             head.className = "schedule-head";
 
@@ -665,22 +725,24 @@
                 head.appendChild(chip);
             }
 
-            article.appendChild(head);
+            content.appendChild(head);
 
             if (item.dateLine) {
                 const meta = document.createElement("p");
                 meta.className = "schedule-meta";
                 meta.textContent = item.dateLine;
-                article.appendChild(meta);
+                content.appendChild(meta);
             }
 
             if (item.placeLine) {
                 const place = document.createElement("p");
                 place.className = "schedule-place";
                 place.textContent = item.placeLine;
-                article.appendChild(place);
+                content.appendChild(place);
             }
 
+            layout.appendChild(content);
+            article.appendChild(layout);
             return article;
         }
 
@@ -707,6 +769,7 @@
 
             const title = extractScheduleTitle_(titleRow) || textLines[0]?.text || "";
             const isNear = hasNearBadge_(box);
+            const iconText = extractScheduleIconText_(box);
             const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
             const placeLine = textLines[textLines.length - 1]?.text === dateLine ? "" : (textLines[textLines.length - 1]?.text || "");
 
@@ -717,6 +780,7 @@
             return {
                 title,
                 isNear,
+                iconText,
                 dateLine,
                 placeLine
             };
@@ -756,6 +820,25 @@
                 Array.isArray(item.contents) &&
                 item.contents.some(child => child?.type === "text" && child.text === "もうすぐ")
             );
+        }
+
+        function extractScheduleIconText_(box) {
+            if (!box || !Array.isArray(box.contents)) return "";
+
+            const iconContainer = box.contents.find(item =>
+                item?.type === "box" &&
+                Array.isArray(item.contents) &&
+                item.contents.some(child => child?.type === "text" && child.text)
+            );
+
+            if (!iconContainer) return "";
+
+            const iconNode = iconContainer.contents.find(child => child?.type === "text" && child.text);
+            return iconNode ? iconNode.text : "";
+        }
+
+        function getMessageAltText(message) {
+            return typeof message?.altText === "string" ? message.altText : "";
         }
 
         function extractFooterLink(bubble) {
