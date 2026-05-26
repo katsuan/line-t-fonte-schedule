@@ -329,7 +329,7 @@
     <main class="shell">
         <section class="hero">
             <div class="hero-kicker">T-FONTE REMINDER</div>
-            <h1 class="hero-title">予定シェアを確認してから送信</h1>
+            <h1 class="hero-title">予定を確認してから送信</h1>
         </section>
 
         <section class="panel">
@@ -698,11 +698,7 @@
                 return null;
             }
 
-            const detailColumn = box.contents.find(item =>
-                item?.type === "box" &&
-                item?.layout === "vertical" &&
-                item?.flex === 1
-            );
+            const detailColumn = findDetailColumn_(box);
             const sourceBox = detailColumn || box;
             const titleRow = sourceBox.contents?.find(item => item.type === "box" && item.layout === "horizontal");
             const textLines = Array.isArray(sourceBox.contents)
@@ -734,6 +730,24 @@
 
             const trailingTextNode = [...titleRow.contents].reverse().find(item => item.type === "text" && item.text);
             return trailingTextNode ? trailingTextNode.text : "";
+        }
+
+        function findDetailColumn_(node) {
+            if (!node || !Array.isArray(node.contents)) return null;
+
+            const directMatch = node.contents.find(item =>
+                item?.type === "box" &&
+                item?.layout === "vertical" &&
+                item?.flex === 1
+            );
+            if (directMatch) return directMatch;
+
+            for (const child of node.contents) {
+                const nestedMatch = findDetailColumn_(child);
+                if (nestedMatch) return nestedMatch;
+            }
+
+            return null;
         }
 
         function hasNearBadge_(box) {
