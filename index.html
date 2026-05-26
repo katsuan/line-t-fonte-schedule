@@ -247,19 +247,6 @@
             color: var(--muted);
         }
 
-        .near-chip {
-            flex: 0 0 auto;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: #ffe2bf;
-            color: #a54b00;
-            font-size: 11px;
-            font-weight: 800;
-        }
-
         .footer-link {
             display: inline-flex;
             align-items: center;
@@ -331,11 +318,6 @@
         <section class="hero">
             <div class="hero-kicker">T-FONTE REMINDER</div>
             <h1 class="hero-title">予定シェアを確認してから送信</h1>
-            <p class="hero-copy">
-                Apps Script から受け取った当月以降の予定を、そのまま月別に表示します。
-                複数月ある場合は、LINE の送信内容と同じく横スライドで確認できます。
-                直近予定の強調や Google カレンダー追加ボタンも、送信内容と同じ状態で確認できます。
-            </p>
         </section>
 
         <section class="panel">
@@ -653,7 +635,7 @@
 
         function createSchedulePreviewItem(item) {
             const article = document.createElement("article");
-            article.className = `schedule-item${item.nearLabel ? " near" : ""}`;
+            article.className = `schedule-item${item.isNear ? " near" : ""}`;
 
             const head = document.createElement("div");
             head.className = "schedule-head";
@@ -663,13 +645,6 @@
             title.textContent = item.title || "予定";
 
             head.appendChild(title);
-
-            if (item.nearLabel) {
-                const chip = document.createElement("div");
-                chip.className = "near-chip";
-                chip.textContent = item.nearLabel;
-                head.appendChild(chip);
-            }
 
             article.appendChild(head);
 
@@ -707,8 +682,8 @@
             const titleRow = box.contents.find(item => item.type === "box" && item.layout === "horizontal");
             const textLines = box.contents.filter(item => item.type === "text");
 
-            const title = (titleRow ? extractTexts(titleRow)[0] : "") || textLines[0]?.text || "";
-            const nearLabel = extractBadgeText(titleRow);
+            const title = extractScheduleTitle_(titleRow) || textLines[0]?.text || "";
+            const isNear = box.backgroundColor === "#FFF7ED";
             const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
             const placeLine = textLines[textLines.length - 1]?.text === dateLine ? "" : (textLines[textLines.length - 1]?.text || "");
 
@@ -718,10 +693,20 @@
 
             return {
                 title,
-                nearLabel,
+                isNear,
                 dateLine,
                 placeLine
             };
+        }
+
+        function extractScheduleTitle_(titleRow) {
+            if (!titleRow || !Array.isArray(titleRow.contents)) return "";
+
+            const titleNode = titleRow.contents.find(item => item.type === "text" && item.flex === 1 && item.text);
+            if (titleNode) return titleNode.text;
+
+            const trailingTextNode = [...titleRow.contents].reverse().find(item => item.type === "text" && item.text);
+            return trailingTextNode ? trailingTextNode.text : "";
         }
 
         function extractFooterLink(bubble) {
@@ -754,18 +739,6 @@
                     collectTexts(node[key], result);
                 }
             });
-        }
-
-        function extractBadgeText(node) {
-            if (!node || !Array.isArray(node.contents)) return "";
-
-            const badge = node.contents.find(item =>
-                item.type === "text" &&
-                typeof item.text === "string" &&
-                /^(今日|明日|あと\d+日)$/.test(item.text)
-            );
-
-            return badge ? badge.text : "";
         }
 
         function countPreviewUnits(messages) {

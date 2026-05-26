@@ -88,27 +88,11 @@ function buildCarouselMessages_(bubbles) {
 }
 
 function buildCarouselAltText_(bubbles) {
-  const labels = bubbles
-    .map(bubble => extractHeaderTitle_(bubble))
-    .filter(Boolean);
-
-  if (!labels.length) {
-    return "今後予定を共有します";
+  if (typeof RANDOM_TEXTS !== "undefined" && RANDOM_TEXTS.title && RANDOM_TEXTS.title.length) {
+    return _pickRandom_(RANDOM_TEXTS.title);
   }
 
-  if (labels.length === 1) {
-    return `${labels[0]}を共有します`;
-  }
-
-  return `${labels[0]}から${labels[labels.length - 1]}までの予定を共有します`;
-}
-
-function extractHeaderTitle_(bubble) {
-  const texts = bubble && bubble.header && bubble.header.contents;
-  if (!Array.isArray(texts) || !texts.length) return "";
-
-  const titleNode = texts.find(item => item.type === "text" && item.text);
-  return titleNode ? String(titleNode.text) : "";
+  return "🗓️ 活動日リマインド";
 }
 
 function createMonthlyFlexBubble_(group) {
@@ -131,16 +115,6 @@ function createMonthlyFlexBubble_(group) {
           weight: "bold",
           size: "lg",
           wrap: true
-        },
-        {
-          type: "text",
-          text: emphasizeNearTerm
-            ? "未来予定をまとめています。直近5日は強調表示です。"
-            : "この月の未来予定をまとめています。",
-          color: "#ffffff",
-          size: "sm",
-          margin: "sm",
-          wrap: true
         }
       ]
     },
@@ -152,20 +126,6 @@ function createMonthlyFlexBubble_(group) {
         emphasizeNearTerm,
         now
       }))
-    },
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "sm",
-      contents: [
-        {
-          type: "text",
-          text: "※各予定のボタンからGoogleカレンダーに追加できます。",
-          size: "xs",
-          color: "#888888",
-          wrap: true
-        }
-      ]
     },
     footer: {
       type: "box",
@@ -193,13 +153,40 @@ function createRecordBox_(record, options) {
   const isNearTerm = emphasizeNearTerm && diffDaysFromToday_(record.date, now) <= 5;
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   const calendarUrl = createGoogleCalendarUrl_(record);
+  const iconText = getCalendarIconText_(record.memo1);
 
   const contents = [
     {
       type: "box",
       layout: "horizontal",
       spacing: "sm",
+      alignItems: "center",
       contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          flex: 0,
+          paddingAll: "6px",
+          backgroundColor: "#E6EEF9",
+          cornerRadius: "999px",
+          action: calendarUrl
+            ? {
+              type: "uri",
+              uri: calendarUrl
+            }
+            : undefined,
+          contents: [
+            {
+              type: "text",
+              text: iconText,
+              size: "sm",
+              align: "center",
+              gravity: "center",
+              color: "#1F2937",
+              flex: 0
+            }
+          ]
+        },
         {
           type: "text",
           text: String(record.memo1 || "予定"),
@@ -208,17 +195,38 @@ function createRecordBox_(record, options) {
           color: "#222222",
           wrap: true,
           flex: 1
-        }
+        },
       ]
     },
+    isNearTerm
+      ? {
+        type: "box",
+        layout: "horizontal",
+        justifyContent: "flex-end",
+        contents: [
+          {
+            type: "text",
+            text: "もうすぐ",
+            size: "xs",
+            color: "#A54B00",
+            backgroundColor: "#FFE2BF",
+            paddingAll: "4px",
+            cornerRadius: "999px",
+            align: "center",
+            gravity: "center",
+            flex: 0
+          }
+        ]
+      }
+      : null,
     {
       type: "text",
       text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
       size: "sm",
-      color: isNearTerm ? "#A54B00" : "#555555",
+      color: "#555555",
       wrap: true
     }
-  ];
+  ].filter(Boolean);
 
   if (locationText) {
     contents.push({
@@ -230,26 +238,19 @@ function createRecordBox_(record, options) {
     });
   }
 
-  if (calendarUrl) {
-    contents.push({
-      type: "button",
-      style: "link",
-      height: "sm",
-      action: {
-        type: "uri",
-        label: "Googleカレンダーに追加",
-        uri: calendarUrl
-      }
-    });
-  }
-
   return {
     type: "box",
     layout: "vertical",
     spacing: "xs",
     paddingAll: "12px",
-    backgroundColor: isNearTerm ? "#FFF7ED" : "#F6F8FB",
+    backgroundColor: "#F6F8FB",
     cornerRadius: "12px",
     contents
   };
+}
+
+function getCalendarIconText_(memo1) {
+  const normalized = String(memo1 || "").trim();
+  const firstChar = Array.from(normalized)[0];
+  return firstChar || "予";
 }
