@@ -38,7 +38,8 @@ function createShareFlexMessages_() {
     }];
   }
 
-  return groups.map(createMonthlyFlexMessage_);
+  const bubbles = groups.map(createMonthlyFlexBubble_);
+  return buildCarouselMessages_(bubbles);
 }
 
 function buildMonthlyFlexGroups_(records, now) {
@@ -66,84 +67,123 @@ function buildMonthlyFlexGroups_(records, now) {
   }));
 }
 
-function createMonthlyFlexMessage_(group) {
+function buildCarouselMessages_(bubbles) {
+  const maxBubblesPerCarousel = 12;
+  const messages = [];
+
+  for (let i = 0; i < bubbles.length; i += maxBubblesPerCarousel) {
+    const chunk = bubbles.slice(i, i + maxBubblesPerCarousel);
+
+    messages.push({
+      type: "flex",
+      altText: buildCarouselAltText_(chunk),
+      contents: {
+        type: "carousel",
+        contents: chunk
+      }
+    });
+  }
+
+  return messages;
+}
+
+function buildCarouselAltText_(bubbles) {
+  const labels = bubbles
+    .map(bubble => extractHeaderTitle_(bubble))
+    .filter(Boolean);
+
+  if (!labels.length) {
+    return "今後予定を共有します";
+  }
+
+  if (labels.length === 1) {
+    return `${labels[0]}を共有します`;
+  }
+
+  return `${labels[0]}から${labels[labels.length - 1]}までの予定を共有します`;
+}
+
+function extractHeaderTitle_(bubble) {
+  const texts = bubble && bubble.header && bubble.header.contents;
+  if (!Array.isArray(texts) || !texts.length) return "";
+
+  const titleNode = texts.find(item => item.type === "text" && item.text);
+  return titleNode ? String(titleNode.text) : "";
+}
+
+function createMonthlyFlexBubble_(group) {
   const { monthLabel, records, link, emphasizeNearTerm, now } = group;
   const title = `${monthLabel}の今後予定`;
-  const altText = `${monthLabel}の予定を共有します`;
 
   return {
-    type: "flex",
-    altText,
-    contents: {
-      type: "bubble",
-      size: "mega",
-      header: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: "#4284F3",
-        paddingAll: "16px",
-        contents: [
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#4284F3",
+      paddingAll: "16px",
+      contents: [
+        {
+          type: "text",
+          text: title,
+          color: "#ffffff",
+          weight: "bold",
+          size: "lg",
+          wrap: true
+        },
+        {
+          type: "text",
+          text: emphasizeNearTerm
+            ? "未来予定をまとめています。直近5日は強調表示です。"
+            : "この月の未来予定をまとめています。",
+          color: "#ffffff",
+          size: "sm",
+          margin: "sm",
+          wrap: true
+        }
+      ]
+    },
+    hero: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: records.map(record => createRecordBox_(record, {
+        emphasizeNearTerm,
+        now
+      }))
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "text",
+          text: "※各予定のボタンからGoogleカレンダーに追加できます。",
+          size: "xs",
+          color: "#888888",
+          wrap: true
+        }
+      ]
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: link
+        ? [
           {
-            type: "text",
-            text: title,
-            color: "#ffffff",
-            weight: "bold",
-            size: "lg",
-            wrap: true
-          },
-          {
-            type: "text",
-            text: emphasizeNearTerm
-              ? "未来予定をまとめています。直近5日は強調表示です。"
-              : "この月の未来予定をまとめています。",
-            color: "#ffffff",
-            size: "sm",
-            margin: "sm",
-            wrap: true
-          }
-        ]
-      },
-      hero: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: records.map(record => createRecordBox_(record, {
-          emphasizeNearTerm,
-          now
-        }))
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: [
-          {
-            type: "text",
-            text: "※各予定のボタンからGoogleカレンダーに追加できます。",
-            size: "xs",
-            color: "#888888",
-            wrap: true
-          }
-        ]
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: link
-          ? [
-            {
-              type: "button",
-              style: "primary",
-              action: {
-                type: "uri",
-                label: `${monthLabel}のリンクを開く`,
-                uri: link
-              }
+            type: "button",
+            style: "primary",
+            action: {
+              type: "uri",
+              label: `${monthLabel}のリンクを開く`,
+              uri: link
             }
-          ]
-          : []
-      }
+          }
+        ]
+        : []
     }
   };
 }

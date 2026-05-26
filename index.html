@@ -174,6 +174,33 @@
             gap: 12px;
         }
 
+        .carousel-preview {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(280px, 1fr);
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scroll-snap-type: x proximity;
+        }
+
+        .carousel-bubble {
+            min-width: 0;
+            padding: 14px;
+            border-radius: 18px;
+            background: #f7faff;
+            border: 1px solid var(--line);
+            scroll-snap-align: start;
+        }
+
+        .carousel-bubble-title {
+            margin: 0 0 10px;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: .03em;
+        }
+
         .preview-line {
             white-space: pre-wrap;
             line-height: 1.65;
@@ -306,6 +333,7 @@
             <h1 class="hero-title">予定シェアを確認してから送信</h1>
             <p class="hero-copy">
                 Apps Script から受け取った当月以降の予定を、そのまま月別に表示します。
+                複数月ある場合は、LINE の送信内容と同じく横スライドで確認できます。
                 直近予定の強調や Google カレンダー追加ボタンも、送信内容と同じ状態で確認できます。
             </p>
         </section>
@@ -447,7 +475,7 @@
             });
 
             els.messageList.appendChild(fragment);
-            els.summaryChip.textContent = `${messages.length}件`;
+            els.summaryChip.textContent = `${countPreviewUnits(messages)}か月分`;
             els.summaryChip.classList.remove("hidden");
         }
 
@@ -483,7 +511,8 @@
 
         function createMessageTitle(message, index) {
             if (message.type === "flex") {
-                const headerTitle = extractTexts(message?.contents?.header)[0] || "";
+                const firstBubble = getFirstBubble(message);
+                const headerTitle = extractTexts(firstBubble?.header)[0] || "";
                 return headerTitle || `Flexメッセージ ${index + 1}`;
             }
 
@@ -504,16 +533,55 @@
         }
 
         function createFlexPreview(message) {
+            if (message?.contents?.type === "carousel") {
+                return createCarouselPreview(message);
+            }
+
+            if (message?.contents?.type === "bubble") {
+                return createBubblePreview(message.contents);
+            }
+
             const wrapper = document.createElement("div");
             wrapper.className = "preview-lines";
 
-            const headerTexts = extractTexts(message?.contents?.header);
-            const bodyTexts = extractTexts(message?.contents?.body);
+            const fallback = document.createElement("div");
+            fallback.className = "preview-line";
+            fallback.textContent = "Flex Messageを読み込みました。";
+            wrapper.appendChild(fallback);
+            return wrapper;
+        }
+
+        function createCarouselPreview(message) {
+            const bubbles = getFlexBubbles(message);
+            const wrapper = document.createElement("div");
+            wrapper.className = "carousel-preview";
+
+            bubbles.forEach((bubble, index) => {
+                const bubbleCard = document.createElement("section");
+                bubbleCard.className = "carousel-bubble";
+
+                const bubbleTitle = document.createElement("h4");
+                bubbleTitle.className = "carousel-bubble-title";
+                bubbleTitle.textContent = `${index + 1}枚目`;
+
+                bubbleCard.append(bubbleTitle, createBubblePreview(bubble));
+                wrapper.appendChild(bubbleCard);
+            });
+
+            return wrapper;
+        }
+
+        function createBubblePreview(bubble) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "preview-lines";
+
+            const headerTexts = extractTexts(bubble?.header);
+            const bodyTexts = extractTexts(bubble?.body);
             const headerTitle = headerTexts[0] || "";
             const introText = headerTexts[1] || "";
             const bodyNote = bodyTexts[0] || "";
-            const scheduleItems = extractScheduleItems(message);
-            const footerLink = extractFooterLink(message);
+            const scheduleItems = extractScheduleItems(bubble);
+            const footerLink = extractFooterLink(bubble);
 
             if (headerTitle) {
                 const title = document.createElement("div");
@@ -567,6 +635,22 @@
             return wrapper;
         }
 
+        function getFlexBubbles(message) {
+            if (message?.contents?.type === "carousel" && Array.isArray(message.contents.contents)) {
+                return message.contents.contents;
+            }
+
+            if (message?.contents?.type === "bubble") {
+                return [message.contents];
+            }
+
+            return [];
+        }
+
+        function getFirstBubble(message) {
+            return getFlexBubbles(message)[0] || null;
+        }
+
         function createSchedulePreviewItem(item) {
             const article = document.createElement("article");
             article.className = `schedule-item${item.nearLabel ? " near" : ""}`;
@@ -606,8 +690,8 @@
             return article;
         }
 
-        function extractScheduleItems(message) {
-            const heroContents = message?.contents?.hero?.contents;
+        function extractScheduleItems(bubble) {
+            const heroContents = bubble?.hero?.contents;
             if (!Array.isArray(heroContents)) return [];
 
             return heroContents
@@ -640,8 +724,8 @@
             };
         }
 
-        function extractFooterLink(message) {
-            const contents = message?.contents?.footer?.contents;
+        function extractFooterLink(bubble) {
+            const contents = bubble?.footer?.contents;
             if (!Array.isArray(contents)) return null;
 
             const button = contents.find(item => item.type === "button" && item.action?.type === "uri");
@@ -684,6 +768,17 @@
             return badge ? badge.text : "";
         }
 
+        function countPreviewUnits(messages) {
+            return messages.reduce((count, message) => {
+                if (message?.type !== "flex") {
+                    return count + 1;
+                }
+
+                const bubbleCount = getFlexBubbles(message).length;
+                return count + (bubbleCount || 1);
+            }, 0);
+        }
+
         async function handleShare() {
             try {
                 els.shareBtn.disabled = true;
@@ -695,7 +790,7 @@
 
                 if (result) {
                     els.shareBtn.textContent = "送信しました";
-                    els.status.textContent = `${shareMessages.length}件のメッセージを送信しました。`;
+                    els.status.textContent = `${countPreviewUnits(shareMessages)}か月分の予定を送信しました。`;
 
                     setTimeout(() => {
                         liff.closeWindow();
@@ -733,13 +828,13 @@
                 els.shareBtn.classList.remove("hidden");
                 els.shareBtn.disabled = false;
                 els.shareBtn.textContent = "LINEで送る";
-                els.status.textContent = `${shareMessages.length}件の送信準備ができました。`;
+                els.status.textContent = `${countPreviewUnits(shareMessages)}か月分の送信準備ができました。`;
                 return;
             }
 
             els.shareBtn.classList.add("hidden");
             if (!els.status.textContent || els.status.textContent === STATUS_TEXT.loading) {
-                els.status.textContent = `${shareMessages.length}件をプレビュー表示しています。`;
+                els.status.textContent = `${countPreviewUnits(shareMessages)}か月分をプレビュー表示しています。`;
             }
         }
 
