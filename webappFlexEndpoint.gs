@@ -1,0 +1,246 @@
+function doGet(e) {
+  try {
+    const messages = createShareFlexMessages_();
+
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        ok: true,
+        messages
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        ok: false,
+        message: err.message
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function createShareFlexMessages_() {
+  const records = extractUpcomingRecordsWithDateObjects();
+
+  if (!records.length) {
+    return [{
+      type: "text",
+      text: `🚨エラーが発生しました。\n⚠️シートを確認してね。\n${SETTING.SheetLink}`
+    }];
+  }
+
+  const groups = buildMonthlyFlexGroups_(records, new Date());
+
+  if (!groups.length) {
+    return [{
+      type: "text",
+      text: `🚨表示できる予定がありません。\n${SETTING.SheetLink}`
+    }];
+  }
+
+  return groups.map(createMonthlyFlexMessage_);
+}
+
+function buildMonthlyFlexGroups_(records, now) {
+  const groups = [];
+  const currentYear = now.getFullYear();
+  const currentMonthIndex = now.getMonth();
+
+  const currentMonthRecords = records.filter(record =>
+    isSameYearMonth_(record.date, currentYear, currentMonthIndex)
+  );
+
+  if (currentMonthRecords.length) {
+    groups.push({
+      monthLabel: buildMonthLabel_(now),
+      records: currentMonthRecords,
+      link: findFirstLink_(currentMonthRecords) || SETTING.SheetLink,
+      emphasizeNearTerm: true,
+      now
+    });
+  }
+
+  if (shouldIncludeNextMonthSchedule_(now)) {
+    const nextMonthDate = new Date(currentYear, currentMonthIndex + 1, 1);
+    const nextMonthRecords = records.filter(record =>
+      isSameYearMonth_(record.date, nextMonthDate.getFullYear(), nextMonthDate.getMonth())
+    );
+
+    if (nextMonthRecords.length) {
+      groups.push({
+        monthLabel: buildMonthLabel_(nextMonthDate),
+        records: nextMonthRecords,
+        link: findFirstLink_(nextMonthRecords) || SETTING.SheetLink,
+        emphasizeNearTerm: false,
+        now
+      });
+    }
+  }
+
+  return groups;
+}
+
+function createMonthlyFlexMessage_(group) {
+  const { monthLabel, records, link, emphasizeNearTerm, now } = group;
+  const title = `${monthLabel}の今後予定`;
+  const altText = `${monthLabel}の予定を共有します`;
+
+  return {
+    type: "flex",
+    altText,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#4284F3",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "text",
+            text: title,
+            color: "#ffffff",
+            weight: "bold",
+            size: "lg",
+            wrap: true
+          },
+          {
+            type: "text",
+            text: emphasizeNearTerm
+              ? "未来予定をまとめています。直近5日は強調表示です。"
+              : "月替わりが近いため、翌月予定も先に共有します。",
+            color: "#ffffff",
+            size: "sm",
+            margin: "sm",
+            wrap: true
+          }
+        ]
+      },
+      hero: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: records.map(record => createRecordBox_(record, {
+          emphasizeNearTerm,
+          now
+        }))
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          {
+            type: "text",
+            text: "※各予定のボタンからGoogleカレンダーに追加できます。",
+            size: "xs",
+            color: "#888888",
+            wrap: true
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: link
+          ? [
+            {
+              type: "button",
+              style: "primary",
+              action: {
+                type: "uri",
+                label: `${monthLabel}のリンクを開く`,
+                uri: link
+              }
+            }
+          ]
+          : []
+      }
+    }
+  };
+}
+
+function createRecordBox_(record, options) {
+  const { emphasizeNearTerm, now } = options;
+  const isNearTerm = emphasizeNearTerm && diffDaysFromToday_(record.date, now) <= 5;
+  const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
+  const calendarUrl = createGoogleCalendarUrl_(record);
+
+  const titleRowContents = [
+    {
+      type: "text",
+      text: String(record.memo1 || "予定"),
+      weight: "bold",
+      size: "md",
+      color: "#222222",
+      wrap: true,
+      flex: 1
+    }
+  ];
+
+  if (isNearTerm) {
+    titleRowContents.push({
+      type: "text",
+      text: getApproachingLabel_(record.date, now),
+      size: "xs",
+      color: "#A54B00",
+      backgroundColor: "#FFE2BF",
+      paddingAll: "4px",
+      cornerRadius: "999px",
+      gravity: "center",
+      align: "center",
+      flex: 0
+    });
+  }
+
+  const contents = [
+    {
+      type: "box",
+      layout: "horizontal",
+      spacing: "sm",
+      contents: titleRowContents
+    },
+    {
+      type: "text",
+      text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
+      size: "sm",
+      color: isNearTerm ? "#A54B00" : "#555555",
+      wrap: true
+    }
+  ];
+
+  if (locationText) {
+    contents.push({
+      type: "text",
+      text: locationText,
+      size: "sm",
+      color: "#555555",
+      wrap: true
+    });
+  }
+
+  if (calendarUrl) {
+    contents.push({
+      type: "button",
+      style: "link",
+      height: "sm",
+      action: {
+        type: "uri",
+        label: "Googleカレンダーに追加",
+        uri: calendarUrl
+      }
+    });
+  }
+
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "xs",
+    paddingAll: "12px",
+    backgroundColor: isNearTerm ? "#FFF7ED" : "#F6F8FB",
+    cornerRadius: "12px",
+    contents
+  };
+}
