@@ -25,8 +25,7 @@ const FLEX_CONFIG = {
 };
 
 const ALT_TEXT_CONFIG = {
-  defaultTitle: "🗓️ 活動日リマインド",
-  nearTermPromptSuffix: "の予定が近づいています！"
+  defaultTitle: "🗓️ 活動日リマインド"
 };
 
 function doGet(e) {
@@ -124,7 +123,7 @@ function buildCarouselAltText_(bubbleEntries) {
   const nearTermDateLabels = collectNearTermDateLabels_(bubbleEntries);
 
   if (nearTermDateLabels.length) {
-    return `${nearTermDateLabels.join(", ")}${ALT_TEXT_CONFIG.nearTermPromptSuffix} ${baseTitle}`;
+    return `${baseTitle} (${nearTermDateLabels.join(", ")})`;
   }
 
   return baseTitle;
