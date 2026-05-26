@@ -347,23 +347,13 @@
         };
 
         let shareMessages = [];
+        let canShareInLiff = false;
 
         async function main() {
             setLoading();
 
             try {
-                await liff.init({ liffId: LIFF_ID });
-
-                if (!liff.isLoggedIn()) {
-                    els.status.textContent = "LINEログインへ移動します...";
-                    els.loading.classList.add("hidden");
-                    liff.login();
-                    return;
-                }
-
-                if (!liff.isApiAvailable("shareTargetPicker")) {
-                    throw new Error("この環境ではシェア機能を利用できません。");
-                }
+                await initializeLiffMode();
 
                 const data = await fetchShareData();
                 const originalMessages = normalizeMessages(data);
@@ -374,12 +364,40 @@
 
                 shareMessages = originalMessages.map(cloneObject);
                 renderPreviewFromMessages(shareMessages);
-                setReady();
+                setReady(canShareInLiff);
 
             } catch (err) {
                 console.error(err);
                 setError(err.message);
             }
+        }
+
+        async function initializeLiffMode() {
+            canShareInLiff = false;
+
+            if (!window.liff) {
+                els.status.textContent = "LIFFなしのプレビュー表示です。";
+                return;
+            }
+
+            try {
+                await liff.init({ liffId: LIFF_ID });
+            } catch (err) {
+                els.status.textContent = "LIFF初期化に失敗したため、プレビューのみ表示します。";
+                return;
+            }
+
+            if (!liff.isLoggedIn()) {
+                els.status.textContent = "LINE外プレビュー中です。送信は LIFF から行ってください。";
+                return;
+            }
+
+            if (!liff.isApiAvailable("shareTargetPicker")) {
+                els.status.textContent = "このブラウザでは送信できないため、プレビューのみ表示します。";
+                return;
+            }
+
+            canShareInLiff = true;
         }
 
         async function fetchShareData() {
@@ -719,14 +737,23 @@
             els.status.textContent = "読み込み中...";
         }
 
-        function setReady() {
+        function setReady(shareEnabled) {
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
-            els.shareBtn.classList.remove("hidden");
             els.reloadBtn.classList.add("hidden");
-            els.shareBtn.disabled = false;
-            els.shareBtn.textContent = "LINEで送る";
-            els.status.textContent = `${shareMessages.length}件の送信準備ができました。`;
+
+            if (shareEnabled) {
+                els.shareBtn.classList.remove("hidden");
+                els.shareBtn.disabled = false;
+                els.shareBtn.textContent = "LINEで送る";
+                els.status.textContent = `${shareMessages.length}件の送信準備ができました。`;
+                return;
+            }
+
+            els.shareBtn.classList.add("hidden");
+            if (!els.status.textContent || els.status.textContent === "読み込み中...") {
+                els.status.textContent = `${shareMessages.length}件をプレビュー表示しています。`;
+            }
         }
 
         function setError(message) {
