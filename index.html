@@ -347,9 +347,21 @@
 
         .status {
             margin: 10px 4px 0;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
             color: var(--muted);
             font-size: 12px;
+        }
+
+        .status-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #d7dfeb;
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
         }
 
         .hidden {
@@ -392,7 +404,10 @@
                 <button id="reloadBtn" class="button button-secondary hidden">再読み込み</button>
             </div>
 
-            <p id="status" class="status">初期化中...</p>
+            <p id="status" class="status">
+                <span id="statusSpinner" class="status-spinner hidden"></span>
+                <span id="statusText">初期化中...</span>
+            </p>
         </div>
     </footer>
 
@@ -418,6 +433,8 @@
             shareBtn: document.getElementById("shareBtn"),
             reloadBtn: document.getElementById("reloadBtn"),
             status: document.getElementById("status"),
+            statusText: document.getElementById("statusText"),
+            statusSpinner: document.getElementById("statusSpinner"),
             summaryChip: document.getElementById("summaryChip"),
         };
 
@@ -454,24 +471,24 @@
             canShareInLiff = false;
 
             if (!window.liff) {
-                els.status.textContent = STATUS_TEXT.noLiff;
+                setStatus(STATUS_TEXT.noLiff);
                 return;
             }
 
             try {
                 await liff.init({ liffId: LIFF_ID });
             } catch (err) {
-                els.status.textContent = STATUS_TEXT.liffInitFailed;
+                setStatus(STATUS_TEXT.liffInitFailed);
                 return;
             }
 
             if (!liff.isLoggedIn()) {
-                els.status.textContent = STATUS_TEXT.outsideLine;
+                setStatus(STATUS_TEXT.outsideLine);
                 return;
             }
 
             if (!liff.isApiAvailable("shareTargetPicker")) {
-                els.status.textContent = STATUS_TEXT.noShareApi;
+                setStatus(STATUS_TEXT.noShareApi);
                 return;
             }
 
@@ -515,7 +532,8 @@
             renderPreviewFromMessages(shareMessages);
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
-            els.status.textContent = STATUS_TEXT.refreshing;
+            setFooterBusy(true);
+            setStatus(STATUS_TEXT.refreshing, { loading: true });
         }
 
         function savePreviewCache(messages) {
@@ -976,6 +994,7 @@
             try {
                 els.shareBtn.disabled = true;
                 els.shareBtn.textContent = "送信先を選択中...";
+                setStatus("送信先を選択中...");
 
                 const result = await liff.shareTargetPicker(shareMessages, {
                     isMultiple: true,
@@ -983,7 +1002,7 @@
 
                 if (result) {
                     els.shareBtn.textContent = "送信しました";
-                    els.status.textContent = `${countPreviewUnits(shareMessages)}か月分の予定を送信しました。`;
+                    setStatus(`${countPreviewUnits(shareMessages)}か月分の予定を送信しました。`);
 
                     setTimeout(() => {
                         liff.closeWindow();
@@ -991,15 +1010,29 @@
                 } else {
                     els.shareBtn.disabled = false;
                     els.shareBtn.textContent = "LINEで送る";
-                    els.status.textContent = "送信をキャンセルしました。";
+                    setStatus("送信をキャンセルしました。");
                 }
 
             } catch (err) {
                 console.error(err);
                 els.shareBtn.disabled = false;
                 els.shareBtn.textContent = "LINEで送る";
-                els.status.textContent = "送信失敗: " + err.message;
+                setStatus("送信失敗: " + err.message);
             }
+        }
+
+        function setStatus(message, options = {}) {
+            const { loading = false } = options;
+            els.statusText.textContent = message;
+            els.statusSpinner.classList.toggle("hidden", !loading);
+        }
+
+        function setFooterBusy(isBusy) {
+            [els.shareBtn, els.reloadBtn].forEach(button => {
+                if (button && !button.classList.contains("hidden")) {
+                    button.disabled = isBusy;
+                }
+            });
         }
 
         function setLoading() {
@@ -1009,25 +1042,27 @@
             els.summaryChip.classList.add("hidden");
             els.shareBtn.classList.add("hidden");
             els.reloadBtn.classList.add("hidden");
-            els.status.textContent = STATUS_TEXT.loading;
+            setFooterBusy(true);
+            setStatus(STATUS_TEXT.loading, { loading: true });
         }
 
         function setReady(shareEnabled) {
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
             els.reloadBtn.classList.add("hidden");
+            setFooterBusy(false);
 
             if (shareEnabled) {
                 els.shareBtn.classList.remove("hidden");
                 els.shareBtn.disabled = false;
                 els.shareBtn.textContent = "LINEで送る";
-                els.status.textContent = `${countPreviewUnits(shareMessages)}か月分の送信準備ができました。`;
+                setStatus(`${countPreviewUnits(shareMessages)}か月分の送信準備ができました。`);
                 return;
             }
 
             els.shareBtn.classList.add("hidden");
-            if (!els.status.textContent || els.status.textContent === STATUS_TEXT.loading) {
-                els.status.textContent = `${countPreviewUnits(shareMessages)}か月分をプレビュー表示しています。`;
+            if (!els.statusText.textContent || els.statusText.textContent === STATUS_TEXT.loading || els.statusText.textContent === STATUS_TEXT.refreshing) {
+                setStatus(`${countPreviewUnits(shareMessages)}か月分をプレビュー表示しています。`);
             }
         }
 
@@ -1038,6 +1073,7 @@
             els.summaryChip.classList.add("hidden");
             els.shareBtn.classList.add("hidden");
             els.reloadBtn.classList.remove("hidden");
+            setFooterBusy(false);
 
             const errorCard = document.createElement("section");
             errorCard.className = "message-card";
@@ -1053,7 +1089,7 @@
             errorCard.appendChild(body);
             els.messageList.appendChild(errorCard);
 
-            els.status.textContent = STATUS_TEXT.reload;
+            setStatus(STATUS_TEXT.reload);
         }
 
         els.shareBtn.addEventListener("click", handleShare);
