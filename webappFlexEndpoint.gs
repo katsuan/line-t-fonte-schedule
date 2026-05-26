@@ -1,6 +1,6 @@
 const FLEX_CONFIG = {
   maxBubblesPerCarousel: 12,
-  maxVisibleRecordsPerMonth: 5,
+  maxVisibleRecordsPerMonth: 4,
   nearTermDays: 5,
   headerBackgroundColor: "#4284F3",
   recordBackgroundColor: "#F6F8FB",
@@ -321,7 +321,7 @@ function createRecordBox_(record, options) {
           contents: [
             {
               type: "text",
-              text: "要回答",
+              text: "もうすぐ",
               size: "xs",
               color: FLEX_CONFIG.badgeTextColor,
               align: "center",
