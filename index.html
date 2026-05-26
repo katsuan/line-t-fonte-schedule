@@ -823,19 +823,30 @@
         }
 
         function extractScheduleIconText_(box) {
-            if (!box || !Array.isArray(box.contents)) return "";
+            const iconContainer = findIconContainer_(box);
+            if (!iconContainer || !Array.isArray(iconContainer.contents)) return "";
 
-            const iconContainer = box.contents.find(item =>
+            const iconNode = iconContainer.contents.find(child => child?.type === "text" && child.text);
+            return iconNode ? iconNode.text : "";
+        }
+
+        function findIconContainer_(node) {
+            if (!node || !Array.isArray(node.contents)) return null;
+
+            const directMatch = node.contents.find(item =>
                 item?.type === "box" &&
                 item?.backgroundColor === "#E6EEF9" &&
                 Array.isArray(item.contents) &&
                 item.contents.some(child => child?.type === "text" && child.text)
             );
+            if (directMatch) return directMatch;
 
-            if (!iconContainer) return "";
+            for (const child of node.contents) {
+                const nestedMatch = findIconContainer_(child);
+                if (nestedMatch) return nestedMatch;
+            }
 
-            const iconNode = iconContainer.contents.find(child => child?.type === "text" && child.text);
-            return iconNode ? iconNode.text : "";
+            return null;
         }
 
         function getMessageAltText(message) {
