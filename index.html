@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>T-FONTE 予定シェア</title>
+    <link rel="icon" href="data:," />
 
     <style>
         :root {
@@ -304,7 +305,7 @@
             <div class="hero-kicker">T-FONTE REMINDER</div>
             <h1 class="hero-title">予定シェアを確認してから送信</h1>
             <p class="hero-copy">
-                Apps Script から受け取った当月・翌月の予定をそのまま表示します。
+                Apps Script から受け取った当月以降の予定を、そのまま月別に表示します。
                 直近予定の強調や Google カレンダー追加ボタンも、送信内容と同じ状態で確認できます。
             </p>
         </section>
@@ -336,6 +337,14 @@
     <script>
         const LIFF_ID = "2009927582-9QtOstUK";
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+        const STATUS_TEXT = {
+            noLiff: "LIFFなしのプレビュー表示です。",
+            liffInitFailed: "LIFF初期化に失敗したため、プレビューのみ表示します。",
+            outsideLine: "LINE外プレビュー中です。送信は LIFF から行ってください。",
+            noShareApi: "このブラウザでは送信できないため、プレビューのみ表示します。",
+            loading: "読み込み中...",
+            reload: "再読み込みしてください。",
+        };
 
         const els = {
             loading: document.getElementById("loading"),
@@ -376,24 +385,24 @@
             canShareInLiff = false;
 
             if (!window.liff) {
-                els.status.textContent = "LIFFなしのプレビュー表示です。";
+                els.status.textContent = STATUS_TEXT.noLiff;
                 return;
             }
 
             try {
                 await liff.init({ liffId: LIFF_ID });
             } catch (err) {
-                els.status.textContent = "LIFF初期化に失敗したため、プレビューのみ表示します。";
+                els.status.textContent = STATUS_TEXT.liffInitFailed;
                 return;
             }
 
             if (!liff.isLoggedIn()) {
-                els.status.textContent = "LINE外プレビュー中です。送信は LIFF から行ってください。";
+                els.status.textContent = STATUS_TEXT.outsideLine;
                 return;
             }
 
             if (!liff.isApiAvailable("shareTargetPicker")) {
-                els.status.textContent = "このブラウザでは送信できないため、プレビューのみ表示します。";
+                els.status.textContent = STATUS_TEXT.noShareApi;
                 return;
             }
 
@@ -474,7 +483,7 @@
 
         function createMessageTitle(message, index) {
             if (message.type === "flex") {
-                const headerTitle = extractFirstText(message?.contents?.header);
+                const headerTitle = extractTexts(message?.contents?.header)[0] || "";
                 return headerTitle || `Flexメッセージ ${index + 1}`;
             }
 
@@ -498,9 +507,11 @@
             const wrapper = document.createElement("div");
             wrapper.className = "preview-lines";
 
-            const headerTitle = extractFirstText(message?.contents?.header);
-            const introText = extractSecondHeaderText(message?.contents?.header);
-            const bodyNote = extractFirstText(message?.contents?.body);
+            const headerTexts = extractTexts(message?.contents?.header);
+            const bodyTexts = extractTexts(message?.contents?.body);
+            const headerTitle = headerTexts[0] || "";
+            const introText = headerTexts[1] || "";
+            const bodyNote = bodyTexts[0] || "";
             const scheduleItems = extractScheduleItems(message);
             const footerLink = extractFooterLink(message);
 
@@ -612,7 +623,7 @@
             const titleRow = box.contents.find(item => item.type === "box" && item.layout === "horizontal");
             const textLines = box.contents.filter(item => item.type === "text");
 
-            const title = extractFirstText(titleRow) || textLines[0]?.text || "";
+            const title = (titleRow ? extractTexts(titleRow)[0] : "") || textLines[0]?.text || "";
             const nearLabel = extractBadgeText(titleRow);
             const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
             const placeLine = textLines[textLines.length - 1]?.text === dateLine ? "" : (textLines[textLines.length - 1]?.text || "");
@@ -637,46 +648,10 @@
             return button ? { label: button.action.label || "リンクを開く", uri: button.action.uri } : null;
         }
 
-        function extractFirstText(node) {
-            if (!node || typeof node !== "object") return "";
-
-            if (node.type === "text" && node.text) {
-                return node.text;
-            }
-
-            if (Array.isArray(node.contents)) {
-                for (const child of node.contents) {
-                    const text = extractFirstText(child);
-                    if (text) return text;
-                }
-            }
-
-            for (const key of ["header", "hero", "body", "footer"]) {
-                if (node[key]) {
-                    const text = extractFirstText(node[key]);
-                    if (text) return text;
-                }
-            }
-
-            return "";
-        }
-
-        function extractSecondHeaderText(headerNode) {
+        function extractTexts(node) {
             const texts = [];
-            collectTexts(headerNode, texts);
-            return texts[1] || "";
-        }
-
-        function extractBadgeText(node) {
-            if (!node || !Array.isArray(node.contents)) return "";
-
-            const badge = node.contents.find(item =>
-                item.type === "text" &&
-                typeof item.text === "string" &&
-                /^(今日|明日|あと\d+日)$/.test(item.text)
-            );
-
-            return badge ? badge.text : "";
+            collectTexts(node, texts);
+            return texts;
         }
 
         function collectTexts(node, result) {
@@ -695,6 +670,18 @@
                     collectTexts(node[key], result);
                 }
             });
+        }
+
+        function extractBadgeText(node) {
+            if (!node || !Array.isArray(node.contents)) return "";
+
+            const badge = node.contents.find(item =>
+                item.type === "text" &&
+                typeof item.text === "string" &&
+                /^(今日|明日|あと\d+日)$/.test(item.text)
+            );
+
+            return badge ? badge.text : "";
         }
 
         async function handleShare() {
@@ -734,7 +721,7 @@
             els.summaryChip.classList.add("hidden");
             els.shareBtn.classList.add("hidden");
             els.reloadBtn.classList.add("hidden");
-            els.status.textContent = "読み込み中...";
+            els.status.textContent = STATUS_TEXT.loading;
         }
 
         function setReady(shareEnabled) {
@@ -751,7 +738,7 @@
             }
 
             els.shareBtn.classList.add("hidden");
-            if (!els.status.textContent || els.status.textContent === "読み込み中...") {
+            if (!els.status.textContent || els.status.textContent === STATUS_TEXT.loading) {
                 els.status.textContent = `${shareMessages.length}件をプレビュー表示しています。`;
             }
         }
@@ -778,7 +765,7 @@
             errorCard.appendChild(body);
             els.messageList.appendChild(errorCard);
 
-            els.status.textContent = "再読み込みしてください。";
+            els.status.textContent = STATUS_TEXT.reload;
         }
 
         els.shareBtn.addEventListener("click", handleShare);

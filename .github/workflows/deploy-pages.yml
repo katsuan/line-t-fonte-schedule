@@ -30,9 +30,8 @@ jobs:
 
       - name: Prepare static files
         run: |
-          mkdir public
+          mkdir -p public
           cp index.html public/index.html
-          cp .nojekyll public/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
