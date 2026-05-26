@@ -1,3 +1,29 @@
+const FLEX_CONFIG = {
+  maxBubblesPerCarousel: 12,
+  maxVisibleRecordsPerMonth: 5,
+  nearTermDays: 5,
+  headerBackgroundColor: "#4284F3",
+  recordBackgroundColor: "#F6F8FB",
+  iconBackgroundColor: "#E6EEF9",
+  badgeBackgroundColor: "#FFE2BF",
+  summaryTextColor: "#5B6B7F",
+  badgeTextColor: "#A54B00",
+  textPrimaryColor: "#222222",
+  textSecondaryColor: "#555555",
+  iconTextColor: "#1F2937",
+  headerPadding: "16px",
+  cardPadding: "12px",
+  cardCornerRadius: "12px",
+  iconSize: "52px",
+  iconCornerRadius: "999px",
+  badgeWidth: "70px",
+  badgeHeight: "22px",
+  badgeCornerRadius: "100px",
+  badgePaddingAll: "2px",
+  badgePaddingHorizontal: "7px",
+  badgeOffset: "12px"
+};
+
 function doGet(e) {
   try {
     const messages = createShareFlexMessages_();
@@ -67,11 +93,10 @@ function buildMonthlyFlexGroups_(records, now) {
 }
 
 function buildCarouselMessages_(bubbles) {
-  const maxBubblesPerCarousel = 12;
   const messages = [];
 
-  for (let i = 0; i < bubbles.length; i += maxBubblesPerCarousel) {
-    const chunk = bubbles.slice(i, i + maxBubblesPerCarousel);
+  for (let i = 0; i < bubbles.length; i += FLEX_CONFIG.maxBubblesPerCarousel) {
+    const chunk = bubbles.slice(i, i + FLEX_CONFIG.maxBubblesPerCarousel);
 
     messages.push({
       type: "flex",
@@ -104,8 +129,8 @@ function createMonthlyFlexBubble_(group) {
     header: {
       type: "box",
       layout: "vertical",
-      backgroundColor: "#4284F3",
-      paddingAll: "16px",
+      backgroundColor: FLEX_CONFIG.headerBackgroundColor,
+      paddingAll: FLEX_CONFIG.headerPadding,
       contents: [
         {
           type: "text",
@@ -121,9 +146,7 @@ function createMonthlyFlexBubble_(group) {
       type: "box",
       layout: "vertical",
       spacing: "sm",
-      contents: records.map(record => createRecordBox_(record, {
-        now
-      }))
+      contents: buildMonthlyRecordContents_(records, now)
     },
     footer: {
       type: "box",
@@ -146,10 +169,30 @@ function createMonthlyFlexBubble_(group) {
   };
 }
 
+function buildMonthlyRecordContents_(records, now) {
+  const visibleRecords = records.slice(0, FLEX_CONFIG.maxVisibleRecordsPerMonth);
+  const hiddenCount = Math.max(records.length - visibleRecords.length, 0);
+  const contents = visibleRecords.map(record => createRecordBox_(record, { now }));
+
+  if (hiddenCount > 0) {
+    contents.push({
+      type: "text",
+      text: `他${hiddenCount}件`,
+      size: "sm",
+      color: FLEX_CONFIG.summaryTextColor,
+      weight: "bold",
+      align: "center",
+      margin: "sm"
+    });
+  }
+
+  return contents;
+}
+
 function createRecordBox_(record, options) {
   const { now } = options;
   const diffDays = diffDaysFromToday_(record.date, now);
-  const isNearTerm = diffDays >= 0 && diffDays <= 5;
+  const isNearTerm = diffDays >= 0 && diffDays <= FLEX_CONFIG.nearTermDays;
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   const calendarUrl = createGoogleCalendarUrl_(record);
   const iconText = getCalendarIconText_(record.memo1);
@@ -159,9 +202,9 @@ function createRecordBox_(record, options) {
     type: "box",
     layout: "vertical",
     position: "relative",
-    paddingAll: "12px",
-    backgroundColor: "#F6F8FB",
-    cornerRadius: "12px",
+    paddingAll: FLEX_CONFIG.cardPadding,
+    backgroundColor: FLEX_CONFIG.recordBackgroundColor,
+    cornerRadius: FLEX_CONFIG.cardCornerRadius,
     contents: [
       {
         type: "box",
@@ -172,13 +215,13 @@ function createRecordBox_(record, options) {
             type: "box",
             layout: "vertical",
             flex: 0,
-            width: "52px",
-            height: "52px",
+            width: FLEX_CONFIG.iconSize,
+            height: FLEX_CONFIG.iconSize,
             justifyContent: "center",
             alignItems: "center",
             paddingAll: "0px",
-            backgroundColor: "#E6EEF9",
-            cornerRadius: "999px",
+            backgroundColor: FLEX_CONFIG.iconBackgroundColor,
+            cornerRadius: FLEX_CONFIG.iconCornerRadius,
             action: calendarUrl
               ? {
                 type: "uri",
@@ -193,7 +236,7 @@ function createRecordBox_(record, options) {
                 weight: "bold",
                 align: "center",
                 gravity: "center",
-                color: "#1F2937",
+                color: FLEX_CONFIG.iconTextColor,
                 flex: 0
               }
             ]
@@ -209,14 +252,14 @@ function createRecordBox_(record, options) {
                 text: titleText,
                 weight: "bold",
                 size: "md",
-                color: "#222222",
+                color: FLEX_CONFIG.textPrimaryColor,
                 wrap: true
               },
               {
                 type: "text",
                 text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
                 size: "sm",
-                color: "#555555",
+                color: FLEX_CONFIG.textSecondaryColor,
                 wrap: true
               },
               locationText
@@ -224,7 +267,7 @@ function createRecordBox_(record, options) {
                   type: "text",
                   text: locationText,
                   size: "sm",
-                  color: "#555555",
+                  color: FLEX_CONFIG.textSecondaryColor,
                   wrap: true
                 }
                 : null
@@ -236,7 +279,7 @@ function createRecordBox_(record, options) {
         ? {
           type: "box",
           layout: "horizontal",
-          width: "70px",
+          width: FLEX_CONFIG.badgeWidth,
           justifyContent: "center",
           alignItems: "center",
           contents: [
@@ -244,21 +287,21 @@ function createRecordBox_(record, options) {
               type: "text",
               text: "要回答",
               size: "xs",
-              color: "#A54B00",
+              color: FLEX_CONFIG.badgeTextColor,
               align: "center",
               gravity: "center"
             }
           ],
-          backgroundColor: "#FFE2BF",
-          paddingAll: "2px",
-          paddingStart: "7px",
-          paddingEnd: "7px",
+          backgroundColor: FLEX_CONFIG.badgeBackgroundColor,
+          paddingAll: FLEX_CONFIG.badgePaddingAll,
+          paddingStart: FLEX_CONFIG.badgePaddingHorizontal,
+          paddingEnd: FLEX_CONFIG.badgePaddingHorizontal,
           flex: 0,
           position: "absolute",
-          offsetEnd: "12px",
-          offsetTop: "12px",
-          cornerRadius: "100px",
-          height: "22px"
+          offsetEnd: FLEX_CONFIG.badgeOffset,
+          offsetTop: FLEX_CONFIG.badgeOffset,
+          cornerRadius: FLEX_CONFIG.badgeCornerRadius,
+          height: FLEX_CONFIG.badgeHeight
         }
         : null
     ].filter(Boolean)

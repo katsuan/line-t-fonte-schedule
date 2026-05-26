@@ -624,6 +624,7 @@
             const introText = headerTexts[1] || "";
             const bodyNote = bodyTexts[0] || "";
             const scheduleItems = extractScheduleItems(bubble);
+            const overflowNote = extractOverflowNote(bubble);
             const footerLink = extractFooterLink(bubble);
 
             if (headerTitle) {
@@ -649,6 +650,13 @@
                 });
 
                 wrapper.appendChild(list);
+            }
+
+            if (overflowNote) {
+                const note = document.createElement("div");
+                note.className = "preview-line";
+                note.textContent = overflowNote;
+                wrapper.appendChild(note);
             }
 
             if (bodyNote) {
@@ -753,6 +761,19 @@
             return heroContents
                 .map(extractScheduleItemFromBox)
                 .filter(Boolean);
+        }
+
+        function extractOverflowNote(bubble) {
+            const heroContents = bubble?.hero?.contents;
+            if (!Array.isArray(heroContents)) return "";
+
+            const noteNode = heroContents.find(item =>
+                item?.type === "text" &&
+                typeof item.text === "string" &&
+                /^他\d+件$/.test(item.text)
+            );
+
+            return noteNode ? noteNode.text : "";
         }
 
         function extractScheduleItemFromBox(box) {
