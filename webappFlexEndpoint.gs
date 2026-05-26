@@ -97,7 +97,7 @@ function buildCarouselAltText_(bubbles) {
 
 function createMonthlyFlexBubble_(group) {
   const { monthLabel, records, link, emphasizeNearTerm, now } = group;
-  const title = `${monthLabel}の今後予定`;
+  const title = `${monthLabel}の予定`;
 
   return {
     type: "bubble",
@@ -154,98 +154,100 @@ function createRecordBox_(record, options) {
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   const calendarUrl = createGoogleCalendarUrl_(record);
   const iconText = getCalendarIconText_(record.memo1);
-
-  const contents = [
-    {
-      type: "box",
-      layout: "horizontal",
-      spacing: "sm",
-      alignItems: "center",
-      contents: [
-        {
-          type: "box",
-          layout: "vertical",
-          flex: 0,
-          paddingAll: "6px",
-          backgroundColor: "#E6EEF9",
-          cornerRadius: "999px",
-          action: calendarUrl
-            ? {
-              type: "uri",
-              uri: calendarUrl
-            }
-            : undefined,
-          contents: [
-            {
-              type: "text",
-              text: iconText,
-              size: "sm",
-              align: "center",
-              gravity: "center",
-              color: "#1F2937",
-              flex: 0
-            }
-          ]
-        },
-        {
-          type: "text",
-          text: String(record.memo1 || "予定"),
-          weight: "bold",
-          size: "md",
-          color: "#222222",
-          wrap: true,
-          flex: 1
-        },
-      ]
-    },
-    isNearTerm
-      ? {
-        type: "box",
-        layout: "horizontal",
-        justifyContent: "flex-end",
-        contents: [
-          {
-            type: "text",
-            text: "もうすぐ",
-            size: "xs",
-            color: "#A54B00",
-            backgroundColor: "#FFE2BF",
-            paddingAll: "4px",
-            cornerRadius: "999px",
-            align: "center",
-            gravity: "center",
-            flex: 0
-          }
-        ]
-      }
-      : null,
-    {
-      type: "text",
-      text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
-      size: "sm",
-      color: "#555555",
-      wrap: true
-    }
-  ].filter(Boolean);
-
-  if (locationText) {
-    contents.push({
-      type: "text",
-      text: locationText,
-      size: "sm",
-      color: "#555555",
-      wrap: true
-    });
-  }
+  const titleText = getDisplayTitleText_(record.memo1);
 
   return {
     type: "box",
-    layout: "vertical",
-    spacing: "xs",
+    layout: "horizontal",
+    spacing: "sm",
     paddingAll: "12px",
     backgroundColor: "#F6F8FB",
     cornerRadius: "12px",
-    contents
+    contents: [
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 0,
+        width: "40px",
+        justifyContent: "center",
+        alignItems: "center",
+        paddingAll: "6px",
+        backgroundColor: "#E6EEF9",
+        cornerRadius: "12px",
+        action: calendarUrl
+          ? {
+            type: "uri",
+            uri: calendarUrl
+          }
+          : undefined,
+        contents: [
+          {
+            type: "text",
+            text: iconText,
+            size: "sm",
+            align: "center",
+            gravity: "center",
+            color: "#1F2937",
+            flex: 0
+          }
+        ]
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        flex: 1,
+        spacing: "xs",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            alignItems: "flex-start",
+            spacing: "sm",
+            contents: [
+              {
+                type: "text",
+                text: titleText,
+                weight: "bold",
+                size: "md",
+                color: "#222222",
+                wrap: true,
+                flex: 1
+              },
+              isNearTerm
+                ? {
+                  type: "text",
+                  text: "もうすぐ",
+                  size: "xs",
+                  color: "#A54B00",
+                  backgroundColor: "#FFE2BF",
+                  paddingAll: "4px",
+                  cornerRadius: "999px",
+                  align: "center",
+                  gravity: "center",
+                  flex: 0
+                }
+                : null
+            ].filter(Boolean)
+          },
+          {
+            type: "text",
+            text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
+            size: "sm",
+            color: "#555555",
+            wrap: true
+          },
+          locationText
+            ? {
+              type: "text",
+              text: locationText,
+              size: "sm",
+              color: "#555555",
+              wrap: true
+            }
+            : null
+        ].filter(Boolean)
+      }
+    ]
   };
 }
 
@@ -253,4 +255,23 @@ function getCalendarIconText_(memo1) {
   const normalized = String(memo1 || "").trim();
   const firstChar = Array.from(normalized)[0];
   return firstChar || "予";
+}
+
+function getDisplayTitleText_(memo1) {
+  const normalized = String(memo1 || "").trim();
+  if (!normalized) return "予定";
+
+  const chars = Array.from(normalized);
+  const firstChar = chars[0];
+
+  if (isEmojiLikeChar_(firstChar)) {
+    const remaining = chars.slice(1).join("").replace(/^\s+/, "");
+    return remaining || normalized;
+  }
+
+  return normalized;
+}
+
+function isEmojiLikeChar_(char) {
+  return !!char && /\p{Extended_Pictographic}/u.test(char);
 }

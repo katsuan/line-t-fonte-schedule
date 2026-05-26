@@ -698,8 +698,16 @@
                 return null;
             }
 
-            const titleRow = box.contents.find(item => item.type === "box" && item.layout === "horizontal");
-            const textLines = box.contents.filter(item => item.type === "text");
+            const detailColumn = box.contents.find(item =>
+                item?.type === "box" &&
+                item?.layout === "vertical" &&
+                item?.flex === 1
+            );
+            const sourceBox = detailColumn || box;
+            const titleRow = sourceBox.contents?.find(item => item.type === "box" && item.layout === "horizontal");
+            const textLines = Array.isArray(sourceBox.contents)
+                ? sourceBox.contents.filter(item => item.type === "text")
+                : [];
 
             const title = extractScheduleTitle_(titleRow) || textLines[0]?.text || "";
             const isNear = hasNearBadge_(box);
