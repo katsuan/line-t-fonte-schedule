@@ -407,7 +407,7 @@
             });
 
             if (!res.ok) {
-                throw new Error("GASへの接続に失敗しました。");
+                throw new Error(`GASへの接続に失敗しました。status=${res.status} url=${GAS_URL}`);
             }
 
             return await res.json();
