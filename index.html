@@ -827,6 +827,7 @@
 
             const iconContainer = box.contents.find(item =>
                 item?.type === "box" &&
+                item?.backgroundColor === "#E6EEF9" &&
                 Array.isArray(item.contents) &&
                 item.contents.some(child => child?.type === "text" && child.text)
             );
