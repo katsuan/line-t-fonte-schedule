@@ -42,42 +42,28 @@ function createShareFlexMessages_() {
 }
 
 function buildMonthlyFlexGroups_(records, now) {
-  const groups = [];
-  const currentYear = now.getFullYear();
-  const currentMonthIndex = now.getMonth();
+  const groupsByMonth = new Map();
 
-  const currentMonthRecords = records.filter(record =>
-    isSameYearMonth_(record.date, currentYear, currentMonthIndex)
-  );
+  records.forEach(record => {
+    const key = buildYearMonthKey_(record.date);
 
-  if (currentMonthRecords.length) {
-    groups.push({
-      monthLabel: buildMonthLabel_(now),
-      records: currentMonthRecords,
-      link: findFirstLink_(currentMonthRecords) || SETTING.SheetLink,
-      emphasizeNearTerm: true,
-      now
-    });
-  }
-
-  if (shouldIncludeNextMonthSchedule_(now)) {
-    const nextMonthDate = new Date(currentYear, currentMonthIndex + 1, 1);
-    const nextMonthRecords = records.filter(record =>
-      isSameYearMonth_(record.date, nextMonthDate.getFullYear(), nextMonthDate.getMonth())
-    );
-
-    if (nextMonthRecords.length) {
-      groups.push({
-        monthLabel: buildMonthLabel_(nextMonthDate),
-        records: nextMonthRecords,
-        link: findFirstLink_(nextMonthRecords) || SETTING.SheetLink,
-        emphasizeNearTerm: false,
-        now
+    if (!groupsByMonth.has(key)) {
+      groupsByMonth.set(key, {
+        monthDate: new Date(record.date.getFullYear(), record.date.getMonth(), 1),
+        records: []
       });
     }
-  }
 
-  return groups;
+    groupsByMonth.get(key).records.push(record);
+  });
+
+  return Array.from(groupsByMonth.values()).map(group => ({
+    monthLabel: buildMonthLabel_(group.monthDate),
+    records: group.records,
+    link: findFirstLink_(group.records) || SETTING.SheetLink,
+    emphasizeNearTerm: isSameYearMonth_(group.monthDate, now.getFullYear(), now.getMonth()),
+    now
+  }));
 }
 
 function createMonthlyFlexMessage_(group) {
@@ -109,7 +95,7 @@ function createMonthlyFlexMessage_(group) {
             type: "text",
             text: emphasizeNearTerm
               ? "未来予定をまとめています。直近5日は強調表示です。"
-              : "月替わりが近いため、翌月予定も先に共有します。",
+              : "この月の未来予定をまとめています。",
             color: "#ffffff",
             size: "sm",
             margin: "sm",

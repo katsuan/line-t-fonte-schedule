@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>T-FONTE 予定シェア</title>
+
+    <style>
+        :root {
+            --bg: #f3f6fb;
+            --card: #ffffff;
+            --line: #d9e2ef;
+            --text: #1c2733;
+            --muted: #627487;
+            --primary: #06c755;
+            --primary-dark: #05a347;
+            --accent: #4284f3;
+            --accent-soft: #e9f1ff;
+            --shadow: 0 18px 40px rgba(42, 72, 120, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 24px 16px 40px;
+            font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+            background:
+                radial-gradient(circle at top left, #ffffff 0%, rgba(255, 255, 255, 0) 28%),
+                linear-gradient(180deg, #eef5ff 0%, var(--bg) 44%, #eef2f7 100%);
+            color: var(--text);
+        }
+
+        .shell {
+            width: min(760px, 100%);
+            margin: 0 auto;
+        }
+
+        .hero {
+            margin-bottom: 16px;
+            padding: 24px 22px;
+            border-radius: 24px;
+            background: linear-gradient(135deg, #1d5dd8 0%, #4d8af9 55%, #8bb6ff 100%);
+            color: #ffffff;
+            box-shadow: var(--shadow);
+        }
+
+        .hero-kicker {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.18);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .04em;
+        }
+
+        .hero-title {
+            margin: 14px 0 8px;
+            font-size: 28px;
+            line-height: 1.2;
+            font-weight: 800;
+        }
+
+        .hero-copy {
+            margin: 0;
+            line-height: 1.7;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.92);
+        }
+
+        .panel {
+            background: var(--card);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .panel-title {
+            margin: 0;
+            font-size: 19px;
+            font-weight: 800;
+        }
+
+        .summary-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 68px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 4px;
+            color: var(--muted);
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 3px solid #d7dfeb;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+
+        .message-list {
+            display: grid;
+            gap: 14px;
+        }
+
+        .message-card {
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            overflow: hidden;
+            background: #fdfefe;
+        }
+
+        .message-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            background: linear-gradient(180deg, #f9fbff 0%, #eef4ff 100%);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .message-card-title {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .message-card-type {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--muted);
+            padding: 5px 8px;
+            border-radius: 999px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+        }
+
+        .message-card-body {
+            padding: 16px;
+        }
+
+        .preview-lines {
+            display: grid;
+            gap: 12px;
+        }
+
+        .preview-line {
+            white-space: pre-wrap;
+            line-height: 1.65;
+            font-size: 14px;
+        }
+
+        .schedule-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .schedule-item {
+            background: #f5f8fd;
+            border-radius: 16px;
+            padding: 12px;
+            border: 1px solid transparent;
+        }
+
+        .schedule-item.near {
+            background: #fff5e8;
+            border-color: #ffd6a1;
+        }
+
+        .schedule-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .schedule-title {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.45;
+        }
+
+        .schedule-meta,
+        .schedule-place {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .near-chip {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #ffe2bf;
+            color: #a54b00;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .footer-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .button-row {
+            display: grid;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .button {
+            width: 100%;
+            padding: 15px 16px;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform .15s ease, opacity .15s ease, background .15s ease;
+        }
+
+        .button:active {
+            transform: translateY(1px);
+        }
+
+        .button-primary {
+            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: #ffffff;
+        }
+
+        .button-secondary {
+            background: #e8eef6;
+            color: #334155;
+        }
+
+        .button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin: 16px 4px 0;
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="shell">
+        <section class="hero">
+            <div class="hero-kicker">T-FONTE REMINDER</div>
+            <h1 class="hero-title">予定シェアを確認してから送信</h1>
+            <p class="hero-copy">
+                Apps Script から受け取った当月・翌月の予定をそのまま表示します。
+                直近予定の強調や Google カレンダー追加ボタンも、送信内容と同じ状態で確認できます。
+            </p>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 class="panel-title">送信プレビュー</h2>
+                <div id="summaryChip" class="summary-chip hidden"></div>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <span>予定を読み込み中...</span>
+            </div>
+
+            <div id="messageList" class="message-list hidden"></div>
+
+            <div class="button-row">
+                <button id="shareBtn" class="button button-primary hidden">LINEで送る</button>
+                <button id="reloadBtn" class="button button-secondary hidden">再読み込み</button>
+            </div>
+
+            <p id="status" class="status">初期化中...</p>
+        </section>
+    </main>
+
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+    <script>
+        const LIFF_ID = "2009927582-9QtOstUK";
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+
+        const els = {
+            loading: document.getElementById("loading"),
+            messageList: document.getElementById("messageList"),
+            shareBtn: document.getElementById("shareBtn"),
+            reloadBtn: document.getElementById("reloadBtn"),
+            status: document.getElementById("status"),
+            summaryChip: document.getElementById("summaryChip"),
+        };
+
+        let shareMessages = [];
+
+        async function main() {
+            setLoading();
+
+            try {
+                await liff.init({ liffId: LIFF_ID });
+
+                if (!liff.isLoggedIn()) {
+                    els.status.textContent = "LINEログインへ移動します...";
+                    els.loading.classList.add("hidden");
+                    liff.login();
+                    return;
+                }
+
+                if (!liff.isApiAvailable("shareTargetPicker")) {
+                    throw new Error("この環境ではシェア機能を利用できません。");
+                }
+
+                const data = await fetchShareData();
+                const originalMessages = normalizeMessages(data);
+
+                if (!originalMessages.length) {
+                    throw new Error("送信できるメッセージがありません。");
+                }
+
+                shareMessages = originalMessages.map(cloneObject);
+                renderPreviewFromMessages(shareMessages);
+                setReady();
+
+            } catch (err) {
+                console.error(err);
+                setError(err.message);
+            }
+        }
+
+        async function fetchShareData() {
+            const res = await fetch(GAS_URL, {
+                method: "GET",
+                cache: "no-store",
+            });
+
+            if (!res.ok) {
+                throw new Error("GASへの接続に失敗しました。");
+            }
+
+            return await res.json();
+        }
+
+        function normalizeMessages(data) {
+            if (Array.isArray(data)) return data;
+            if (Array.isArray(data.messages)) return data.messages;
+            if (Array.isArray(data.data)) return data.data;
+            if (data.type) return [data];
+            return [];
+        }
+
+        function cloneObject(value) {
+            if (typeof structuredClone === "function") {
+                return structuredClone(value);
+            }
+
+            return JSON.parse(JSON.stringify(value));
+        }
+
+        function renderPreviewFromMessages(messages) {
+            els.messageList.innerHTML = "";
+            const fragment = document.createDocumentFragment();
+
+            messages.forEach((message, index) => {
+                fragment.appendChild(createMessageCard(message, index));
+            });
+
+            els.messageList.appendChild(fragment);
+            els.summaryChip.textContent = `${messages.length}件`;
+            els.summaryChip.classList.remove("hidden");
+        }
+
+        function createMessageCard(message, index) {
+            const card = document.createElement("section");
+            card.className = "message-card";
+
+            const head = document.createElement("div");
+            head.className = "message-card-head";
+
+            const title = document.createElement("h3");
+            title.className = "message-card-title";
+            title.textContent = createMessageTitle(message, index);
+
+            const type = document.createElement("div");
+            type.className = "message-card-type";
+            type.textContent = message.type === "flex" ? "FLEX" : "TEXT";
+
+            head.append(title, type);
+
+            const body = document.createElement("div");
+            body.className = "message-card-body";
+
+            if (message.type === "flex") {
+                body.appendChild(createFlexPreview(message));
+            } else {
+                body.appendChild(createTextPreview(message.text || ""));
+            }
+
+            card.append(head, body);
+            return card;
+        }
+
+        function createMessageTitle(message, index) {
+            if (message.type === "flex") {
+                const headerTitle = extractFirstText(message?.contents?.header);
+                return headerTitle || `Flexメッセージ ${index + 1}`;
+            }
+
+            const firstLine = String(message.text || "").split("\n").map(line => line.trim()).find(Boolean);
+            return firstLine || `テキストメッセージ ${index + 1}`;
+        }
+
+        function createTextPreview(text) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "preview-lines";
+
+            const line = document.createElement("div");
+            line.className = "preview-line";
+            line.textContent = text || "プレビューできるテキストがありません。";
+
+            wrapper.appendChild(line);
+            return wrapper;
+        }
+
+        function createFlexPreview(message) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "preview-lines";
+
+            const headerTitle = extractFirstText(message?.contents?.header);
+            const introText = extractSecondHeaderText(message?.contents?.header);
+            const bodyNote = extractFirstText(message?.contents?.body);
+            const scheduleItems = extractScheduleItems(message);
+            const footerLink = extractFooterLink(message);
+
+            if (headerTitle) {
+                const title = document.createElement("div");
+                title.className = "preview-line";
+                title.textContent = headerTitle;
+                wrapper.appendChild(title);
+            }
+
+            if (introText) {
+                const intro = document.createElement("div");
+                intro.className = "preview-line";
+                intro.textContent = introText;
+                wrapper.appendChild(intro);
+            }
+
+            if (scheduleItems.length) {
+                const list = document.createElement("div");
+                list.className = "schedule-list";
+
+                scheduleItems.forEach(item => {
+                    list.appendChild(createSchedulePreviewItem(item));
+                });
+
+                wrapper.appendChild(list);
+            }
+
+            if (bodyNote) {
+                const note = document.createElement("div");
+                note.className = "preview-line";
+                note.textContent = bodyNote;
+                wrapper.appendChild(note);
+            }
+
+            if (footerLink) {
+                const link = document.createElement("a");
+                link.className = "footer-link";
+                link.href = footerLink.uri;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                link.textContent = footerLink.label;
+                wrapper.appendChild(link);
+            }
+
+            if (!wrapper.childNodes.length) {
+                const fallback = document.createElement("div");
+                fallback.className = "preview-line";
+                fallback.textContent = "Flex Messageを読み込みました。";
+                wrapper.appendChild(fallback);
+            }
+
+            return wrapper;
+        }
+
+        function createSchedulePreviewItem(item) {
+            const article = document.createElement("article");
+            article.className = `schedule-item${item.nearLabel ? " near" : ""}`;
+
+            const head = document.createElement("div");
+            head.className = "schedule-head";
+
+            const title = document.createElement("h4");
+            title.className = "schedule-title";
+            title.textContent = item.title || "予定";
+
+            head.appendChild(title);
+
+            if (item.nearLabel) {
+                const chip = document.createElement("div");
+                chip.className = "near-chip";
+                chip.textContent = item.nearLabel;
+                head.appendChild(chip);
+            }
+
+            article.appendChild(head);
+
+            if (item.dateLine) {
+                const meta = document.createElement("p");
+                meta.className = "schedule-meta";
+                meta.textContent = item.dateLine;
+                article.appendChild(meta);
+            }
+
+            if (item.placeLine) {
+                const place = document.createElement("p");
+                place.className = "schedule-place";
+                place.textContent = item.placeLine;
+                article.appendChild(place);
+            }
+
+            return article;
+        }
+
+        function extractScheduleItems(message) {
+            const heroContents = message?.contents?.hero?.contents;
+            if (!Array.isArray(heroContents)) return [];
+
+            return heroContents
+                .map(extractScheduleItemFromBox)
+                .filter(Boolean);
+        }
+
+        function extractScheduleItemFromBox(box) {
+            if (!box || box.type !== "box" || !Array.isArray(box.contents)) {
+                return null;
+            }
+
+            const titleRow = box.contents.find(item => item.type === "box" && item.layout === "horizontal");
+            const textLines = box.contents.filter(item => item.type === "text");
+
+            const title = extractFirstText(titleRow) || textLines[0]?.text || "";
+            const nearLabel = extractBadgeText(titleRow);
+            const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
+            const placeLine = textLines[textLines.length - 1]?.text === dateLine ? "" : (textLines[textLines.length - 1]?.text || "");
+
+            if (!title && !dateLine && !placeLine) {
+                return null;
+            }
+
+            return {
+                title,
+                nearLabel,
+                dateLine,
+                placeLine
+            };
+        }
+
+        function extractFooterLink(message) {
+            const contents = message?.contents?.footer?.contents;
+            if (!Array.isArray(contents)) return null;
+
+            const button = contents.find(item => item.type === "button" && item.action?.type === "uri");
+            return button ? { label: button.action.label || "リンクを開く", uri: button.action.uri } : null;
+        }
+
+        function extractFirstText(node) {
+            if (!node || typeof node !== "object") return "";
+
+            if (node.type === "text" && node.text) {
+                return node.text;
+            }
+
+            if (Array.isArray(node.contents)) {
+                for (const child of node.contents) {
+                    const text = extractFirstText(child);
+                    if (text) return text;
+                }
+            }
+
+            for (const key of ["header", "hero", "body", "footer"]) {
+                if (node[key]) {
+                    const text = extractFirstText(node[key]);
+                    if (text) return text;
+                }
+            }
+
+            return "";
+        }
+
+        function extractSecondHeaderText(headerNode) {
+            const texts = [];
+            collectTexts(headerNode, texts);
+            return texts[1] || "";
+        }
+
+        function extractBadgeText(node) {
+            if (!node || !Array.isArray(node.contents)) return "";
+
+            const badge = node.contents.find(item =>
+                item.type === "text" &&
+                typeof item.text === "string" &&
+                /^(今日|明日|あと\d+日)$/.test(item.text)
+            );
+
+            return badge ? badge.text : "";
+        }
+
+        function collectTexts(node, result) {
+            if (!node || typeof node !== "object") return;
+
+            if (node.type === "text" && node.text) {
+                result.push(node.text);
+            }
+
+            if (Array.isArray(node.contents)) {
+                node.contents.forEach(child => collectTexts(child, result));
+            }
+
+            ["header", "hero", "body", "footer"].forEach(key => {
+                if (node[key]) {
+                    collectTexts(node[key], result);
+                }
+            });
+        }
+
+        async function handleShare() {
+            try {
+                els.shareBtn.disabled = true;
+                els.shareBtn.textContent = "送信先を選択中...";
+
+                const result = await liff.shareTargetPicker(shareMessages, {
+                    isMultiple: true,
+                });
+
+                if (result) {
+                    els.shareBtn.textContent = "送信しました";
+                    els.status.textContent = `${shareMessages.length}件のメッセージを送信しました。`;
+
+                    setTimeout(() => {
+                        liff.closeWindow();
+                    }, 1200);
+                } else {
+                    els.shareBtn.disabled = false;
+                    els.shareBtn.textContent = "LINEで送る";
+                    els.status.textContent = "送信をキャンセルしました。";
+                }
+
+            } catch (err) {
+                console.error(err);
+                els.shareBtn.disabled = false;
+                els.shareBtn.textContent = "LINEで送る";
+                els.status.textContent = "送信失敗: " + err.message;
+            }
+        }
+
+        function setLoading() {
+            els.loading.classList.remove("hidden");
+            els.messageList.classList.add("hidden");
+            els.messageList.innerHTML = "";
+            els.summaryChip.classList.add("hidden");
+            els.shareBtn.classList.add("hidden");
+            els.reloadBtn.classList.add("hidden");
+            els.status.textContent = "読み込み中...";
+        }
+
+        function setReady() {
+            els.loading.classList.add("hidden");
+            els.messageList.classList.remove("hidden");
+            els.shareBtn.classList.remove("hidden");
+            els.reloadBtn.classList.add("hidden");
+            els.shareBtn.disabled = false;
+            els.shareBtn.textContent = "LINEで送る";
+            els.status.textContent = `${shareMessages.length}件の送信準備ができました。`;
+        }
+
+        function setError(message) {
+            els.loading.classList.add("hidden");
+            els.messageList.classList.remove("hidden");
+            els.messageList.innerHTML = "";
+            els.summaryChip.classList.add("hidden");
+            els.shareBtn.classList.add("hidden");
+            els.reloadBtn.classList.remove("hidden");
+
+            const errorCard = document.createElement("section");
+            errorCard.className = "message-card";
+
+            const body = document.createElement("div");
+            body.className = "message-card-body";
+
+            const line = document.createElement("div");
+            line.className = "preview-line";
+            line.textContent = `🚨 読み込みに失敗しました。\n\n${message || "不明なエラー"}`;
+
+            body.appendChild(line);
+            errorCard.appendChild(body);
+            els.messageList.appendChild(errorCard);
+
+            els.status.textContent = "再読み込みしてください。";
+        }
+
+        els.shareBtn.addEventListener("click", handleShare);
+        els.reloadBtn.addEventListener("click", main);
+
+        main();
+    </script>
+</body>
+
+</html>

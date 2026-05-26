@@ -86,13 +86,8 @@ function getApproachingLabel_(targetDate, baseDate) {
   return `あと${diffDays}日`;
 }
 
-function shouldIncludeNextMonthSchedule_(baseDate) {
-  const today = startOfDay_(baseDate);
-  const firstDayOfNextMonth = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 1);
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const daysUntilNextMonth = Math.floor((firstDayOfNextMonth.getTime() - today.getTime()) / msPerDay);
-
-  return daysUntilNextMonth <= 3;
+function buildYearMonthKey_(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function createMessage() {
