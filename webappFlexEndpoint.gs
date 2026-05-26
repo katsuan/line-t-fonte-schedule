@@ -24,6 +24,11 @@ const FLEX_CONFIG = {
   badgeOffset: "12px"
 };
 
+const ALT_TEXT_CONFIG = {
+  defaultTitle: "🗓️ 活動日リマインド",
+  nearTermPromptSuffix: "の予定が近づいています！"
+};
+
 function doGet(e) {
   try {
     const messages = createShareFlexMessages_();
@@ -64,8 +69,11 @@ function createShareFlexMessages_() {
     }];
   }
 
-  const bubbles = groups.map(createMonthlyFlexBubble_);
-  return buildCarouselMessages_(bubbles);
+  const bubbleEntries = groups.map(group => ({
+    bubble: createMonthlyFlexBubble_(group),
+    nearTermDates: collectNearTermDates_(group.records, group.now)
+  }));
+  return buildCarouselMessages_(bubbleEntries);
 }
 
 function buildMonthlyFlexGroups_(records, now) {
@@ -92,18 +100,18 @@ function buildMonthlyFlexGroups_(records, now) {
   }));
 }
 
-function buildCarouselMessages_(bubbles) {
+function buildCarouselMessages_(bubbleEntries) {
   const messages = [];
 
-  for (let i = 0; i < bubbles.length; i += FLEX_CONFIG.maxBubblesPerCarousel) {
-    const chunk = bubbles.slice(i, i + FLEX_CONFIG.maxBubblesPerCarousel);
+  for (let i = 0; i < bubbleEntries.length; i += FLEX_CONFIG.maxBubblesPerCarousel) {
+    const chunk = bubbleEntries.slice(i, i + FLEX_CONFIG.maxBubblesPerCarousel);
 
     messages.push({
       type: "flex",
       altText: buildCarouselAltText_(chunk),
       contents: {
         type: "carousel",
-        contents: chunk
+        contents: chunk.map(entry => entry.bubble)
       }
     });
   }
@@ -111,12 +119,41 @@ function buildCarouselMessages_(bubbles) {
   return messages;
 }
 
-function buildCarouselAltText_(bubbles) {
+function buildCarouselAltText_(bubbleEntries) {
+  const baseTitle = getRandomAltTextTitle_();
+  const nearTermDateLabels = collectNearTermDateLabels_(bubbleEntries);
+
+  if (nearTermDateLabels.length) {
+    return `${nearTermDateLabels.join(", ")}${ALT_TEXT_CONFIG.nearTermPromptSuffix} ${baseTitle}`;
+  }
+
+  return baseTitle;
+}
+
+function getRandomAltTextTitle_() {
   if (typeof RANDOM_TEXTS !== "undefined" && RANDOM_TEXTS.title && RANDOM_TEXTS.title.length) {
     return _pickRandom_(RANDOM_TEXTS.title);
   }
 
-  return "🗓️ 活動日リマインド";
+  return ALT_TEXT_CONFIG.defaultTitle;
+}
+
+function collectNearTermDates_(records, now) {
+  return records
+    .filter(record => {
+      const diffDays = diffDaysFromToday_(record.date, now);
+      return diffDays >= 0 && diffDays <= FLEX_CONFIG.nearTermDays;
+    })
+    .map(record => formatNearTermDateLabel_(record.date));
+}
+
+function collectNearTermDateLabels_(bubbleEntries) {
+  const labels = bubbleEntries.flatMap(entry => entry.nearTermDates || []);
+  return Array.from(new Set(labels));
+}
+
+function formatNearTermDateLabel_(date) {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 function createMonthlyFlexBubble_(group) {
