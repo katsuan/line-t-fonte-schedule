@@ -237,6 +237,7 @@ function createRecordBox_(record, options) {
         ? {
           type: "box",
           layout: "horizontal",
+          width: "70px",
           justifyContent: "center",
           alignItems: "center",
           contents: [
@@ -253,6 +254,7 @@ function createRecordBox_(record, options) {
           paddingAll: "2px",
           paddingStart: "7px",
           paddingEnd: "7px",
+          flex: 0,
           position: "absolute",
           offsetEnd: "12px",
           offsetTop: "12px",
