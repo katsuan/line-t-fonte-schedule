@@ -237,13 +237,13 @@ function createRecordBox_(record, options) {
         ? {
           type: "box",
           layout: "horizontal",
-          width: "60px",
+          width: "100px",
           justifyContent: "center",
           alignItems: "center",
           contents: [
             {
               type: "text",
-              text: "もうすぐ",
+              text: "要回答",
               size: "xs",
               color: "#A54B00",
               align: "center",
