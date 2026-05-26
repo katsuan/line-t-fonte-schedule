@@ -194,39 +194,22 @@ function createRecordBox_(record, options) {
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   const calendarUrl = createGoogleCalendarUrl_(record);
 
-  const titleRowContents = [
-    {
-      type: "text",
-      text: String(record.memo1 || "予定"),
-      weight: "bold",
-      size: "md",
-      color: "#222222",
-      wrap: true,
-      flex: 1
-    }
-  ];
-
-  if (isNearTerm) {
-    titleRowContents.push({
-      type: "text",
-      text: getApproachingLabel_(record.date, now),
-      size: "xs",
-      color: "#A54B00",
-      backgroundColor: "#FFE2BF",
-      paddingAll: "4px",
-      cornerRadius: "999px",
-      gravity: "center",
-      align: "center",
-      flex: 0
-    });
-  }
-
   const contents = [
     {
       type: "box",
       layout: "horizontal",
       spacing: "sm",
-      contents: titleRowContents
+      contents: [
+        {
+          type: "text",
+          text: String(record.memo1 || "予定"),
+          weight: "bold",
+          size: "md",
+          color: "#222222",
+          wrap: true,
+          flex: 1
+        }
+      ]
     },
     {
       type: "text",

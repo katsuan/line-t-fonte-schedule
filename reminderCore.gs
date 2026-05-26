@@ -78,14 +78,6 @@ function createGoogleCalendarUrl_(record) {
   return `https://calendar.google.com/calendar/render?${params.join("&")}`;
 }
 
-function getApproachingLabel_(targetDate, baseDate) {
-  const diffDays = diffDaysFromToday_(targetDate, baseDate);
-
-  if (diffDays <= 0) return "今日";
-  if (diffDays === 1) return "明日";
-  return `あと${diffDays}日`;
-}
-
 function buildYearMonthKey_(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
