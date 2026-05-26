@@ -159,6 +159,7 @@ function createRecordBox_(record, options) {
   return {
     type: "box",
     layout: "vertical",
+    position: "relative",
     paddingAll: "12px",
     backgroundColor: "#F6F8FB",
     cornerRadius: "12px",
@@ -167,108 +168,98 @@ function createRecordBox_(record, options) {
         type: "box",
         layout: "horizontal",
         spacing: "sm",
-        position: "relative",
         contents: [
           {
             type: "box",
-            layout: "horizontal",
+            layout: "vertical",
             flex: 0,
-            spacing: "sm",
+            width: "52px",
+            height: "52px",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingAll: "0px",
+            backgroundColor: "#E6EEF9",
+            cornerRadius: "999px",
+            action: calendarUrl
+              ? {
+                type: "uri",
+                uri: calendarUrl
+              }
+              : undefined,
             contents: [
               {
-                type: "box",
-                layout: "vertical",
-                flex: 0,
-                width: "52px",
-                height: "52px",
-                justifyContent: "center",
-                alignItems: "center",
-                paddingAll: "0px",
-                backgroundColor: "#E6EEF9",
-                cornerRadius: "999px",
-                action: calendarUrl
-                  ? {
-                    type: "uri",
-                    uri: calendarUrl
-                  }
-                  : undefined,
-                contents: [
-                  {
-                    type: "text",
-                    text: iconText,
-                    size: "xl",
-                    weight: "bold",
-                    align: "center",
-                    gravity: "center",
-                    color: "#1F2937",
-                    flex: 0
-                  }
-                ]
-              },
-              {
-                type: "box",
-                layout: "vertical",
-                flex: 1,
-                spacing: "xs",
-                contents: [
-                  {
-                    type: "text",
-                    text: titleText,
-                    weight: "bold",
-                    size: "md",
-                    color: "#222222",
-                    wrap: true,
-                    flex: 1
-                  },
-                  {
-                    type: "text",
-                    text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
-                    size: "sm",
-                    color: "#555555",
-                    wrap: true
-                  },
-                  locationText
-                    ? {
-                      type: "text",
-                      text: locationText,
-                      size: "sm",
-                      color: "#555555",
-                      wrap: true
-                    }
-                    : null
-                ].filter(Boolean)
+                type: "text",
+                text: iconText,
+                size: "xl",
+                weight: "bold",
+                align: "center",
+                gravity: "center",
+                color: "#1F2937",
+                flex: 0
               }
             ]
           },
-          isNearTerm
-            ? {
-              type: "box",
-              layout: "horizontal",
-              contents: [
-                {
+          {
+            type: "box",
+            layout: "vertical",
+            flex: 1,
+            spacing: "xs",
+            contents: [
+              {
+                type: "text",
+                text: titleText,
+                weight: "bold",
+                size: "md",
+                color: "#222222",
+                wrap: true
+              },
+              {
+                type: "text",
+                text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
+                size: "sm",
+                color: "#555555",
+                wrap: true
+              },
+              locationText
+                ? {
                   type: "text",
-                  text: "もうすぐ",
-                  size: "xs",
-                  color: "#A54B00",
-                  align: "center",
-                  gravity: "center"
+                  text: locationText,
+                  size: "sm",
+                  color: "#555555",
+                  wrap: true
                 }
-              ],
-              backgroundColor: "#FFE2BF",
-              paddingAll: "2px",
-              paddingStart: "7px",
-              paddingEnd: "7px",
-              flex: 0,
-              position: "absolute",
-              offsetEnd: "0px",
-              offsetTop: "0px",
-              cornerRadius: "100px",
-              height: "22px"
+                : null
+            ].filter(Boolean)
+          }
+        ]
+      },
+      isNearTerm
+        ? {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "text",
+              text: "もうすぐ",
+              size: "xs",
+              color: "#A54B00",
+              align: "center",
+              gravity: "center"
             }
-            : null
-        ].filter(Boolean)
-      }
-    ]
+          ],
+          backgroundColor: "#FFE2BF",
+          paddingAll: "2px",
+          paddingStart: "7px",
+          paddingEnd: "7px",
+          flex: 0,
+          position: "absolute",
+          offsetEnd: "12px",
+          offsetTop: "12px",
+          cornerRadius: "100px",
+          height: "22px"
+        }
+        : null
+    ].filter(Boolean)
   };
 }
 
