@@ -25,7 +25,8 @@ const FLEX_CONFIG = {
 };
 
 const ALT_TEXT_CONFIG = {
-  defaultTitle: "🗓️ 活動日リマインド"
+  defaultTitle: "🗓️ 活動日リマインド",
+  maxChars: 1500
 };
 
 function doGet(e) {
@@ -107,7 +108,7 @@ function buildCarouselMessages_(bubbleEntries) {
 
     messages.push({
       type: "flex",
-      altText: buildCarouselAltText_(chunk),
+      altText: trimAltText_(buildCarouselAltText_(chunk)),
       contents: {
         type: "carousel",
         contents: chunk.map(entry => entry.bubble)
@@ -153,6 +154,15 @@ function collectNearTermDateLabels_(bubbleEntries) {
 
 function formatNearTermDateLabel_(date) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function trimAltText_(text) {
+  const normalized = String(text || "");
+  if (normalized.length <= ALT_TEXT_CONFIG.maxChars) {
+    return normalized;
+  }
+
+  return normalized.slice(0, ALT_TEXT_CONFIG.maxChars);
 }
 
 function createMonthlyFlexBubble_(group) {

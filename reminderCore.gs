@@ -26,6 +26,15 @@ const RANDOM_TEXTS = {
   ]
 };
 
+const UPCOMING_RECORDS_CACHE_CONFIG = {
+  dateKey: "UPCOMING_RECORDS_CACHE_DATE_V1",
+  payloadKey: "UPCOMING_RECORDS_CACHE_PAYLOAD_V1",
+  maxPayloadBytes: 450 * 1024
+};
+
+let upcomingRecordsMemoryCache_ = null;
+let upcomingRecordsMemoryCacheDate_ = "";
+
 // ==========[ Utility ]==========
 
 function isValidDate(d) {
@@ -80,6 +89,137 @@ function createGoogleCalendarUrl_(record) {
 
 function buildYearMonthKey_(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getTodayCacheKey_() {
+  const timezone = Session.getScriptTimeZone ? Session.getScriptTimeZone() : "Asia/Tokyo";
+  return Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd");
+}
+
+function serializeUpcomingRecords_(records) {
+  return JSON.stringify(records.map(record => ({
+    dateMs: record.date.getTime(),
+    endDateMs: record.endDate.getTime(),
+    startMs: record.start.getTime(),
+    endMs: record.end.getTime(),
+    formatted: record.formatted,
+    place: record.place || "",
+    memo1: record.memo1 || "",
+    memo2: record.memo2 || "",
+    link: record.link || ""
+  })));
+}
+
+function deserializeUpcomingRecords_(payload) {
+  const parsed = JSON.parse(payload);
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.map(item => ({
+    date: new Date(item.dateMs),
+    endDate: new Date(item.endDateMs),
+    start: new Date(item.startMs),
+    end: new Date(item.endMs),
+    formatted: item.formatted || {},
+    place: item.place || "",
+    memo1: item.memo1 || "",
+    memo2: item.memo2 || "",
+    link: item.link || ""
+  }));
+}
+
+function loadCachedUpcomingRecords_() {
+  const todayKey = getTodayCacheKey_();
+
+  if (upcomingRecordsMemoryCache_ && upcomingRecordsMemoryCacheDate_ === todayKey) {
+    Log.debug("📦 memory cache hit");
+    return upcomingRecordsMemoryCache_;
+  }
+
+  const props = PropertiesService.getScriptProperties();
+  const cachedDate = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.dateKey);
+  const cachedPayload = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.payloadKey);
+
+  if (cachedDate !== todayKey || !cachedPayload) {
+    return null;
+  }
+
+  try {
+    const records = deserializeUpcomingRecords_(cachedPayload);
+    upcomingRecordsMemoryCache_ = records;
+    upcomingRecordsMemoryCacheDate_ = todayKey;
+    Log.debug("📦 script properties cache hit");
+    return records;
+  } catch (err) {
+    Log.debug("⚠️ cache parse failed. refresh from sheet.");
+    return null;
+  }
+}
+
+function saveCachedUpcomingRecords_(records) {
+  const todayKey = getTodayCacheKey_();
+  const props = PropertiesService.getScriptProperties();
+  const payload = serializeUpcomingRecords_(records);
+  const payloadBytes = Utilities.newBlob(payload).getBytes().length;
+
+  if (payloadBytes > UPCOMING_RECORDS_CACHE_CONFIG.maxPayloadBytes) {
+    Log.debug(`⚠️ cache payload too large for script properties: ${payloadBytes} bytes`);
+    upcomingRecordsMemoryCache_ = records;
+    upcomingRecordsMemoryCacheDate_ = todayKey;
+    return;
+  }
+
+  props.setProperties({
+    [UPCOMING_RECORDS_CACHE_CONFIG.dateKey]: todayKey,
+    [UPCOMING_RECORDS_CACHE_CONFIG.payloadKey]: payload
+  });
+
+  upcomingRecordsMemoryCache_ = records;
+  upcomingRecordsMemoryCacheDate_ = todayKey;
+}
+
+function readUpcomingRecordsFromSheet_() {
+  const values = SHEETS.Plan.getDataRange().getValues();
+  const dataRows = values.slice(1);
+  const now = new Date();
+
+  const result = [];
+
+  for (const row of dataRows) {
+    const [dateObj, startObj, endObj, place, memo1, memo2, link] = row;
+    const safeEndObj = isValidDate(endObj) ? endObj : startObj;
+
+    if (!isValidDate(dateObj) || !isValidDate(startObj)) {
+      Log.debug("⚠️ date or start invalid. skip.");
+      continue;
+    }
+
+    const dateTime = new Date(dateObj);
+    dateTime.setHours(startObj.getHours(), startObj.getMinutes(), 0, 0);
+    const endDateTime = new Date(dateObj);
+    endDateTime.setHours(safeEndObj.getHours(), safeEndObj.getMinutes(), 0, 0);
+
+    if (dateTime >= now) {
+      Log.debug("✅ 未来の予定ヒット！");
+      result.push({
+        date: dateTime,
+        endDate: endDateTime,
+        start: startObj,
+        end: safeEndObj,
+        formatted: {
+          date: _formatDate_(dateTime, FORMAT.Date),
+          start: _formatDate_(startObj, FORMAT.Time),
+          end: _formatDate_(safeEndObj, FORMAT.Time),
+        },
+        place,
+        memo1,
+        memo2,
+        link
+      });
+    }
+  }
+
+  result.sort((a, b) => a.date - b.date);
+  return result;
 }
 
 function createMessage() {
@@ -150,47 +290,14 @@ function mergeRecordsWithinReminderWindow_(records) {
 
 function extractUpcomingRecordsWithDateObjects() {
   Log.start();
-  const values = SHEETS.Plan.getDataRange().getValues();
-  const dataRows = values.slice(1);
-  const now = new Date();
-
-  const result = [];
-
-  for (const row of dataRows) {
-    const [dateObj, startObj, endObj, place, memo1, memo2, link] = row;
-    const safeEndObj = isValidDate(endObj) ? endObj : startObj;
-
-    if (!isValidDate(dateObj) || !isValidDate(startObj)) {
-      Log.debug("⚠️ date or start invalid. skip.");
-      continue;
-    }
-
-    const dateTime = new Date(dateObj);
-    dateTime.setHours(startObj.getHours(), startObj.getMinutes(), 0, 0);
-    const endDateTime = new Date(dateObj);
-    endDateTime.setHours(safeEndObj.getHours(), safeEndObj.getMinutes(), 0, 0);
-
-    if (dateTime >= now) {
-      Log.debug("✅ 未来の予定ヒット！");
-      result.push({
-        date: dateTime,
-        endDate: endDateTime,
-        start: startObj,
-        end: safeEndObj,
-        formatted: {
-          date: _formatDate_(dateTime, FORMAT.Date),
-          start: _formatDate_(startObj, FORMAT.Time),
-          end: _formatDate_(safeEndObj, FORMAT.Time),
-        },
-        place,
-        memo1,
-        memo2,
-        link
-      });
-    }
+  const cachedRecords = loadCachedUpcomingRecords_();
+  if (cachedRecords) {
+    Log.finish({ result: cachedRecords });
+    return cachedRecords;
   }
 
-  result.sort((a, b) => a.date - b.date);
+  const result = readUpcomingRecordsFromSheet_();
+  saveCachedUpcomingRecords_(result);
 
   Log.finish({ result });
   return result;
