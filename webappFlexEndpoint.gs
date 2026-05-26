@@ -253,7 +253,6 @@ function createRecordBox_(record, options) {
           paddingAll: "2px",
           paddingStart: "7px",
           paddingEnd: "7px",
-          flex: 0,
           position: "absolute",
           offsetEnd: "12px",
           offsetTop: "12px",
