@@ -220,7 +220,6 @@
         }
 
         .schedule-item.near {
-            background: #fff5e8;
             border-color: #ffd6a1;
         }
 
@@ -237,6 +236,19 @@
             font-size: 15px;
             font-weight: 800;
             line-height: 1.45;
+        }
+
+        .near-chip {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #ffe2bf;
+            color: #a54b00;
+            font-size: 11px;
+            font-weight: 800;
         }
 
         .schedule-meta,
@@ -646,6 +658,13 @@
 
             head.appendChild(title);
 
+            if (item.isNear) {
+                const chip = document.createElement("div");
+                chip.className = "near-chip";
+                chip.textContent = "もうすぐ";
+                head.appendChild(chip);
+            }
+
             article.appendChild(head);
 
             if (item.dateLine) {
@@ -683,7 +702,7 @@
             const textLines = box.contents.filter(item => item.type === "text");
 
             const title = extractScheduleTitle_(titleRow) || textLines[0]?.text || "";
-            const isNear = box.backgroundColor === "#FFF7ED";
+            const isNear = hasNearBadge_(box);
             const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
             const placeLine = textLines[textLines.length - 1]?.text === dateLine ? "" : (textLines[textLines.length - 1]?.text || "");
 
@@ -707,6 +726,14 @@
 
             const trailingTextNode = [...titleRow.contents].reverse().find(item => item.type === "text" && item.text);
             return trailingTextNode ? trailingTextNode.text : "";
+        }
+
+        function hasNearBadge_(box) {
+            return Array.isArray(box?.contents) && box.contents.some(item =>
+                item?.type === "box" &&
+                Array.isArray(item.contents) &&
+                item.contents.some(child => child?.type === "text" && child.text === "もうすぐ")
+            );
         }
 
         function extractFooterLink(bubble) {
