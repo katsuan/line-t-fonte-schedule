@@ -28,7 +28,7 @@
         body {
             margin: 0;
             min-height: 100vh;
-            padding: 24px 16px 40px;
+            padding: 12px 12px 112px;
             font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
             background:
                 radial-gradient(circle at top left, #ffffff 0%, rgba(255, 255, 255, 0) 28%),
@@ -42,37 +42,23 @@
         }
 
         .hero {
-            margin-bottom: 16px;
-            padding: 24px 22px;
-            border-radius: 24px;
-            background: linear-gradient(135deg, #1d5dd8 0%, #4d8af9 55%, #8bb6ff 100%);
-            color: #ffffff;
-            box-shadow: var(--shadow);
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(29, 93, 216, 0.12) 0%, rgba(77, 138, 249, 0.18) 100%);
+            color: var(--accent);
+            border: 1px solid rgba(66, 132, 243, 0.16);
         }
 
         .hero-kicker {
             display: inline-flex;
             align-items: center;
-            padding: 6px 10px;
+            padding: 3px 8px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.18);
-            font-size: 12px;
+            background: rgba(66, 132, 243, 0.1);
+            font-size: 10px;
             font-weight: 700;
             letter-spacing: .04em;
-        }
-
-        .hero-title {
-            margin: 14px 0 8px;
-            font-size: 28px;
-            line-height: 1.2;
-            font-weight: 800;
-        }
-
-        .hero-copy {
-            margin: 0;
-            line-height: 1.7;
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.92);
         }
 
         .panel {
@@ -303,10 +289,30 @@
             text-decoration: none;
         }
 
+        .app-footer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 20;
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+            background: linear-gradient(180deg, rgba(243, 246, 251, 0) 0%, rgba(243, 246, 251, 0.95) 18%, rgba(243, 246, 251, 0.98) 100%);
+            backdrop-filter: blur(10px);
+        }
+
+        .footer-inner {
+            width: min(760px, 100%);
+            margin: 0 auto;
+            padding: 10px;
+            border: 1px solid rgba(217, 226, 239, 0.9);
+            border-radius: 20px 20px 0 0;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 -10px 30px rgba(42, 72, 120, 0.1);
+        }
+
         .button-row {
             display: grid;
             gap: 10px;
-            margin-top: 18px;
         }
 
         .button {
@@ -340,10 +346,10 @@
         }
 
         .status {
-            margin: 16px 4px 0;
+            margin: 10px 4px 0;
             text-align: center;
             color: var(--muted);
-            font-size: 14px;
+            font-size: 12px;
         }
 
         .hidden {
@@ -362,7 +368,6 @@
     <main class="shell">
         <section class="hero">
             <div class="hero-kicker">T-FONTE REMINDER</div>
-            <h1 class="hero-title">予定を確認して送信</h1>
         </section>
 
         <section class="panel">
@@ -377,15 +382,19 @@
             </div>
 
             <div id="messageList" class="message-list hidden"></div>
+        </section>
+    </main>
 
+    <footer class="app-footer">
+        <div class="footer-inner">
             <div class="button-row">
                 <button id="shareBtn" class="button button-primary hidden">LINEで送る</button>
                 <button id="reloadBtn" class="button button-secondary hidden">再読み込み</button>
             </div>
 
             <p id="status" class="status">初期化中...</p>
-        </section>
-    </main>
+        </div>
+    </footer>
 
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
