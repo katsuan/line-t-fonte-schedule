@@ -95,6 +95,28 @@
             font-weight: 800;
         }
 
+        .panel-head-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mini-button {
+            border: 1px solid var(--line);
+            background: #ffffff;
+            color: var(--muted);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .mini-button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
         .loading {
             display: flex;
             align-items: center;
@@ -198,6 +220,11 @@
             white-space: pre-wrap;
             line-height: 1.65;
             font-size: 14px;
+        }
+
+        .preview-note {
+            font-size: 12px;
+            color: #93a1b4;
         }
 
         .schedule-list {
@@ -385,7 +412,10 @@
         <section class="panel">
             <div class="panel-head">
                 <h2 class="panel-title">送信プレビュー</h2>
-                <div id="summaryChip" class="summary-chip hidden"></div>
+                <div class="panel-head-actions">
+                    <div id="summaryChip" class="summary-chip hidden"></div>
+                    <button id="reloadBtn" class="mini-button hidden">再読み込み</button>
+                </div>
             </div>
 
             <div id="loading" class="loading">
@@ -401,7 +431,6 @@
         <div class="footer-inner">
             <div class="button-row">
                 <button id="shareBtn" class="button button-primary hidden">LINEで送る</button>
-                <button id="reloadBtn" class="button button-secondary hidden">再読み込み</button>
             </div>
 
             <p id="status" class="status">
@@ -699,12 +728,10 @@
             wrapper.className = "preview-lines";
 
             const headerTexts = extractTexts(bubble?.header);
-            const bodyTexts = extractTexts(bubble?.body);
             const headerTitle = headerTexts[0] || "";
             const introText = headerTexts[1] || "";
-            const bodyNote = bodyTexts[0] || "";
             const scheduleItems = extractScheduleItems(bubble);
-            const overflowNote = extractOverflowNote(bubble);
+            const summaryNote = extractSummaryNote(bubble);
             const footerLink = extractFooterLink(bubble);
 
             if (headerTitle) {
@@ -732,17 +759,10 @@
                 wrapper.appendChild(list);
             }
 
-            if (overflowNote) {
+            if (summaryNote) {
                 const note = document.createElement("div");
-                note.className = "preview-line";
-                note.textContent = overflowNote;
-                wrapper.appendChild(note);
-            }
-
-            if (bodyNote) {
-                const note = document.createElement("div");
-                note.className = "preview-line";
-                note.textContent = bodyNote;
+                note.className = "preview-line preview-note";
+                note.textContent = summaryNote;
                 wrapper.appendChild(note);
             }
 
@@ -843,17 +863,21 @@
                 .filter(Boolean);
         }
 
-        function extractOverflowNote(bubble) {
+        function extractSummaryNote(bubble) {
+            const bodyTexts = extractTexts(bubble?.body);
+            const bodyNote = bodyTexts.find(text => /^(他\d+件|以上)$/.test(text));
+            if (bodyNote) return bodyNote;
+
             const heroContents = bubble?.hero?.contents;
             if (!Array.isArray(heroContents)) return "";
 
-            const noteNode = heroContents.find(item =>
+            const fallbackNode = heroContents.find(item =>
                 item?.type === "text" &&
                 typeof item.text === "string" &&
-                /^他\d+件$/.test(item.text)
+                /^(他\d+件|以上)$/.test(item.text)
             );
 
-            return noteNode ? noteNode.text : "";
+            return fallbackNode ? fallbackNode.text : "";
         }
 
         function extractScheduleItemFromBox(box) {

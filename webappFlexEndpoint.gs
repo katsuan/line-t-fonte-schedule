@@ -6,7 +6,7 @@ const FLEX_CONFIG = {
   recordBackgroundColor: "#F6F8FB",
   iconBackgroundColor: "#E6EEF9",
   badgeBackgroundColor: "#FFE2BF",
-  summaryTextColor: "#5B6B7F",
+  summaryTextColor: "#93A1B4",
   badgeTextColor: "#A54B00",
   textPrimaryColor: "#222222",
   textSecondaryColor: "#555555",
@@ -169,6 +169,7 @@ function trimAltText_(text) {
 function createMonthlyFlexBubble_(group) {
   const { monthLabel, records, link, now } = group;
   const title = `${monthLabel}の予定`;
+  const summaryText = buildMonthlySummaryText_(records);
 
   return {
     type: "bubble",
@@ -195,6 +196,22 @@ function createMonthlyFlexBubble_(group) {
       spacing: "sm",
       contents: buildMonthlyRecordContents_(records, now)
     },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingTop: "8px",
+      paddingBottom: "2px",
+      contents: [
+        {
+          type: "text",
+          text: summaryText,
+          size: "xs",
+          color: FLEX_CONFIG.summaryTextColor,
+          align: "center",
+          wrap: true
+        }
+      ]
+    },
     footer: {
       type: "box",
       layout: "vertical",
@@ -218,22 +235,12 @@ function createMonthlyFlexBubble_(group) {
 
 function buildMonthlyRecordContents_(records, now) {
   const visibleRecords = records.slice(0, FLEX_CONFIG.maxVisibleRecordsPerMonth);
-  const hiddenCount = Math.max(records.length - visibleRecords.length, 0);
-  const contents = visibleRecords.map(record => createRecordBox_(record, { now }));
+  return visibleRecords.map(record => createRecordBox_(record, { now }));
+}
 
-  if (hiddenCount > 0) {
-    contents.push({
-      type: "text",
-      text: `他${hiddenCount}件`,
-      size: "sm",
-      color: FLEX_CONFIG.summaryTextColor,
-      weight: "bold",
-      align: "center",
-      margin: "sm"
-    });
-  }
-
-  return contents;
+function buildMonthlySummaryText_(records) {
+  const hiddenCount = Math.max(records.length - FLEX_CONFIG.maxVisibleRecordsPerMonth, 0);
+  return hiddenCount > 0 ? `他${hiddenCount}件` : "以上";
 }
 
 function createRecordBox_(record, options) {
