@@ -149,7 +149,11 @@ function groupUpcomingRecordsByMonth_(records) {
     .slice(0, UPCOMING_RECORDS_CACHE_CONFIG.maxMonthCaches);
 }
 
-function loadCachedUpcomingRecords_() {
+function loadCachedUpcomingRecords_(forceRefresh) {
+  if (forceRefresh) {
+    return null;
+  }
+
   const todayKey = getTodayCacheKey_();
 
   if (upcomingRecordsMemoryCache_ && upcomingRecordsMemoryCacheDate_ === todayKey) {
@@ -332,9 +336,9 @@ function mergeRecordsWithinReminderWindow_(records) {
   return merged;
 }
 
-function extractUpcomingRecordsWithDateObjects() {
+function extractUpcomingRecordsWithDateObjects(forceRefresh) {
   Log.start();
-  const cachedRecords = loadCachedUpcomingRecords_();
+  const cachedRecords = loadCachedUpcomingRecords_(forceRefresh);
   if (cachedRecords) {
     Log.finish({ result: cachedRecords });
     return cachedRecords;

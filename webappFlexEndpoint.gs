@@ -31,7 +31,8 @@ const ALT_TEXT_CONFIG = {
 
 function doGet(e) {
   try {
-    const messages = createShareFlexMessages_();
+    const forceRefresh = !!(e && e.parameter && e.parameter.refresh === "1");
+    const messages = createShareFlexMessages_(forceRefresh);
 
     return ContentService
       .createTextOutput(JSON.stringify({
@@ -50,8 +51,8 @@ function doGet(e) {
   }
 }
 
-function createShareFlexMessages_() {
-  const records = extractUpcomingRecordsWithDateObjects();
+function createShareFlexMessages_(forceRefresh) {
+  const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
 
   if (!records.length) {
     return [{

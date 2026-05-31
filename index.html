@@ -441,14 +441,16 @@
         let shareMessages = [];
         let canShareInLiff = false;
 
-        async function main() {
+        async function main(forceRefresh = false) {
             setLoading();
-            renderCachedPreviewIfAvailable();
+            if (!forceRefresh) {
+                renderCachedPreviewIfAvailable();
+            }
 
             try {
                 const [_, data] = await Promise.all([
                     initializeLiffMode(),
-                    fetchShareData()
+                    fetchShareData(forceRefresh)
                 ]);
                 const originalMessages = normalizeMessages(data);
 
@@ -495,14 +497,18 @@
             canShareInLiff = true;
         }
 
-        async function fetchShareData() {
-            const res = await fetch(GAS_URL, {
+        async function fetchShareData(forceRefresh = false) {
+            const requestUrl = forceRefresh
+                ? `${GAS_URL}${GAS_URL.includes("?") ? "&" : "?"}refresh=1`
+                : GAS_URL;
+
+            const res = await fetch(requestUrl, {
                 method: "GET",
                 cache: "no-store",
             });
 
             if (!res.ok) {
-                throw new Error(`GASへの接続に失敗しました。status=${res.status} url=${GAS_URL}`);
+                throw new Error(`GASへの接続に失敗しました。status=${res.status} url=${requestUrl}`);
             }
 
             return await res.json();
@@ -532,6 +538,7 @@
             renderPreviewFromMessages(shareMessages);
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
+            els.reloadBtn.classList.remove("hidden");
             setFooterBusy(true);
             setStatus(STATUS_TEXT.refreshing, { loading: true });
         }
@@ -1049,7 +1056,7 @@
         function setReady(shareEnabled) {
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
-            els.reloadBtn.classList.add("hidden");
+            els.reloadBtn.classList.remove("hidden");
             setFooterBusy(false);
 
             if (shareEnabled) {
@@ -1093,7 +1100,7 @@
         }
 
         els.shareBtn.addEventListener("click", handleShare);
-        els.reloadBtn.addEventListener("click", main);
+        els.reloadBtn.addEventListener("click", () => main(true));
 
         main();
     </script>
