@@ -15,6 +15,26 @@ const SETTING = {
   SheetLink: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=0`,
 }
 
+const WEATHER_CONFIG = {
+  Enabled: true,
+  TimeZone: "Asia/Tokyo",
+  ForecastApiBaseUrl: "https://api.open-meteo.com/v1/forecast",
+  GeocodeApiBaseUrl: "https://geocoding-api.open-meteo.com/v1/search",
+  ForecastModels: "jma_seamless",
+  GeocodeCount: 1,
+  GeocodeLanguage: "ja",
+  GeocodeCountryCode: "JP",
+  GeocodeCachePrefix: "WEATHER_GEOCODE_V1_",
+  ForecastCacheDateKey: "WEATHER_FORECAST_CACHE_DATE_V1",
+  ForecastCacheIndexKey: "WEATHER_FORECAST_CACHE_KEYS_V1",
+  ForecastCachePrefix: "WEATHER_FORECAST_V1_",
+  AreaHint: "岡山",
+  QueryAliases: {
+    "灘崎総合公園": "灘崎総合公園 岡山",
+    "ニッショク岡山": "ニッショク岡山"
+  }
+}
+
 // ==========[ 定数：色 ]==========
 const COLORS = {
   Base: "3d4070",
@@ -100,5 +120,4 @@ const SENDERS = {
   Error: createSender("エラー", ICONS.Warning),
   Auto: createSender("T-FONTE", ICONS.Auto),
 }
-
 

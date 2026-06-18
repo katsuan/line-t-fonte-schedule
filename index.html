@@ -297,6 +297,20 @@
             font-weight: 800;
         }
 
+        .weather-chip {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #e8f3ff;
+            color: #3566a8;
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
         .schedule-meta,
         .schedule-place {
             margin: 0;
@@ -833,6 +847,13 @@
                 head.appendChild(chip);
             }
 
+            if (item.weatherText) {
+                const weatherChip = document.createElement("div");
+                weatherChip.className = "weather-chip";
+                weatherChip.textContent = item.weatherText;
+                head.appendChild(weatherChip);
+            }
+
             content.appendChild(head);
 
             if (item.dateLine) {
@@ -895,6 +916,7 @@
             const title = extractScheduleTitle_(titleRow) || textLines[0]?.text || "";
             const isNear = hasNearBadge_(box);
             const iconText = extractScheduleIconText_(box);
+            const weatherText = extractWeatherBadgeText_(box);
             const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
             const placeLine = textLines[textLines.length - 1]?.text === dateLine ? "" : (textLines[textLines.length - 1]?.text || "");
 
@@ -906,6 +928,7 @@
                 title,
                 isNear,
                 iconText,
+                weatherText,
                 dateLine,
                 placeLine
             };
@@ -948,26 +971,34 @@
         }
 
         function extractScheduleIconText_(box) {
-            const iconContainer = findIconContainer_(box);
+            const iconContainer = findBoxByBackgroundColor_(box, "#E6EEF9");
             if (!iconContainer || !Array.isArray(iconContainer.contents)) return "";
 
             const iconNode = iconContainer.contents.find(child => child?.type === "text" && child.text);
             return iconNode ? iconNode.text : "";
         }
 
-        function findIconContainer_(node) {
+        function extractWeatherBadgeText_(box) {
+            const badgeBox = findBoxByBackgroundColor_(box, "#E8F3FF");
+            if (!badgeBox || !Array.isArray(badgeBox.contents)) return "";
+
+            const badgeNode = badgeBox.contents.find(child => child?.type === "text" && child.text);
+            return badgeNode ? badgeNode.text : "";
+        }
+
+        function findBoxByBackgroundColor_(node, backgroundColor) {
             if (!node || !Array.isArray(node.contents)) return null;
 
             const directMatch = node.contents.find(item =>
                 item?.type === "box" &&
-                item?.backgroundColor === "#E6EEF9" &&
+                item?.backgroundColor === backgroundColor &&
                 Array.isArray(item.contents) &&
                 item.contents.some(child => child?.type === "text" && child.text)
             );
             if (directMatch) return directMatch;
 
             for (const child of node.contents) {
-                const nestedMatch = findIconContainer_(child);
+                const nestedMatch = findBoxByBackgroundColor_(child, backgroundColor);
                 if (nestedMatch) return nestedMatch;
             }
 

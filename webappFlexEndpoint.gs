@@ -6,8 +6,10 @@ const FLEX_CONFIG = {
   recordBackgroundColor: "#F6F8FB",
   iconBackgroundColor: "#E6EEF9",
   badgeBackgroundColor: "#FFE2BF",
+  weatherBadgeBackgroundColor: "#E8F3FF",
   summaryTextColor: "#93A1B4",
   badgeTextColor: "#A54B00",
+  weatherBadgeTextColor: "#3566A8",
   textPrimaryColor: "#222222",
   textSecondaryColor: "#555555",
   iconTextColor: "#1F2937",
@@ -53,6 +55,7 @@ function doGet(e) {
 
 function createShareFlexMessages_(forceRefresh) {
   const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
+  const now = new Date();
 
   if (!records.length) {
     return [{
@@ -61,7 +64,13 @@ function createShareFlexMessages_(forceRefresh) {
     }];
   }
 
-  const groups = buildMonthlyFlexGroups_(records, new Date());
+  const nearTermWeatherSummaryMap = getNearTermWeatherSummaryMap_(
+    records,
+    now,
+    FLEX_CONFIG.nearTermDays,
+    forceRefresh
+  );
+  const groups = buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap);
 
   if (!groups.length) {
     return [{
@@ -77,7 +86,7 @@ function createShareFlexMessages_(forceRefresh) {
   return buildCarouselMessages_(bubbleEntries);
 }
 
-function buildMonthlyFlexGroups_(records, now) {
+function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
   const groupsByMonth = new Map();
 
   records.forEach(record => {
@@ -97,7 +106,8 @@ function buildMonthlyFlexGroups_(records, now) {
     monthLabel: buildMonthLabel_(group.monthDate),
     records: group.records,
     link: findFirstLink_(group.records) || SETTING.SheetLink,
-    now
+    now,
+    nearTermWeatherSummaryMap
   }));
 }
 
@@ -167,7 +177,7 @@ function trimAltText_(text) {
 }
 
 function createMonthlyFlexBubble_(group) {
-  const { monthLabel, records, link, now } = group;
+  const { monthLabel, records, link, now, nearTermWeatherSummaryMap } = group;
   const title = `${monthLabel}の予定`;
   const summaryText = buildMonthlySummaryText_(records);
 
@@ -194,7 +204,7 @@ function createMonthlyFlexBubble_(group) {
       type: "box",
       layout: "vertical",
       spacing: "sm",
-      contents: buildMonthlyRecordContents_(records, now)
+      contents: buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap)
     },
     body: {
       type: "box",
@@ -233,9 +243,12 @@ function createMonthlyFlexBubble_(group) {
   };
 }
 
-function buildMonthlyRecordContents_(records, now) {
+function buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap) {
   const visibleRecords = records.slice(0, FLEX_CONFIG.maxVisibleRecordsPerMonth);
-  return visibleRecords.map(record => createRecordBox_(record, { now }));
+  return visibleRecords.map(record => createRecordBox_(record, {
+    now,
+    nearTermWeatherSummaryMap
+  }));
 }
 
 function buildMonthlySummaryText_(records) {
@@ -244,13 +257,17 @@ function buildMonthlySummaryText_(records) {
 }
 
 function createRecordBox_(record, options) {
-  const { now } = options;
+  const { now, nearTermWeatherSummaryMap } = options;
   const diffDays = diffDaysFromToday_(record.date, now);
   const isNearTerm = diffDays >= 0 && diffDays <= FLEX_CONFIG.nearTermDays;
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   const calendarUrl = createGoogleCalendarUrl_(record);
   const iconText = getCalendarIconText_(record.memo1);
   const titleText = getDisplayTitleText_(record.memo1);
+  const weatherSummary = isNearTerm
+    ? (nearTermWeatherSummaryMap && nearTermWeatherSummaryMap[buildWeatherRecordKey_(record)]) || ""
+    : "";
+  const statusBadges = buildRecordStatusBadges_(isNearTerm, weatherSummary);
 
   return {
     type: "box",
@@ -329,37 +346,72 @@ function createRecordBox_(record, options) {
           }
         ]
       },
-      isNearTerm
+      statusBadges.length
         ? {
           type: "box",
           layout: "horizontal",
-          width: FLEX_CONFIG.badgeWidth,
-          justifyContent: "center",
-          alignItems: "center",
-          contents: [
-            {
-              type: "text",
-              text: "もうすぐ",
-              size: "xs",
-              color: FLEX_CONFIG.badgeTextColor,
-              align: "center",
-              gravity: "center"
-            }
-          ],
-          backgroundColor: FLEX_CONFIG.badgeBackgroundColor,
-          paddingAll: FLEX_CONFIG.badgePaddingAll,
-          paddingStart: FLEX_CONFIG.badgePaddingHorizontal,
-          paddingEnd: FLEX_CONFIG.badgePaddingHorizontal,
-          flex: 0,
+          spacing: "xs",
           position: "absolute",
           offsetEnd: FLEX_CONFIG.badgeOffset,
           offsetTop: FLEX_CONFIG.badgeOffset,
-          cornerRadius: FLEX_CONFIG.badgeCornerRadius,
-          height: FLEX_CONFIG.badgeHeight
+          contents: statusBadges
         }
         : null
     ].filter(Boolean)
   };
+}
+
+function buildRecordStatusBadges_(isNearTerm, weatherSummary) {
+  if (!isNearTerm) {
+    return [];
+  }
+
+  const badges = [createStatusBadge_("もうすぐ", {
+    backgroundColor: FLEX_CONFIG.badgeBackgroundColor,
+    textColor: FLEX_CONFIG.badgeTextColor,
+    width: FLEX_CONFIG.badgeWidth
+  })];
+
+  if (weatherSummary) {
+    badges.push(createStatusBadge_(weatherSummary, {
+      backgroundColor: FLEX_CONFIG.weatherBadgeBackgroundColor,
+      textColor: FLEX_CONFIG.weatherBadgeTextColor
+    }));
+  }
+
+  return badges;
+}
+
+function createStatusBadge_(text, options) {
+  const badge = {
+    type: "box",
+    layout: "horizontal",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: options.backgroundColor,
+    paddingAll: FLEX_CONFIG.badgePaddingAll,
+    paddingStart: FLEX_CONFIG.badgePaddingHorizontal,
+    paddingEnd: FLEX_CONFIG.badgePaddingHorizontal,
+    cornerRadius: FLEX_CONFIG.badgeCornerRadius,
+    height: FLEX_CONFIG.badgeHeight,
+    contents: [
+      {
+        type: "text",
+        text: text,
+        size: "xs",
+        color: options.textColor,
+        align: "center",
+        gravity: "center",
+        wrap: false
+      }
+    ]
+  };
+
+  if (options.width) {
+    badge.width = options.width;
+  }
+
+  return badge;
 }
 
 function getCalendarIconText_(memo1) {
