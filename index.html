@@ -297,18 +297,12 @@
             font-weight: 800;
         }
 
-        .weather-chip {
-            flex: 0 0 auto;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: #e8f3ff;
+        .schedule-weather {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.5;
             color: #3566a8;
-            font-size: 11px;
-            font-weight: 800;
-            white-space: nowrap;
+            font-weight: 700;
         }
 
         .schedule-meta,
@@ -847,13 +841,6 @@
                 head.appendChild(chip);
             }
 
-            if (item.weatherText) {
-                const weatherChip = document.createElement("div");
-                weatherChip.className = "weather-chip";
-                weatherChip.textContent = item.weatherText;
-                head.appendChild(weatherChip);
-            }
-
             content.appendChild(head);
 
             if (item.dateLine) {
@@ -861,6 +848,13 @@
                 meta.className = "schedule-meta";
                 meta.textContent = item.dateLine;
                 content.appendChild(meta);
+            }
+
+            if (item.weatherText) {
+                const weather = document.createElement("p");
+                weather.className = "schedule-weather";
+                weather.textContent = item.weatherText;
+                content.appendChild(weather);
             }
 
             if (item.placeLine) {
@@ -916,9 +910,12 @@
             const title = extractScheduleTitle_(titleRow) || textLines[0]?.text || "";
             const isNear = hasNearBadge_(box);
             const iconText = extractScheduleIconText_(box);
-            const weatherText = extractWeatherBadgeText_(box);
+            const weatherText = extractWeatherText_(textLines);
             const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
-            const placeLine = textLines[textLines.length - 1]?.text === dateLine ? "" : (textLines[textLines.length - 1]?.text || "");
+            const placeTextNode = [...textLines].reverse().find(item =>
+                item?.text && item.text !== dateLine && item.text !== weatherText
+            );
+            const placeLine = placeTextNode ? placeTextNode.text : "";
 
             if (!title && !dateLine && !placeLine) {
                 return null;
@@ -978,12 +975,14 @@
             return iconNode ? iconNode.text : "";
         }
 
-        function extractWeatherBadgeText_(box) {
-            const badgeBox = findBoxByBackgroundColor_(box, "#E8F3FF");
-            if (!badgeBox || !Array.isArray(badgeBox.contents)) return "";
+        function extractWeatherText_(textLines) {
+            if (!Array.isArray(textLines)) return "";
 
-            const badgeNode = badgeBox.contents.find(child => child?.type === "text" && child.text);
-            return badgeNode ? badgeNode.text : "";
+            const weatherNode = textLines.find(item =>
+                typeof item?.text === "string" && item.text.startsWith("天気: ")
+            );
+
+            return weatherNode ? weatherNode.text : "";
         }
 
         function findBoxByBackgroundColor_(node, backgroundColor) {

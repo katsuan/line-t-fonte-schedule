@@ -10,6 +10,7 @@ const FLEX_CONFIG = {
   summaryTextColor: "#93A1B4",
   badgeTextColor: "#A54B00",
   weatherBadgeTextColor: "#3566A8",
+  weatherTextColor: "#3566A8",
   textPrimaryColor: "#222222",
   textSecondaryColor: "#555555",
   iconTextColor: "#1F2937",
@@ -267,7 +268,6 @@ function createRecordBox_(record, options) {
   const weatherSummary = isNearTerm
     ? (nearTermWeatherSummaryMap && nearTermWeatherSummaryMap[buildWeatherRecordKey_(record)]) || ""
     : "";
-  const statusBadges = buildRecordStatusBadges_(isNearTerm, weatherSummary);
 
   return {
     type: "box",
@@ -333,6 +333,15 @@ function createRecordBox_(record, options) {
                 color: FLEX_CONFIG.textSecondaryColor,
                 wrap: true
               },
+              weatherSummary
+                ? {
+                  type: "text",
+                  text: `天気: ${weatherSummary}`,
+                  size: "xs",
+                  color: FLEX_CONFIG.weatherTextColor,
+                  wrap: true
+                }
+                : null,
               locationText
                 ? {
                   type: "text",
@@ -346,72 +355,37 @@ function createRecordBox_(record, options) {
           }
         ]
       },
-      statusBadges.length
+      isNearTerm
         ? {
           type: "box",
           layout: "horizontal",
-          spacing: "xs",
+          width: FLEX_CONFIG.badgeWidth,
+          justifyContent: "center",
+          alignItems: "center",
+          contents: [
+            {
+              type: "text",
+              text: "もうすぐ",
+              size: "xs",
+              color: FLEX_CONFIG.badgeTextColor,
+              align: "center",
+              gravity: "center"
+            }
+          ],
+          backgroundColor: FLEX_CONFIG.badgeBackgroundColor,
+          paddingAll: FLEX_CONFIG.badgePaddingAll,
+          paddingStart: FLEX_CONFIG.badgePaddingHorizontal,
+          paddingEnd: FLEX_CONFIG.badgePaddingHorizontal,
+          flex: 0,
           position: "absolute",
           offsetEnd: FLEX_CONFIG.badgeOffset,
           offsetTop: FLEX_CONFIG.badgeOffset,
-          contents: statusBadges
+          cornerRadius: FLEX_CONFIG.badgeCornerRadius,
+          height: FLEX_CONFIG.badgeHeight
         }
         : null
     ].filter(Boolean)
   };
-}
-
-function buildRecordStatusBadges_(isNearTerm, weatherSummary) {
-  if (!isNearTerm) {
-    return [];
-  }
-
-  const badges = [createStatusBadge_("もうすぐ", {
-    backgroundColor: FLEX_CONFIG.badgeBackgroundColor,
-    textColor: FLEX_CONFIG.badgeTextColor,
-    width: FLEX_CONFIG.badgeWidth
-  })];
-
-  if (weatherSummary) {
-    badges.push(createStatusBadge_(weatherSummary, {
-      backgroundColor: FLEX_CONFIG.weatherBadgeBackgroundColor,
-      textColor: FLEX_CONFIG.weatherBadgeTextColor
-    }));
-  }
-
-  return badges;
-}
-
-function createStatusBadge_(text, options) {
-  const badge = {
-    type: "box",
-    layout: "horizontal",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: options.backgroundColor,
-    paddingAll: FLEX_CONFIG.badgePaddingAll,
-    paddingStart: FLEX_CONFIG.badgePaddingHorizontal,
-    paddingEnd: FLEX_CONFIG.badgePaddingHorizontal,
-    cornerRadius: FLEX_CONFIG.badgeCornerRadius,
-    height: FLEX_CONFIG.badgeHeight,
-    contents: [
-      {
-        type: "text",
-        text: text,
-        size: "xs",
-        color: options.textColor,
-        align: "center",
-        gravity: "center",
-        wrap: false
-      }
-    ]
-  };
-
-  if (options.width) {
-    badge.width = options.width;
-  }
-
-  return badge;
 }
 
 function getCalendarIconText_(memo1) {
