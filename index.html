@@ -918,12 +918,11 @@
 
             const detailColumn = findDetailColumn_(box);
             const sourceBox = detailColumn || box;
-            const titleRow = sourceBox.contents?.find(item => item.type === "box" && item.layout === "horizontal");
             const textLines = Array.isArray(sourceBox.contents)
                 ? sourceBox.contents.filter(item => item.type === "text")
                 : [];
 
-            const title = extractScheduleTitle_(titleRow) || textLines[0]?.text || "";
+            const title = extractScheduleTitle_(sourceBox.contents || [], textLines) || "";
             const isNear = hasNearBadge_(box);
             const iconText = extractScheduleIconText_(box);
             const weatherText = extractWeatherText_(textLines);
@@ -974,14 +973,23 @@
             };
         }
 
-        function extractScheduleTitle_(titleRow) {
-            if (!titleRow || !Array.isArray(titleRow.contents)) return "";
+        function extractScheduleTitle_(contentItems, textLines) {
+            if (Array.isArray(textLines) && textLines.length) {
+                return textLines[0].text || "";
+            }
+
+            if (!Array.isArray(contentItems)) return "";
+
+            const titleRow = contentItems.find(item =>
+                item?.type === "box" &&
+                item?.layout === "horizontal" &&
+                Array.isArray(item.contents) &&
+                item.contents.some(child => child?.type === "text" && child.flex === 1 && child.text)
+            );
+            if (!titleRow) return "";
 
             const titleNode = titleRow.contents.find(item => item.type === "text" && item.flex === 1 && item.text);
-            if (titleNode) return titleNode.text;
-
-            const trailingTextNode = [...titleRow.contents].reverse().find(item => item.type === "text" && item.text);
-            return trailingTextNode ? trailingTextNode.text : "";
+            return titleNode ? titleNode.text : "";
         }
 
         function findDetailColumn_(node) {
