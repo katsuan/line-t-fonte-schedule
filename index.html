@@ -484,6 +484,7 @@
         };
 
         let shareMessages = [];
+        let shareTargetPickerMessages = [];
         let canShareInLiff = false;
 
         async function main(forceRefresh = false) {
@@ -504,6 +505,7 @@
                 }
 
                 shareMessages = originalMessages.map(cloneObject);
+                shareTargetPickerMessages = buildShareTargetPickerMessages_(shareMessages);
                 savePreviewCache(shareMessages);
                 renderPreviewFromMessages(shareMessages);
                 setReady(canShareInLiff);
@@ -580,6 +582,7 @@
             if (!cachedMessages.length) return;
 
             shareMessages = cachedMessages.map(cloneObject);
+            shareTargetPickerMessages = buildShareTargetPickerMessages_(shareMessages);
             renderPreviewFromMessages(shareMessages);
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
@@ -1113,19 +1116,74 @@
             }, 0);
         }
 
+        function buildShareTargetPickerMessages_(messages) {
+            return (Array.isArray(messages) ? messages : []).map(message => sanitizeMessageForShareTargetPicker_(cloneObject(message)));
+        }
+
+        function sanitizeMessageForShareTargetPicker_(message) {
+            if (!message || typeof message !== "object") {
+                return message;
+            }
+
+            delete message.sender;
+            delete message.quickReply;
+
+            if (message?.type === "flex" && message?.contents?.type === "carousel" && Array.isArray(message.contents.contents)) {
+                message.contents.contents = message.contents.contents.filter((bubble, index) => {
+                    if (index !== 0) return true;
+                    return !isAutoReminderGuideBubble_(bubble);
+                });
+            }
+
+            sanitizeNodeForShareTargetPicker_(message);
+            return message;
+        }
+
+        function isAutoReminderGuideBubble_(bubble) {
+            if (!bubble || typeof bubble !== "object") return false;
+            const headerTexts = extractTexts(bubble?.header);
+            return headerTexts.includes("リマインド送信ガイド");
+        }
+
+        function sanitizeNodeForShareTargetPicker_(node) {
+            if (!node || typeof node !== "object") return;
+
+            if (Array.isArray(node.contents)) {
+                node.contents = node.contents
+                    .map(child => sanitizeNodeForShareTargetPicker_(child))
+                    .filter(Boolean);
+            }
+
+            ["header", "hero", "body", "footer", "contents"].forEach(key => {
+                if (node[key]) {
+                    sanitizeNodeForShareTargetPicker_(node[key]);
+                }
+            });
+
+            if (node.action && node.action.type && node.action.type !== "uri") {
+                if (node.type === "button") {
+                    return null;
+                }
+
+                delete node.action;
+            }
+
+            return node;
+        }
+
         async function handleShare() {
             try {
                 els.shareBtn.disabled = true;
                 els.shareBtn.textContent = "送信先を選択中...";
                 setStatus("送信先を選択中...");
 
-                const result = await liff.shareTargetPicker(shareMessages, {
+                const result = await liff.shareTargetPicker(shareTargetPickerMessages, {
                     isMultiple: true,
                 });
 
-                if (result) {
+                if (result && result.status === "success") {
                     els.shareBtn.textContent = "送信しました";
-                    setStatus(`${countPreviewUnits(shareMessages)}か月分の予定を送信しました。`);
+                    setStatus(`${countPreviewUnits(shareTargetPickerMessages)}か月分の予定を送信しました。`);
 
                     setTimeout(() => {
                         liff.closeWindow();
