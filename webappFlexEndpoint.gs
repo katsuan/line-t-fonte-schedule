@@ -13,6 +13,8 @@ const FLEX_CONFIG = {
   weatherTextColor: "#3566A8",
   textPrimaryColor: "#222222",
   textSecondaryColor: "#555555",
+  sundayTextColor: "#D94B45",
+  saturdayTextColor: "#3B82F6",
   iconTextColor: "#1F2937",
   headerPadding: "16px",
   cardPadding: "12px",
@@ -438,16 +440,20 @@ function buildMonthlySummaryText_(records) {
     return "以上";
   }
 
-  const hiddenRecord = records[FLEX_CONFIG.maxVisibleRecordsPerMonth];
-  if (!hiddenRecord) {
+  const hiddenRecords = records.slice(FLEX_CONFIG.maxVisibleRecordsPerMonth);
+  if (!hiddenRecords.length) {
     return `他${hiddenCount}件`;
   }
 
-  const hiddenDateLabel = formatNearTermDateLabel_(hiddenRecord.date);
-  const hiddenIconText = getCalendarIconText_(hiddenRecord.memo1);
-  const suffix = hiddenCount > 1 ? "..." : "";
+  const previewText = hiddenRecords
+    .map(record => {
+      const dateLabel = formatCompactDateLabel_(record.date);
+      const iconText = getSummaryIconText_(record.memo1);
+      return `(${dateLabel}${iconText})`;
+    })
+    .join("");
 
-  return `他${hiddenCount}件 (${hiddenDateLabel}${hiddenIconText}${suffix})`;
+  return `他${hiddenCount}件 ${previewText}`;
 }
 
 function createRecordBox_(record, options) {
@@ -520,11 +526,11 @@ function createRecordBox_(record, options) {
                 wrap: true
               },
               {
-                type: "text",
-                text: `${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`,
-                size: "sm",
-                color: FLEX_CONFIG.textSecondaryColor,
-                wrap: true
+                type: "box",
+                layout: "horizontal",
+                spacing: "none",
+                contents: buildRecordDateTimeContents_(record),
+                flex: 0
               },
               weatherSummary
                 ? {
@@ -587,6 +593,12 @@ function getCalendarIconText_(memo1) {
   return firstChar || "予";
 }
 
+function getSummaryIconText_(memo1) {
+  const normalized = String(memo1 || "").trim();
+  const firstChar = Array.from(normalized)[0];
+  return isEmojiLikeChar_(firstChar) ? firstChar : "";
+}
+
 function getDisplayTitleText_(memo1) {
   const normalized = String(memo1 || "").trim();
   if (!normalized) return "予定";
@@ -604,4 +616,51 @@ function getDisplayTitleText_(memo1) {
 
 function isEmojiLikeChar_(char) {
   return !!char && /\p{Extended_Pictographic}/u.test(char);
+}
+
+function getJapaneseWeekday_(date) {
+  return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()] || "";
+}
+
+function getWeekdayTextColor_(date) {
+  const weekday = date.getDay();
+  if (weekday === 0) return FLEX_CONFIG.sundayTextColor;
+  if (weekday === 6) return FLEX_CONFIG.saturdayTextColor;
+  return FLEX_CONFIG.textSecondaryColor;
+}
+
+function buildRecordDateTimeContents_(record) {
+  const weekday = getJapaneseWeekday_(record.date);
+
+  return [
+    {
+      type: "text",
+      text: `${record.date.getMonth() + 1}月${record.date.getDate()}日(`,
+      size: "sm",
+      color: FLEX_CONFIG.textSecondaryColor,
+      wrap: false,
+      flex: 0
+    },
+    {
+      type: "text",
+      text: weekday,
+      size: "sm",
+      color: getWeekdayTextColor_(record.date),
+      weight: "bold",
+      wrap: false,
+      flex: 0
+    },
+    {
+      type: "text",
+      text: `) ${record.formatted.start}-${record.formatted.end}`,
+      size: "sm",
+      color: FLEX_CONFIG.textSecondaryColor,
+      wrap: true,
+      flex: 1
+    }
+  ];
+}
+
+function formatCompactDateLabel_(date) {
+  return `${date.getMonth() + 1}/${date.getDate()}${getJapaneseWeekday_(date)}`;
 }

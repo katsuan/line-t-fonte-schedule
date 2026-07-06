@@ -313,6 +313,16 @@
             color: var(--muted);
         }
 
+        .schedule-meta-weekday.sun {
+            color: #d94b45;
+            font-weight: 800;
+        }
+
+        .schedule-meta-weekday.sat {
+            color: #3b82f6;
+            font-weight: 800;
+        }
+
         .footer-link {
             display: inline-flex;
             align-items: center;
@@ -846,7 +856,15 @@
             if (item.dateLine) {
                 const meta = document.createElement("p");
                 meta.className = "schedule-meta";
-                meta.textContent = item.dateLine;
+                if (item.dateMeta) {
+                    meta.append(
+                        document.createTextNode(item.dateMeta.prefix),
+                        createWeekdaySpan(item.dateMeta.weekday, item.dateMeta.weekendType),
+                        document.createTextNode(item.dateMeta.suffix)
+                    );
+                } else {
+                    meta.textContent = item.dateLine;
+                }
                 content.appendChild(meta);
             }
 
@@ -880,7 +898,7 @@
 
         function extractSummaryNote(bubble) {
             const bodyTexts = extractTexts(bubble?.body);
-            const bodyNote = bodyTexts.find(text => /^(他\d+件|以上)$/.test(text));
+            const bodyNote = bodyTexts.find(text => /^(他\d+件\b.*|以上)$/.test(text));
             if (bodyNote) return bodyNote;
 
             const heroContents = bubble?.hero?.contents;
@@ -889,7 +907,7 @@
             const fallbackNode = heroContents.find(item =>
                 item?.type === "text" &&
                 typeof item.text === "string" &&
-                /^(他\d+件|以上)$/.test(item.text)
+                /^(他\d+件\b.*|以上)$/.test(item.text)
             );
 
             return fallbackNode ? fallbackNode.text : "";
@@ -911,9 +929,10 @@
             const isNear = hasNearBadge_(box);
             const iconText = extractScheduleIconText_(box);
             const weatherText = extractWeatherText_(textLines);
-            const dateLine = textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "";
+            const dateMeta = extractDateMeta_(sourceBox.contents || []);
+            const dateLine = dateMeta ? `${dateMeta.prefix}${dateMeta.weekday}${dateMeta.suffix}` : (textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "");
             const placeTextNode = [...textLines].reverse().find(item =>
-                item?.text && item.text !== dateLine && item.text !== weatherText
+                item?.text && item.text !== title && item.text !== dateLine && item.text !== weatherText
             );
             const placeLine = placeTextNode ? placeTextNode.text : "";
 
@@ -926,8 +945,34 @@
                 isNear,
                 iconText,
                 weatherText,
+                dateMeta,
                 dateLine,
                 placeLine
+            };
+        }
+
+        function extractDateMeta_(contentItems) {
+            if (!Array.isArray(contentItems)) return null;
+
+            const dateRow = contentItems.find(item =>
+                item?.type === "box" &&
+                item?.layout === "horizontal" &&
+                Array.isArray(item.contents) &&
+                item.contents.length >= 3 &&
+                item.contents.every(child => child?.type === "text")
+            );
+            if (!dateRow) return null;
+
+            const parts = dateRow.contents.map(child => child.text || "");
+            if (!parts[0] || !parts[1] || !parts[2]) return null;
+
+            const weekendType = parts[1] === "日" ? "sun" : (parts[1] === "土" ? "sat" : "");
+
+            return {
+                prefix: parts[0],
+                weekday: parts[1],
+                suffix: parts.slice(2).join(""),
+                weekendType
             };
         }
 
@@ -983,6 +1028,17 @@
             );
 
             return weatherNode ? weatherNode.text : "";
+        }
+
+        function createWeekdaySpan(text, weekendType) {
+            const span = document.createElement("span");
+            span.textContent = text;
+
+            if (weekendType) {
+                span.className = `schedule-meta-weekday ${weekendType}`;
+            }
+
+            return span;
         }
 
         function findBoxByBackgroundColor_(node, backgroundColor) {
