@@ -565,7 +565,27 @@ function createMessage() {
 
   if (!records.length) return errorMessage;
 
+  const messageText = buildReminderTextMessageTextFromRecords_(records);
+  const actions = [ACTIONS.FlexSender, ACTIONS.Copy(messageText), ACTIONS.SS, ACTIONS.Plan];
+
+  console.log(messageText);
+
+  Log.finish();
+
+  return [{
+    type: 'text',
+    text: messageText,
+    sender: SENDERS.Auto,
+    quickReply: { items: actions }
+  }];
+}
+
+function buildReminderTextMessageTextFromRecords_(records) {
+  if (!records.length) return "";
+
   const merged = mergeRecordsWithinReminderWindow_(records);
+  if (!merged.length) return "";
+
   const first = merged[0];
   const randomTitle = _pickRandom_(RANDOM_TEXTS.title);
   const randomIntro = _pickRandom_(RANDOM_TEXTS.intro);
@@ -588,19 +608,7 @@ function createMessage() {
     messageLines.push(first.link);
   }
 
-  const messageText = messageLines.join('\n');
-  const actions = [ACTIONS.FlexSender, ACTIONS.Copy(messageText), ACTIONS.SS, ACTIONS.Plan];
-
-  console.log(messageText);
-
-  Log.finish();
-
-  return [{
-    type: 'text',
-    text: messageText,
-    sender: SENDERS.Auto,
-    quickReply: { items: actions }
-  }];
+  return messageLines.join('\n');
 }
 
 function mergeRecordsWithinReminderWindow_(records) {
@@ -662,9 +670,9 @@ function shouldSendRemindMessage() {
 function main() {
   Log.start();
   if (shouldSendRemindMessage()) {
-    const messages = createMessage();
+    const messages = createAutoReminderFlexMessages_();
     if (messages) {
-      Log.debug("任意の送信処理");
+      Log.debug("Flexリマインド送信");
       // LineApiDriver.PostAllMessages(GROUP_ID, messages);
       // LineApiDriver.reply(messages);
     }

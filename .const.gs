@@ -15,6 +15,10 @@ const SETTING = {
   SheetLink: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=0`,
 }
 
+const LIFF_URLS = {
+  FlexSender: "https://liff.line.me/2009927582-9QtOstUK"
+}
+
 const WEATHER_CONFIG = {
   Enabled: true,
   TimeZone: "Asia/Tokyo",
@@ -104,7 +108,7 @@ const ACTIONS = {
   /** 
    * @param {string} text コピー対象の文字列
    */
-  FlexSender: LINE_func.createQuickReply('リッチに送る', { type: 'uri', uri: "https://liff.line.me/2009927582-9QtOstUK" }),
+  FlexSender: LINE_func.createQuickReply('リッチに送る', { type: 'uri', uri: LIFF_URLS.FlexSender }),
   Copy: (text = '') => (LINE_func.createQuickReply('Copy', { type: 'clipboard', text: text, imageUrl: ICONS.Copy })),
   SS: LINE_func.createQuickReply('シート', { type: 'uri', imageUrl: ICONS.SS, uri: SETTING.SheetLink }),
   Plan: LINE_func.createQuickReply('予定', { text: '#今後の予定', imageUrl: ICONS.Soccer })
@@ -120,4 +124,3 @@ const SENDERS = {
   Error: createSender("エラー", ICONS.Warning),
   Auto: createSender("T-FONTE", ICONS.Auto),
 }
-

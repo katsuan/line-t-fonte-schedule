@@ -32,6 +32,18 @@ const ALT_TEXT_CONFIG = {
   maxChars: 1500
 };
 
+const AUTO_REMINDER_GUIDE_CONFIG = {
+  headerTitle: "リマインド送信ガイド",
+  bodyLabel: "これまでのテキスト文面",
+  copyButtonLabel: "文章をコピー",
+  sheetButtonLabel: "シート",
+  richButtonLabel: "リッチに送る",
+  cardBackgroundColor: "#FFF9EC",
+  bodyBackgroundColor: "#FFFFFF",
+  bodyTextColor: "#4B5563",
+  guideAccentColor: "#B7791F"
+};
+
 function doGet(e) {
   try {
     const forceRefresh = !!(e && e.parameter && e.parameter.refresh === "1");
@@ -56,6 +68,26 @@ function doGet(e) {
 
 function createShareFlexMessages_(forceRefresh) {
   const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
+  const messages = buildShareFlexMessagesFromRecords_(records, {
+    forceRefresh: !!forceRefresh
+  });
+  return attachReminderQuickReply_(messages);
+}
+
+function createAutoReminderFlexMessages_() {
+  const records = extractUpcomingRecordsWithDateObjects();
+  const reminderText = buildReminderTextMessageTextFromRecords_(records);
+
+  const messages = buildShareFlexMessagesFromRecords_(records, {
+    forceRefresh: false,
+    includeGuideBubble: true,
+    reminderText
+  });
+  return attachReminderQuickReply_(messages);
+}
+
+function buildShareFlexMessagesFromRecords_(records, options) {
+  const { forceRefresh, includeGuideBubble, reminderText } = options || {};
   const now = new Date();
 
   if (!records.length) {
@@ -69,7 +101,7 @@ function createShareFlexMessages_(forceRefresh) {
     records,
     now,
     FLEX_CONFIG.nearTermDays,
-    forceRefresh
+    !!forceRefresh
   );
   const groups = buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap);
 
@@ -84,6 +116,14 @@ function createShareFlexMessages_(forceRefresh) {
     bubble: createMonthlyFlexBubble_(group),
     nearTermDates: collectNearTermDates_(group.records, group.now)
   }));
+
+  if (includeGuideBubble && reminderText) {
+    bubbleEntries.unshift({
+      bubble: createAutoReminderGuideBubble_(reminderText),
+      nearTermDates: []
+    });
+  }
+
   return buildCarouselMessages_(bubbleEntries);
 }
 
@@ -177,6 +217,145 @@ function trimAltText_(text) {
   return normalized.slice(0, ALT_TEXT_CONFIG.maxChars);
 }
 
+function createAutoReminderGuideBubble_(reminderText) {
+  return {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: FLEX_CONFIG.headerBackgroundColor,
+      paddingAll: FLEX_CONFIG.headerPadding,
+      contents: [
+        {
+          type: "text",
+          text: AUTO_REMINDER_GUIDE_CONFIG.headerTitle,
+          color: "#ffffff",
+          weight: "bold",
+          size: "lg",
+          wrap: true
+        }
+      ]
+    },
+    hero: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      paddingAll: FLEX_CONFIG.cardPadding,
+      backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.cardBackgroundColor,
+      contents: [
+        {
+          type: "text",
+          text: AUTO_REMINDER_GUIDE_CONFIG.bodyLabel,
+          size: "xs",
+          weight: "bold",
+          color: AUTO_REMINDER_GUIDE_CONFIG.guideAccentColor
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          paddingAll: "12px",
+          backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.bodyBackgroundColor,
+          cornerRadius: FLEX_CONFIG.cardCornerRadius,
+          contents: [
+            {
+              type: "text",
+              text: trimClipboardText_(reminderText),
+              size: "xs",
+              color: AUTO_REMINDER_GUIDE_CONFIG.bodyTextColor,
+              wrap: true
+            }
+          ]
+        }
+      ]
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingTop: "8px",
+      paddingBottom: "2px",
+      contents: [
+        {
+          type: "text",
+          text: "右のカードが送信されます",
+          size: "xs",
+          color: FLEX_CONFIG.summaryTextColor,
+          align: "center",
+          wrap: true
+        }
+      ]
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "box",
+          layout: "horizontal",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "secondary",
+              flex: 1,
+              action: {
+                type: "clipboard",
+                label: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel,
+                clipboardText: trimClipboardText_(reminderText)
+              }
+            },
+            {
+              type: "button",
+              style: "secondary",
+              flex: 1,
+              action: {
+                type: "uri",
+                label: AUTO_REMINDER_GUIDE_CONFIG.sheetButtonLabel,
+                uri: SETTING.SheetLink
+              }
+            }
+          ]
+        },
+        {
+          type: "button",
+          style: "primary",
+          action: {
+            type: "uri",
+            label: AUTO_REMINDER_GUIDE_CONFIG.richButtonLabel,
+            uri: LIFF_URLS.FlexSender
+          }
+        }
+      ]
+    }
+  };
+}
+
+function trimClipboardText_(text) {
+  const normalized = String(text || "");
+  if (normalized.length <= 1000) {
+    return normalized;
+  }
+
+  return normalized.slice(0, 1000);
+}
+
+function attachReminderQuickReply_(messages) {
+  if (!Array.isArray(messages) || !messages.length) {
+    return messages;
+  }
+
+  const decorated = messages.map(message => Object.assign({}, message));
+  const lastIndex = decorated.length - 1;
+
+  decorated[lastIndex].sender = SENDERS.Auto;
+  decorated[lastIndex].quickReply = {
+    items: [ACTIONS.FlexSender, ACTIONS.SS, ACTIONS.Plan]
+  };
+
+  return decorated;
+}
+
 function createMonthlyFlexBubble_(group) {
   const { monthLabel, records, link, now, nearTermWeatherSummaryMap } = group;
   const title = `${monthLabel}の予定`;
@@ -219,7 +398,8 @@ function createMonthlyFlexBubble_(group) {
           size: "xs",
           color: FLEX_CONFIG.summaryTextColor,
           align: "center",
-          wrap: true
+          wrap: false,
+          maxLines: 1
         }
       ]
     },
@@ -254,7 +434,20 @@ function buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap) {
 
 function buildMonthlySummaryText_(records) {
   const hiddenCount = Math.max(records.length - FLEX_CONFIG.maxVisibleRecordsPerMonth, 0);
-  return hiddenCount > 0 ? `他${hiddenCount}件` : "以上";
+  if (hiddenCount <= 0) {
+    return "以上";
+  }
+
+  const hiddenRecord = records[FLEX_CONFIG.maxVisibleRecordsPerMonth];
+  if (!hiddenRecord) {
+    return `他${hiddenCount}件`;
+  }
+
+  const hiddenDateLabel = formatNearTermDateLabel_(hiddenRecord.date);
+  const hiddenIconText = getCalendarIconText_(hiddenRecord.memo1);
+  const suffix = hiddenCount > 1 ? "..." : "";
+
+  return `他${hiddenCount}件 (${hiddenDateLabel}${hiddenIconText}${suffix})`;
 }
 
 function createRecordBox_(record, options) {

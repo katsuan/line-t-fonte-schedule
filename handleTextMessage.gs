@@ -6,7 +6,11 @@ function handleTextMessage(event) {
   const text = event.message.text.trim();
 
   if (isFutureScheduleTriggerText_(text)) {
-    return createMessage();
+    return createAutoReminderFlexMessages_();
+  }
+
+  if (isAutoReminderTestTriggerText_(text)) {
+    return createAutoReminderFlexMessages_();
   }
 
   if (isReminderTriggerText_(text)) {
@@ -22,6 +26,14 @@ function handleTextMessage(event) {
  */
 function isFutureScheduleTriggerText_(text) {
   return text.startsWith('#今後の予定');
+}
+
+/**
+ * 自動リマインドFlexテストトリガーか判定
+ * (#リマインドテスト / #自動リマインドテスト から始まる)
+ */
+function isAutoReminderTestTriggerText_(text) {
+  return text.startsWith('#リマインドテスト') || text.startsWith('#自動リマインドテスト');
 }
 
 /**
