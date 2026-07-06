@@ -646,7 +646,6 @@ function buildRecordDateTimeContents_(record) {
       text: weekday,
       size: "sm",
       color: getWeekdayTextColor_(record.date),
-      weight: "bold",
       wrap: false,
       flex: 0
     },
