@@ -545,7 +545,7 @@
                 shareMessages = originalMessages.map(cloneObject);
                 shareTargetPickerMessages = prepareShareTargetPickerMessages_();
                 savePreviewCache(shareMessages);
-                renderPreviewFromMessages(shareMessages);
+                renderPreviewFromMessages(shareTargetPickerMessages);
                 setReady(canShareInLiff);
 
             } catch (err) {
@@ -621,7 +621,7 @@
 
             shareMessages = cachedMessages.map(cloneObject);
             shareTargetPickerMessages = prepareShareTargetPickerMessages_();
-            renderPreviewFromMessages(shareMessages);
+            renderPreviewFromMessages(shareTargetPickerMessages);
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
             els.reloadBtn.classList.remove("hidden");
