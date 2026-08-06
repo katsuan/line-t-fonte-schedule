@@ -49,7 +49,7 @@ const AUTO_REMINDER_GUIDE_CONFIG = {
 function doGet(e) {
   try {
     const forceRefresh = !!(e && e.parameter && e.parameter.refresh === "1");
-    const messages = createShareFlexMessages_(forceRefresh);
+    const messages = createLiffPreviewMessages_(forceRefresh);
 
     return ContentService
       .createTextOutput(JSON.stringify({
@@ -66,6 +66,17 @@ function doGet(e) {
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function createLiffPreviewMessages_(forceRefresh) {
+  const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
+  const reminderText = buildReminderTextMessageTextFromRecords_(records);
+  const messages = buildReminderFlexMessages_(records, {
+    forceRefresh: !!forceRefresh,
+    includeGuideBubble: true,
+    reminderText: reminderText
+  });
+  return attachReminderQuickReply_(messages);
 }
 
 function createShareFlexMessages_(forceRefresh) {
