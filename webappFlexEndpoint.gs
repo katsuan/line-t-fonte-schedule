@@ -87,11 +87,11 @@ function createLiffPayload_(forceRefresh) {
   }
 
   const previewBubbleEntries = getShareablePreviewBubbleEntries_(viewModel.bubbleEntries);
-  const sharedAltText = trimAltText_(buildCarouselAltText_(previewBubbleEntries));
+  const shareMessages = buildCarouselMessages_(previewBubbleEntries);
 
   return {
-    previewMessages: buildCarouselMessages_(previewBubbleEntries),
-    shareMessages: buildShareTargetPickerMessagesFromGroups_(viewModel.groups, sharedAltText)
+    previewMessages: shareMessages,
+    shareMessages: shareMessages
   };
 }
 
@@ -180,168 +180,6 @@ function getShareablePreviewBubbleEntries_(bubbleEntries) {
   }
 
   return bubbleEntries.slice(1);
-}
-
-function buildShareTargetPickerMessagesFromGroups_(groups, sharedAltText) {
-  return (Array.isArray(groups) ? groups : [])
-    .slice(0, 5)
-    .map(function (group) {
-      return createShareTargetPickerMessageFromGroup_(group, sharedAltText);
-    })
-    .filter(Boolean);
-}
-
-function createShareTargetPickerMessageFromGroup_(group, sharedAltText) {
-  if (!group) {
-    return null;
-  }
-
-  const bubble = createShareTargetPickerMonthlyBubble_(group);
-  if (!bubble) {
-    return null;
-  }
-
-  return {
-    type: "flex",
-    altText: trimAltText_(sharedAltText || `${group.monthLabel}の予定`),
-    contents: bubble
-  };
-}
-
-function createShareTargetPickerMonthlyBubble_(group) {
-  const visibleRecords = (group.records || []).slice(0, FLEX_CONFIG.maxVisibleRecordsPerMonth);
-  const bodyContents = visibleRecords
-    .map(record => createShareTargetPickerRecordBox_(record, group.now))
-    .filter(Boolean);
-
-  const summaryText = buildMonthlySummaryText_(group.records || []);
-  if (summaryText) {
-    bodyContents.push({
-      type: "text",
-      text: summaryText,
-      size: "xs",
-      color: FLEX_CONFIG.summaryTextColor,
-      align: "center",
-      wrap: true
-    });
-  }
-
-  if (!bodyContents.length) {
-    return null;
-  }
-
-  const bubble = {
-    type: "bubble",
-    size: "mega",
-    header: {
-      type: "box",
-      layout: "vertical",
-      backgroundColor: FLEX_CONFIG.headerBackgroundColor,
-      paddingAll: FLEX_CONFIG.headerPadding,
-      contents: [
-        {
-          type: "text",
-          text: `${group.monthLabel}の予定`,
-          color: "#ffffff",
-          weight: "bold",
-          size: "lg",
-          wrap: true
-        }
-      ]
-    },
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "sm",
-      contents: bodyContents
-    }
-  };
-
-  if (group.link) {
-    bubble.footer = {
-      type: "box",
-      layout: "vertical",
-      spacing: "sm",
-      contents: [
-        {
-          type: "button",
-          style: "primary",
-          action: {
-            type: "uri",
-            label: `${group.monthLabel}のリンクを開く`,
-            uri: group.link
-          }
-        }
-      ]
-    };
-  }
-
-  return bubble;
-}
-
-function createShareTargetPickerRecordBox_(record, now) {
-  if (!record) {
-    return null;
-  }
-
-  const lines = [];
-
-  lines.push({
-    type: "text",
-    text: getDisplayTitleText_(record.memo1),
-    size: "md",
-    weight: "bold",
-    color: FLEX_CONFIG.textPrimaryColor,
-    wrap: true
-  });
-
-  lines.push({
-    type: "text",
-    text: buildShareTargetPickerDateLine_(record),
-    size: "sm",
-    color: FLEX_CONFIG.textSecondaryColor,
-    wrap: true
-  });
-
-  const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
-  if (locationText) {
-    lines.push({
-      type: "text",
-      text: locationText,
-      size: "sm",
-      color: FLEX_CONFIG.textSecondaryColor,
-      wrap: true
-    });
-  }
-
-  if (isNearTermRecord_(record, now)) {
-    lines.push({
-      type: "text",
-      text: "もうすぐ",
-      size: "xs",
-      color: FLEX_CONFIG.badgeTextColor,
-      wrap: true
-    });
-  }
-
-  return {
-    type: "box",
-    layout: "vertical",
-    spacing: "xs",
-    paddingAll: "12px",
-    backgroundColor: FLEX_CONFIG.recordBackgroundColor,
-    cornerRadius: FLEX_CONFIG.cardCornerRadius,
-    contents: lines
-  };
-}
-
-function buildShareTargetPickerDateLine_(record) {
-  return `${record.date.getMonth() + 1}月${record.date.getDate()}日(${getJapaneseWeekday_(record.date)}) ${record.formatted.start}-${record.formatted.end}`;
-}
-
-function isNearTermRecord_(record, now) {
-  const diffDays = diffDaysFromToday_(record.date, now || new Date());
-  return diffDays >= 0 && diffDays <= FLEX_CONFIG.nearTermDays;
 }
 
 function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
