@@ -1378,10 +1378,7 @@
                 let contents = cloneObject(message.contents);
 
                 if (contents?.type === "carousel" && Array.isArray(contents.contents)) {
-                    contents.contents = contents.contents.filter((bubble, index) => {
-                        if (index !== 0) return true;
-                        return !isAutoReminderGuideBubble_(bubble);
-                    });
+                    contents.contents = getShareableCarouselBubbles_(contents.contents);
                 }
 
                 contents = sanitizeNodeForShareTargetPicker_(contents, {
@@ -1410,6 +1407,18 @@
 
         function trimShareAltText_(text) {
             return String(text || "").slice(0, 1500);
+        }
+
+        function getShareableCarouselBubbles_(bubbles) {
+            if (!Array.isArray(bubbles) || !bubbles.length) {
+                return [];
+            }
+
+            if (bubbles.length <= 1) {
+                return bubbles.slice();
+            }
+
+            return bubbles.slice(1);
         }
 
         function isAutoReminderGuideBubble_(bubble) {
