@@ -543,7 +543,8 @@
                 }
 
                 shareMessages = originalMessages.map(cloneObject);
-                shareTargetPickerMessages = prepareShareTargetPickerMessages_();
+                shareTargetPickerMessages = buildShareTargetPickerMessages_(shareMessages);
+                renderShareTargetPickerDebug_(shareTargetPickerMessages);
                 savePreviewCache(shareMessages);
                 renderPreviewFromMessages(shareMessages);
                 setReady(canShareInLiff);
@@ -620,7 +621,8 @@
             if (!cachedMessages.length) return;
 
             shareMessages = cachedMessages.map(cloneObject);
-            shareTargetPickerMessages = prepareShareTargetPickerMessages_();
+            shareTargetPickerMessages = buildShareTargetPickerMessages_(shareMessages);
+            renderShareTargetPickerDebug_(shareTargetPickerMessages);
             renderPreviewFromMessages(shareMessages);
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
@@ -1161,12 +1163,6 @@
                 .slice(0, 5);
         }
 
-        function prepareShareTargetPickerMessages_() {
-            const preparedMessages = buildShareTargetPickerMessages_(shareMessages);
-            renderShareTargetPickerDebug_(preparedMessages);
-            return preparedMessages;
-        }
-
         function renderShareTargetPickerDebug_(messages) {
             if (!els.debugPanel || !els.debugPayload) return;
 
@@ -1224,145 +1220,11 @@
             }
 
             const bubbleTitle = extractTexts(bubble?.header)[0] || extractTexts(bubble?.body)[0] || "";
-            const minimalBubble = createMinimalShareBubble_(bubble);
-            if (!minimalBubble) {
-                return null;
-            }
-
             return {
                 type: "flex",
                 altText: trimShareAltText_(bubbleTitle || fallbackAltText || `予定 ${index + 1}`),
-                contents: minimalBubble
+                contents: bubble
             };
-        }
-
-        function createMinimalShareBubble_(bubble) {
-            const headerTitle = extractTexts(bubble?.header)[0] || "予定";
-            const items = extractScheduleItems(bubble);
-            const summaryNote = extractSummaryNote(bubble);
-            const footerLink = extractFooterLink(bubble);
-
-            const bodyContents = [];
-
-            items.forEach(item => {
-                const lines = [];
-
-                if (item.title) {
-                    lines.push({
-                        type: "text",
-                        text: item.title,
-                        size: "md",
-                        weight: "bold",
-                        color: "#222222",
-                        wrap: true
-                    });
-                }
-
-                if (item.dateLine) {
-                    lines.push({
-                        type: "text",
-                        text: item.dateLine,
-                        size: "sm",
-                        color: "#555555",
-                        wrap: true
-                    });
-                }
-
-                if (item.placeLine) {
-                    lines.push({
-                        type: "text",
-                        text: item.placeLine,
-                        size: "sm",
-                        color: "#555555",
-                        wrap: true
-                    });
-                }
-
-                if (item.isNear) {
-                    lines.push({
-                        type: "text",
-                        text: "もうすぐ",
-                        size: "xs",
-                        color: "#A54B00",
-                        wrap: true
-                    });
-                }
-
-                if (lines.length) {
-                    bodyContents.push({
-                        type: "box",
-                        layout: "vertical",
-                        spacing: "xs",
-                        paddingAll: "12px",
-                        backgroundColor: "#F6F8FB",
-                        cornerRadius: "12px",
-                        contents: lines
-                    });
-                }
-            });
-
-            if (summaryNote) {
-                bodyContents.push({
-                    type: "text",
-                    text: summaryNote,
-                    size: "xs",
-                    color: "#93A1B4",
-                    align: "center",
-                    wrap: true
-                });
-            }
-
-            if (!bodyContents.length) {
-                return null;
-            }
-
-            const minimalBubble = {
-                type: "bubble",
-                size: "mega",
-                header: {
-                    type: "box",
-                    layout: "vertical",
-                    backgroundColor: "#4284F3",
-                    paddingAll: "16px",
-                    contents: [
-                        {
-                            type: "text",
-                            text: headerTitle,
-                            color: "#ffffff",
-                            weight: "bold",
-                            size: "lg",
-                            wrap: true
-                        }
-                    ]
-                },
-                body: {
-                    type: "box",
-                    layout: "vertical",
-                    spacing: "sm",
-                    contents: bodyContents
-                }
-            };
-
-            if (footerLink?.uri) {
-                minimalBubble.footer = {
-                    type: "box",
-                    layout: "vertical",
-                    spacing: "sm",
-                    contents: [
-                        {
-                            type: "button",
-                            style: "primary",
-                            action: {
-                                type: "uri",
-                                label: footerLink.label || "リンクを開く",
-                                uri: footerLink.uri
-                            }
-                        }
-                    ]
-                };
-            }
-
-            return minimalBubble;
         }
 
         function sanitizeMessageForShareTargetPicker_(message) {
@@ -1384,9 +1246,7 @@
                     });
                 }
 
-                contents = sanitizeNodeForShareTargetPicker_(contents, {
-                    insideFooter: false
-                });
+                contents = sanitizeNodeForShareTargetPicker_(contents);
                 if (!contents) {
                     return null;
                 }
@@ -1418,21 +1278,18 @@
             return headerTexts.includes("リマインド送信ガイド");
         }
 
-        function sanitizeNodeForShareTargetPicker_(node, context = {}) {
+        function sanitizeNodeForShareTargetPicker_(node) {
             if (!node || typeof node !== "object") return null;
-            const { insideFooter = false } = context;
 
             if (Array.isArray(node.contents)) {
                 node.contents = node.contents
-                    .map(child => sanitizeNodeForShareTargetPicker_(child, { insideFooter }))
+                    .map(child => sanitizeNodeForShareTargetPicker_(child))
                     .filter(Boolean);
             }
 
             ["header", "hero", "body", "footer", "contents"].forEach(key => {
                 if (node[key]) {
-                    const sanitizedChild = sanitizeNodeForShareTargetPicker_(node[key], {
-                        insideFooter: insideFooter || key === "footer"
-                    });
+                    const sanitizedChild = sanitizeNodeForShareTargetPicker_(node[key]);
                     if (sanitizedChild) {
                         node[key] = sanitizedChild;
                     } else {
@@ -1443,7 +1300,7 @@
 
             if (node.action) {
                 if (node.type === "button") {
-                    if (!insideFooter || node.action.type !== "uri") {
+                    if (node.action.type !== "uri") {
                         return null;
                     }
                 } else {
@@ -1463,8 +1320,6 @@
                 els.shareBtn.disabled = true;
                 els.shareBtn.textContent = "送信先を選択中...";
                 setStatus("送信先を選択中...");
-
-                shareTargetPickerMessages = prepareShareTargetPickerMessages_();
 
                 if (!Array.isArray(shareTargetPickerMessages) || !shareTargetPickerMessages.length) {
                     throw new Error("送信用メッセージを作成できませんでした。");

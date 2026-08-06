@@ -48,6 +48,14 @@ GAS と LINE メッセージ生成が中心のため、責務分離、設定管�
 - 最後のメッセージに quick reply を付け、次の行動を切らさない
 - 自動送信向けメッセージでは、送信される本文と遷移先が追えるガイドを維持する
 
+### 4.1 LIFF / shareTargetPicker の送信制約
+
+- LIFF 画面のプレビュー用 JSON と、`shareTargetPicker` に渡す送信用 JSON は別物として扱う
+- 送信用 JSON は表示再現よりも送信成功率を優先して削る
+- 送信用に残すリンクは footer 配下の `button` + `uri` のみとし、それ以外の `action` は落とす
+- 送信用 Flex は carousel のまま渡さず、必要に応じて bubble 単位へ分解する
+- 送信不能の切り分け時は、まず `docs/backups/` へ現状 HTML を退避してから調整する
+
 ### 5. GAS 運用ルール
 
 - ローカルファイルを正本とし、Apps Script エディタだけで修正を完結させない
