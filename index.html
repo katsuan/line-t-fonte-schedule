@@ -411,6 +411,37 @@
             display: none !important;
         }
 
+        .debug-panel {
+            margin-top: 12px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: #f8fbff;
+            overflow: hidden;
+        }
+
+        .debug-panel summary {
+            cursor: pointer;
+            padding: 12px 14px;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--muted);
+            list-style: none;
+        }
+
+        .debug-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .debug-panel pre {
+            margin: 0;
+            padding: 0 14px 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 11px;
+            line-height: 1.6;
+            color: #334155;
+        }
+
         @keyframes spin {
             to {
                 transform: rotate(360deg);
@@ -440,6 +471,11 @@
             </div>
 
             <div id="messageList" class="message-list hidden"></div>
+
+            <details id="debugPanel" class="debug-panel hidden">
+                <summary>送信用JSONを確認</summary>
+                <pre id="debugPayload"></pre>
+            </details>
         </section>
     </main>
 
@@ -481,6 +517,8 @@
             statusText: document.getElementById("statusText"),
             statusSpinner: document.getElementById("statusSpinner"),
             summaryChip: document.getElementById("summaryChip"),
+            debugPanel: document.getElementById("debugPanel"),
+            debugPayload: document.getElementById("debugPayload"),
         };
 
         let shareMessages = [];
@@ -506,6 +544,7 @@
 
                 shareMessages = originalMessages.map(cloneObject);
                 shareTargetPickerMessages = buildShareTargetPickerMessages_(shareMessages);
+                renderShareTargetPickerDebug_(shareTargetPickerMessages);
                 savePreviewCache(shareMessages);
                 renderPreviewFromMessages(shareMessages);
                 setReady(canShareInLiff);
@@ -583,6 +622,7 @@
 
             shareMessages = cachedMessages.map(cloneObject);
             shareTargetPickerMessages = buildShareTargetPickerMessages_(shareMessages);
+            renderShareTargetPickerDebug_(shareTargetPickerMessages);
             renderPreviewFromMessages(shareMessages);
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
@@ -1117,26 +1157,119 @@
         }
 
         function buildShareTargetPickerMessages_(messages) {
-            return (Array.isArray(messages) ? messages : []).map(message => sanitizeMessageForShareTargetPicker_(cloneObject(message)));
+            return (Array.isArray(messages) ? messages : [])
+                .flatMap(message => normalizeShareTargetPickerMessages_(message))
+                .filter(Boolean)
+                .slice(0, 5);
+        }
+
+        function renderShareTargetPickerDebug_(messages) {
+            if (!els.debugPanel || !els.debugPayload) return;
+
+            const payload = Array.isArray(messages) ? messages : [];
+            const summary = payload.map((message, index) => ({
+                index: index + 1,
+                type: message?.type || "",
+                altText: message?.altText || "",
+                contentsType: message?.contents?.type || "",
+            }));
+
+            els.debugPayload.textContent = JSON.stringify({
+                count: payload.length,
+                summary,
+                messages: payload
+            }, null, 2);
+            els.debugPanel.classList.toggle("hidden", !payload.length);
+
+            if (payload.length) {
+                console.log("preparedShareTargetPickerMessages", payload);
+            }
+        }
+
+        function normalizeShareTargetPickerMessages_(message) {
+            if (!message || typeof message !== "object") {
+                return [];
+            }
+
+            if (message.type === "text") {
+                const text = String(message.text || "").trim();
+                return text ? [{ type: "text", text: text.slice(0, 5000) }] : [];
+            }
+
+            if (message.type !== "flex") {
+                return [];
+            }
+
+            const sanitizedMessage = sanitizeMessageForShareTargetPicker_(cloneObject(message));
+            if (!sanitizedMessage) {
+                return [];
+            }
+
+            if (sanitizedMessage?.contents?.type === "carousel" && Array.isArray(sanitizedMessage.contents.contents)) {
+                return sanitizedMessage.contents.contents
+                    .map((bubble, index) => createShareTargetPickerBubbleMessage_(bubble, sanitizedMessage.altText, index))
+                    .filter(Boolean);
+            }
+
+            return [sanitizedMessage];
+        }
+
+        function createShareTargetPickerBubbleMessage_(bubble, fallbackAltText, index) {
+            if (!bubble || bubble.type !== "bubble") {
+                return null;
+            }
+
+            const bubbleTitle = extractTexts(bubble?.header)[0] || extractTexts(bubble?.body)[0] || "";
+            return {
+                type: "flex",
+                altText: trimShareAltText_(bubbleTitle || fallbackAltText || `予定 ${index + 1}`),
+                contents: bubble
+            };
         }
 
         function sanitizeMessageForShareTargetPicker_(message) {
             if (!message || typeof message !== "object") {
-                return message;
+                return null;
             }
 
-            delete message.sender;
-            delete message.quickReply;
+            const baseMessage = {
+                type: message.type
+            };
 
-            if (message?.type === "flex" && message?.contents?.type === "carousel" && Array.isArray(message.contents.contents)) {
-                message.contents.contents = message.contents.contents.filter((bubble, index) => {
-                    if (index !== 0) return true;
-                    return !isAutoReminderGuideBubble_(bubble);
-                });
+            if (message.type === "flex") {
+                let contents = cloneObject(message.contents);
+
+                if (contents?.type === "carousel" && Array.isArray(contents.contents)) {
+                    contents.contents = contents.contents.filter((bubble, index) => {
+                        if (index !== 0) return true;
+                        return !isAutoReminderGuideBubble_(bubble);
+                    });
+                }
+
+                contents = sanitizeNodeForShareTargetPicker_(contents);
+                if (!contents) {
+                    return null;
+                }
+
+                if (contents?.type === "carousel" && Array.isArray(contents.contents) && !contents.contents.length) {
+                    return null;
+                }
+
+                baseMessage.altText = trimShareAltText_(message.altText || extractTexts(contents)[0] || "活動予定");
+                baseMessage.contents = contents;
+                return baseMessage;
             }
 
-            sanitizeNodeForShareTargetPicker_(message);
-            return message;
+            if (message.type === "text") {
+                const text = String(message.text || "").trim();
+                return text ? { type: "text", text: text.slice(0, 5000) } : null;
+            }
+
+            return null;
+        }
+
+        function trimShareAltText_(text) {
+            return String(text || "").slice(0, 1500);
         }
 
         function isAutoReminderGuideBubble_(bubble) {
@@ -1146,7 +1279,7 @@
         }
 
         function sanitizeNodeForShareTargetPicker_(node) {
-            if (!node || typeof node !== "object") return;
+            if (!node || typeof node !== "object") return null;
 
             if (Array.isArray(node.contents)) {
                 node.contents = node.contents
@@ -1156,16 +1289,27 @@
 
             ["header", "hero", "body", "footer", "contents"].forEach(key => {
                 if (node[key]) {
-                    sanitizeNodeForShareTargetPicker_(node[key]);
+                    const sanitizedChild = sanitizeNodeForShareTargetPicker_(node[key]);
+                    if (sanitizedChild) {
+                        node[key] = sanitizedChild;
+                    } else {
+                        delete node[key];
+                    }
                 }
             });
 
-            if (node.action && node.action.type && node.action.type !== "uri") {
+            if (node.action) {
                 if (node.type === "button") {
-                    return null;
+                    if (node.action.type !== "uri") {
+                        return null;
+                    }
+                } else {
+                    delete node.action;
                 }
+            }
 
-                delete node.action;
+            if (node.type === "box" && Array.isArray(node.contents) && !node.contents.length) {
+                return null;
             }
 
             return node;
@@ -1176,6 +1320,12 @@
                 els.shareBtn.disabled = true;
                 els.shareBtn.textContent = "送信先を選択中...";
                 setStatus("送信先を選択中...");
+
+                if (!Array.isArray(shareTargetPickerMessages) || !shareTargetPickerMessages.length) {
+                    throw new Error("送信用メッセージを作成できませんでした。");
+                }
+
+                console.log("shareTargetPickerMessages", shareTargetPickerMessages);
 
                 const result = await liff.shareTargetPicker(shareTargetPickerMessages, {
                     isMultiple: true,
