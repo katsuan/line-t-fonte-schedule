@@ -965,9 +965,16 @@
 
         function extractScheduleItems(bubble) {
             const heroContents = bubble?.hero?.contents;
-            if (!Array.isArray(heroContents)) return [];
+            if (Array.isArray(heroContents) && heroContents.length) {
+                return heroContents
+                    .map(extractScheduleItemFromBox)
+                    .filter(Boolean);
+            }
 
-            return heroContents
+            const bodyContents = bubble?.body?.contents;
+            if (!Array.isArray(bodyContents)) return [];
+
+            return bodyContents
                 .map(extractScheduleItemFromBox)
                 .filter(Boolean);
         }
@@ -1007,7 +1014,11 @@
             const dateMeta = extractDateMeta_(sourceBox.contents || []);
             const dateLine = dateMeta ? `${dateMeta.prefix}${dateMeta.weekday}${dateMeta.suffix}` : (textLines[0]?.text && textLines[0].text !== title ? textLines[0].text : textLines[1]?.text || "");
             const placeTextNode = [...textLines].reverse().find(item =>
-                item?.text && item.text !== title && item.text !== dateLine && item.text !== weatherText
+                item?.text &&
+                item.text !== title &&
+                item.text !== dateLine &&
+                item.text !== weatherText &&
+                item.text !== "もうすぐ"
             );
             const placeLine = placeTextNode ? placeTextNode.text : "";
 
@@ -1089,19 +1100,36 @@
         }
 
         function hasNearBadge_(box) {
-            return Array.isArray(box?.contents) && box.contents.some(item =>
-                item?.type === "box" &&
-                Array.isArray(item.contents) &&
-                item.contents.some(child => child?.type === "text" && child.text === "もうすぐ")
-            );
+            if (!Array.isArray(box?.contents)) return false;
+
+            return box.contents.some(item => {
+                if (item?.type === "text" && item.text === "もうすぐ") {
+                    return true;
+                }
+
+                return item?.type === "box" &&
+                    Array.isArray(item.contents) &&
+                    item.contents.some(child => child?.type === "text" && child.text === "もうすぐ");
+            });
         }
 
         function extractScheduleIconText_(box) {
             const iconContainer = findBoxByBackgroundColor_(box, "#E6EEF9");
-            if (!iconContainer || !Array.isArray(iconContainer.contents)) return "";
+            if (!iconContainer || !Array.isArray(iconContainer.contents)) {
+                const fallbackTitle = extractTexts(box)[0] || "";
+                return derivePreviewIconText_(fallbackTitle);
+            }
 
             const iconNode = iconContainer.contents.find(child => child?.type === "text" && child.text);
-            return iconNode ? iconNode.text : "";
+            return iconNode ? iconNode.text : derivePreviewIconText_(extractTexts(box)[0] || "");
+        }
+
+        function derivePreviewIconText_(title) {
+            const normalized = String(title || "").trim();
+            if (!normalized) return "予";
+
+            const firstChar = Array.from(normalized)[0] || "";
+            return firstChar || "予";
         }
 
         function extractWeatherText_(textLines) {
