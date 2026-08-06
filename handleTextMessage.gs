@@ -1,23 +1,39 @@
+const TEXT_MESSAGE_HANDLERS = [
+  {
+    matches: isFutureScheduleTriggerText_,
+    createMessages: function () {
+      return createAutoReminderFlexMessages_();
+    }
+  },
+  {
+    matches: isAutoReminderTestTriggerText_,
+    createMessages: function () {
+      return createAutoReminderFlexMessages_();
+    }
+  },
+  {
+    matches: isReminderTriggerText_,
+    createMessages: function () {
+      return createShareFlexMessages_();
+    }
+  }
+];
+
 function handleTextMessage(event) {
   if (!event || !event.message || event.message.type !== 'text' || typeof event.message.text !== 'string') {
     return;
   }
 
   const text = event.message.text.trim();
+  return routeTextMessage_(text);
+}
 
-  if (isFutureScheduleTriggerText_(text)) {
-    return createAutoReminderFlexMessages_();
-  }
+function routeTextMessage_(text) {
+  const matchedHandler = TEXT_MESSAGE_HANDLERS.find(function (handler) {
+    return handler.matches(text);
+  });
 
-  if (isAutoReminderTestTriggerText_(text)) {
-    return createAutoReminderFlexMessages_();
-  }
-
-  if (isReminderTriggerText_(text)) {
-    return createShareFlexMessages_();
-  }
-
-  return;
+  return matchedHandler ? matchedHandler.createMessages() : undefined;
 }
 
 /**

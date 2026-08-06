@@ -70,7 +70,7 @@ function doGet(e) {
 
 function createShareFlexMessages_(forceRefresh) {
   const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
-  const messages = buildShareFlexMessagesFromRecords_(records, {
+  const messages = buildReminderFlexMessages_(records, {
     forceRefresh: !!forceRefresh
   });
   return attachReminderQuickReply_(messages);
@@ -79,8 +79,7 @@ function createShareFlexMessages_(forceRefresh) {
 function createAutoReminderFlexMessages_() {
   const records = extractUpcomingRecordsWithDateObjects();
   const reminderText = buildReminderTextMessageTextFromRecords_(records);
-
-  const messages = buildShareFlexMessagesFromRecords_(records, {
+  const messages = buildReminderFlexMessages_(records, {
     forceRefresh: false,
     includeGuideBubble: true,
     reminderText
@@ -88,15 +87,27 @@ function createAutoReminderFlexMessages_() {
   return attachReminderQuickReply_(messages);
 }
 
-function buildShareFlexMessagesFromRecords_(records, options) {
+function buildReminderFlexMessages_(records, options) {
+  const viewModel = buildReminderFlexViewModel_(records, options);
+
+  if (viewModel.errorMessage) {
+    return [viewModel.errorMessage];
+  }
+
+  return buildCarouselMessages_(viewModel.bubbleEntries);
+}
+
+function buildReminderFlexViewModel_(records, options) {
   const { forceRefresh, includeGuideBubble, reminderText } = options || {};
   const now = new Date();
 
   if (!records.length) {
-    return [{
-      type: "text",
-      text: `🚨エラーが発生しました。\n⚠️シートを確認してね。\n${SETTING.SheetLink}`
-    }];
+    return {
+      errorMessage: {
+        type: "text",
+        text: `🚨エラーが発生しました。\n⚠️シートを確認してね。\n${SETTING.SheetLink}`
+      }
+    };
   }
 
   const nearTermWeatherSummaryMap = getNearTermWeatherSummaryMap_(
@@ -108,25 +119,27 @@ function buildShareFlexMessagesFromRecords_(records, options) {
   const groups = buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap);
 
   if (!groups.length) {
-    return [{
-      type: "text",
-      text: `🚨表示できる予定がありません。\n${SETTING.SheetLink}`
-    }];
+    return {
+      errorMessage: {
+        type: "text",
+        text: `🚨表示できる予定がありません。\n${SETTING.SheetLink}`
+      }
+    };
   }
 
-  const bubbleEntries = groups.map(group => ({
-    bubble: createMonthlyFlexBubble_(group),
-    nearTermDates: collectNearTermDates_(group.records, group.now)
-  }));
+  const bubbleEntries = buildBubbleEntriesFromGroups_(groups);
+  const guideAltText = trimAltText_(buildCarouselAltText_(bubbleEntries));
 
   if (includeGuideBubble && reminderText) {
     bubbleEntries.unshift({
-      bubble: createAutoReminderGuideBubble_(reminderText),
+      bubble: createAutoReminderGuideBubble_(reminderText, guideAltText),
       nearTermDates: []
     });
   }
 
-  return buildCarouselMessages_(bubbleEntries);
+  return {
+    bubbleEntries: bubbleEntries
+  };
 }
 
 function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
@@ -219,7 +232,7 @@ function trimAltText_(text) {
   return normalized.slice(0, ALT_TEXT_CONFIG.maxChars);
 }
 
-function createAutoReminderGuideBubble_(reminderText) {
+function createAutoReminderGuideBubble_(reminderText, altText) {
   return {
     type: "bubble",
     size: "mega",
@@ -284,6 +297,14 @@ function createAutoReminderGuideBubble_(reminderText) {
           color: FLEX_CONFIG.summaryTextColor,
           align: "center",
           wrap: true
+        },
+        {
+          type: "text",
+          text: `件名：${altText || ALT_TEXT_CONFIG.defaultTitle}`,
+          size: "xs",
+          color: FLEX_CONFIG.summaryTextColor,
+          align: "center",
+          wrap: true
         }
       ]
     },
@@ -331,6 +352,13 @@ function createAutoReminderGuideBubble_(reminderText) {
       ]
     }
   };
+}
+
+function buildBubbleEntriesFromGroups_(groups) {
+  return groups.map(group => ({
+    bubble: createMonthlyFlexBubble_(group),
+    nearTermDates: collectNearTermDates_(group.records, group.now)
+  }));
 }
 
 function trimClipboardText_(text) {
