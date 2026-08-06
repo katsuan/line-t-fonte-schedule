@@ -17,6 +17,8 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   Apps Script マニフェスト
 - `docs/project_rules.md`
   このプロジェクト専用のローカル RULES
+- `docs/backups/`
+  大きな送信仕様変更や LIFF 切り分け前の退避ファイル置き場
 
 ## Rules
 
@@ -28,6 +30,7 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
 - GAS のローカルソースを正本にする
 - Flex Message の表示都合を判定ロジックへ混ぜない
 - quick reply や導線付きメッセージで次の操作を切らさない
+- `shareTargetPicker` 向け送信データは、表示用 Flex と分けて安全側へ整形する
 
 ## Entry Points
 
