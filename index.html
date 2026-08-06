@@ -521,7 +521,7 @@
             debugPayload: document.getElementById("debugPayload"),
         };
 
-        let shareMessages = [];
+        let previewMessages = [];
         let shareTargetPickerMessages = [];
         let canShareInLiff = false;
 
@@ -536,16 +536,15 @@
                     initializeLiffMode(),
                     fetchShareData(forceRefresh)
                 ]);
-                const originalMessages = normalizeMessages(data);
+                const normalizedPayload = normalizePayload_(data);
 
-                if (!originalMessages.length) {
+                if (!normalizedPayload.previewMessages.length) {
                     throw new Error("送信できるメッセージがありません。");
                 }
 
-                shareMessages = originalMessages.map(cloneObject);
-                shareTargetPickerMessages = prepareShareTargetPickerMessages_();
-                savePreviewCache(shareMessages);
-                renderPreviewFromMessages(shareTargetPickerMessages);
+                applyMessagePayload_(normalizedPayload);
+                savePreviewCache(normalizedPayload);
+                renderPreviewFromMessages(previewMessages);
                 setReady(canShareInLiff);
 
             } catch (err) {
@@ -607,6 +606,22 @@
             return [];
         }
 
+        function normalizePayload_(data) {
+            const normalizedPreviewMessages = normalizeMessages(
+                data && Array.isArray(data.previewMessages) ? data.previewMessages : data
+            ).map(cloneObject);
+            const providedShareMessages = normalizeMessages(
+                data && Array.isArray(data.shareMessages) ? data.shareMessages : []
+            ).map(cloneObject);
+
+            return {
+                previewMessages: normalizedPreviewMessages,
+                shareMessages: providedShareMessages.length
+                    ? providedShareMessages
+                    : buildShareTargetPickerMessages_(normalizedPreviewMessages)
+            };
+        }
+
         function cloneObject(value) {
             if (typeof structuredClone === "function") {
                 return structuredClone(value);
@@ -616,12 +631,11 @@
         }
 
         function renderCachedPreviewIfAvailable() {
-            const cachedMessages = loadPreviewCache();
-            if (!cachedMessages.length) return;
+            const cachedPayload = loadPreviewCache();
+            if (!cachedPayload.previewMessages.length) return;
 
-            shareMessages = cachedMessages.map(cloneObject);
-            shareTargetPickerMessages = prepareShareTargetPickerMessages_();
-            renderPreviewFromMessages(shareTargetPickerMessages);
+            applyMessagePayload_(cachedPayload);
+            renderPreviewFromMessages(previewMessages);
             els.loading.classList.add("hidden");
             els.messageList.classList.remove("hidden");
             els.reloadBtn.classList.remove("hidden");
@@ -629,14 +643,26 @@
             setStatus(STATUS_TEXT.refreshing, { loading: true });
         }
 
-        function savePreviewCache(messages) {
+        function applyMessagePayload_(payload) {
+            previewMessages = (payload.previewMessages || []).map(cloneObject);
+            shareTargetPickerMessages = (payload.shareMessages || []).map(cloneObject);
+
+            if (!shareTargetPickerMessages.length) {
+                shareTargetPickerMessages = buildShareTargetPickerMessages_(previewMessages);
+            }
+
+            renderShareTargetPickerDebug_(shareTargetPickerMessages);
+        }
+
+        function savePreviewCache(payload) {
             try {
-                const payload = {
+                const cachePayload = {
                     gasUrl: GAS_URL,
                     savedAt: Date.now(),
-                    messages,
+                    previewMessages: payload.previewMessages || [],
+                    shareMessages: payload.shareMessages || [],
                 };
-                localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(payload));
+                localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(cachePayload));
             } catch (err) {
                 console.warn("preview cache save skipped", err);
             }
@@ -645,17 +671,28 @@
         function loadPreviewCache() {
             try {
                 const raw = localStorage.getItem(PREVIEW_CACHE_KEY);
-                if (!raw) return [];
-
-                const payload = JSON.parse(raw);
-                if (!payload || payload.gasUrl !== GAS_URL || !Array.isArray(payload.messages)) {
-                    return [];
+                if (!raw) {
+                    return {
+                        previewMessages: [],
+                        shareMessages: []
+                    };
                 }
 
-                return payload.messages;
+                const payload = JSON.parse(raw);
+                if (!payload || payload.gasUrl !== GAS_URL) {
+                    return {
+                        previewMessages: [],
+                        shareMessages: []
+                    };
+                }
+
+                return normalizePayload_(payload);
             } catch (err) {
                 console.warn("preview cache load skipped", err);
-                return [];
+                return {
+                    previewMessages: [],
+                    shareMessages: []
+                };
             }
         }
 
@@ -1161,12 +1198,6 @@
                 .slice(0, 5);
         }
 
-        function prepareShareTargetPickerMessages_() {
-            const preparedMessages = buildShareTargetPickerMessages_(shareMessages);
-            renderShareTargetPickerDebug_(preparedMessages);
-            return preparedMessages;
-        }
-
         function renderShareTargetPickerDebug_(messages) {
             if (!els.debugPanel || !els.debugPayload) return;
 
@@ -1473,8 +1504,6 @@
                 els.shareBtn.textContent = "送信先を選択中...";
                 setStatus("送信先を選択中...");
 
-                shareTargetPickerMessages = prepareShareTargetPickerMessages_();
-
                 if (!Array.isArray(shareTargetPickerMessages) || !shareTargetPickerMessages.length) {
                     throw new Error("送信用メッセージを作成できませんでした。");
                 }
@@ -1541,13 +1570,13 @@
                 els.shareBtn.classList.remove("hidden");
                 els.shareBtn.disabled = false;
                 els.shareBtn.textContent = "LINEで送る";
-                setStatus(`${countPreviewUnits(shareMessages)}か月分の送信準備ができました。`);
+                setStatus(`${countPreviewUnits(shareTargetPickerMessages)}か月分の送信準備ができました。`);
                 return;
             }
 
             els.shareBtn.classList.add("hidden");
             if (!els.statusText.textContent || els.statusText.textContent === STATUS_TEXT.loading || els.statusText.textContent === STATUS_TEXT.refreshing) {
-                setStatus(`${countPreviewUnits(shareMessages)}か月分をプレビュー表示しています。`);
+                setStatus(`${countPreviewUnits(previewMessages)}か月分をプレビュー表示しています。`);
             }
         }
 
