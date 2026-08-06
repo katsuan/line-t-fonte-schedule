@@ -87,10 +87,11 @@ function createLiffPayload_(forceRefresh) {
   }
 
   const previewBubbleEntries = getShareablePreviewBubbleEntries_(viewModel.bubbleEntries);
+  const sharedAltText = trimAltText_(buildCarouselAltText_(previewBubbleEntries));
 
   return {
     previewMessages: buildCarouselMessages_(previewBubbleEntries),
-    shareMessages: buildShareTargetPickerMessagesFromGroups_(viewModel.groups)
+    shareMessages: buildShareTargetPickerMessagesFromGroups_(viewModel.groups, sharedAltText)
   };
 }
 
@@ -181,14 +182,16 @@ function getShareablePreviewBubbleEntries_(bubbleEntries) {
   return bubbleEntries.slice(1);
 }
 
-function buildShareTargetPickerMessagesFromGroups_(groups) {
+function buildShareTargetPickerMessagesFromGroups_(groups, sharedAltText) {
   return (Array.isArray(groups) ? groups : [])
     .slice(0, 5)
-    .map(createShareTargetPickerMessageFromGroup_)
+    .map(function (group) {
+      return createShareTargetPickerMessageFromGroup_(group, sharedAltText);
+    })
     .filter(Boolean);
 }
 
-function createShareTargetPickerMessageFromGroup_(group) {
+function createShareTargetPickerMessageFromGroup_(group, sharedAltText) {
   if (!group) {
     return null;
   }
@@ -200,7 +203,7 @@ function createShareTargetPickerMessageFromGroup_(group) {
 
   return {
     type: "flex",
-    altText: trimAltText_(`${group.monthLabel}の予定`),
+    altText: trimAltText_(sharedAltText || `${group.monthLabel}の予定`),
     contents: bubble
   };
 }
