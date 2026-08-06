@@ -1202,18 +1202,7 @@
             if (!els.debugPanel || !els.debugPayload) return;
 
             const payload = Array.isArray(messages) ? messages : [];
-            const summary = payload.map((message, index) => ({
-                index: index + 1,
-                type: message?.type || "",
-                altText: message?.altText || "",
-                contentsType: message?.contents?.type || "",
-            }));
-
-            els.debugPayload.textContent = JSON.stringify({
-                count: payload.length,
-                summary,
-                messages: payload
-            }, null, 2);
+            els.debugPayload.textContent = JSON.stringify(payload, null, 2);
             els.debugPanel.classList.toggle("hidden", !payload.length);
 
             if (payload.length) {
