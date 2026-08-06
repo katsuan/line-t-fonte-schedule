@@ -34,6 +34,11 @@ const UPCOMING_RECORDS_CACHE_CONFIG = {
   maxMonthCaches: 12
 };
 
+const AUTO_REMINDER_SENT_CACHE_CONFIG = {
+  propertyKey: "AUTO_REMINDER_NEAR_SENT_V1",
+  retentionDays: 60
+};
+
 let upcomingRecordsMemoryCache_ = null;
 let upcomingRecordsMemoryCacheDate_ = "";
 
@@ -91,6 +96,17 @@ function createGoogleCalendarUrl_(record) {
 
 function buildYearMonthKey_(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildReminderRecordKey_(record) {
+  return [
+    _formatDate_(record.date, "yyyy-MM-dd"),
+    _formatDate_(record.date, "HH:mm"),
+    _formatDate_(record.endDate || record.date, "HH:mm"),
+    String(record.memo1 || "").trim(),
+    String(record.place || "").trim(),
+    String(record.memo2 || "").trim()
+  ].join("__");
 }
 
 function buildWeatherDateKey_(date) {
@@ -518,45 +534,58 @@ function readUpcomingRecordsFromSheet_() {
   const values = SHEETS.Plan.getDataRange().getValues();
   const dataRows = values.slice(1);
   const now = new Date();
+  const result = dataRows
+    .map(function (row) {
+      return mapUpcomingRecordRow_(row, now);
+    })
+    .filter(function (record) {
+      return !!record;
+    });
 
-  const result = [];
+  result.sort(function (a, b) {
+    return a.date - b.date;
+  });
+  return result;
+}
 
-  for (const row of dataRows) {
-    const [dateObj, startObj, endObj, place, memo1, memo2, link] = row;
-    const safeEndObj = isValidDate(endObj) ? endObj : startObj;
+function mapUpcomingRecordRow_(row, now) {
+  const [dateObj, startObj, endObj, place, memo1, memo2, link] = row;
+  const safeEndObj = isValidDate(endObj) ? endObj : startObj;
 
-    if (!isValidDate(dateObj) || !isValidDate(startObj)) {
-      Log.debug("⚠️ date or start invalid. skip.");
-      continue;
-    }
-
-    const dateTime = new Date(dateObj);
-    dateTime.setHours(startObj.getHours(), startObj.getMinutes(), 0, 0);
-    const endDateTime = new Date(dateObj);
-    endDateTime.setHours(safeEndObj.getHours(), safeEndObj.getMinutes(), 0, 0);
-
-    if (dateTime >= now) {
-      Log.debug("✅ 未来の予定ヒット！");
-      result.push({
-        date: dateTime,
-        endDate: endDateTime,
-        start: startObj,
-        end: safeEndObj,
-        formatted: {
-          date: _formatDate_(dateTime, FORMAT.Date),
-          start: _formatDate_(startObj, FORMAT.Time),
-          end: _formatDate_(safeEndObj, FORMAT.Time),
-        },
-        place,
-        memo1,
-        memo2,
-        link
-      });
-    }
+  if (!isValidDate(dateObj) || !isValidDate(startObj)) {
+    Log.debug("⚠️ date or start invalid. skip.");
+    return null;
   }
 
-  result.sort((a, b) => a.date - b.date);
-  return result;
+  const dateTime = buildRecordDateTime_(dateObj, startObj);
+  const endDateTime = buildRecordDateTime_(dateObj, safeEndObj);
+
+  if (dateTime < now) {
+    return null;
+  }
+
+  Log.debug("✅ 未来の予定ヒット！");
+  return {
+    date: dateTime,
+    endDate: endDateTime,
+    start: startObj,
+    end: safeEndObj,
+    formatted: {
+      date: _formatDate_(dateTime, FORMAT.Date),
+      start: _formatDate_(startObj, FORMAT.Time),
+      end: _formatDate_(safeEndObj, FORMAT.Time),
+    },
+    place,
+    memo1,
+    memo2,
+    link
+  };
+}
+
+function buildRecordDateTime_(dateObj, timeObj) {
+  const dateTime = new Date(dateObj);
+  dateTime.setHours(timeObj.getHours(), timeObj.getMinutes(), 0, 0);
+  return dateTime;
 }
 
 function createMessage() {
@@ -648,33 +677,138 @@ function extractUpcomingRecordsWithDateObjects(forceRefresh) {
   return result;
 }
 
+function getAutoReminderNearTermDays_() {
+  return (typeof FLEX_CONFIG !== "undefined" && Number(FLEX_CONFIG.nearTermDays)) || 5;
+}
+
+function getReminderTargetRecords_(records, now) {
+  const baseNow = now || new Date();
+  const targetDate = new Date(baseNow.getFullYear(), baseNow.getMonth(), baseNow.getDate() + SETTING.RemindNum);
+  const targetYMD = _formatDate_(targetDate, "yyyy-MM-dd");
+  const sentRecordKeyMap = loadAutoReminderSentKeyMap_();
+
+  return records.filter(record => {
+    const recordYMD = _formatDate_(record.date, "yyyy-MM-dd");
+    if (recordYMD !== targetYMD) {
+      return false;
+    }
+
+    const recordKey = buildReminderRecordKey_(record);
+    return !sentRecordKeyMap[recordKey];
+  });
+}
+
+function createAutoReminderSenderName() {
+  const records = extractUpcomingRecordsWithDateObjects();
+  const targetRecords = getReminderTargetRecords_(records, new Date());
+  return buildAutoReminderSenderNameFromRecords_(targetRecords);
+}
+
+function buildAutoReminderSenderNameFromRecords_(records) {
+  if (!Array.isArray(records) || !records.length) {
+    return "対象日:";
+  }
+
+  const dateLabels = Array.from(new Set(records.map(record => _formatDate_(record.date, "M/d"))));
+  return `対象日: ${dateLabels.join(", ")}`;
+}
+
 function shouldSendRemindMessage() {
   Log.start();
   const records = extractUpcomingRecordsWithDateObjects();
   if (records.length === 0) return false;
 
-  const now = new Date();
-  const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SETTING.RemindNum);
-  const targetYMD = _formatDate_(targetDate, "yyyy-MM-dd");
-  Log.debug('targetYMD' + targetYMD);
+  const targetRecords = getReminderTargetRecords_(records, new Date());
+  Log.debug(`targetRecordCount=${targetRecords.length}`);
 
   Log.finish();
+  return targetRecords.length > 0;
+}
 
-  return records.some(record => {
-    const recordYMD = _formatDate_(record.date, "yyyy-MM-dd");
-    Log.debug('recordYMD' + recordYMD);
-    return recordYMD === targetYMD;
+function createAutoReminderMessages() {
+  return createAutoReminderFlexMessages_();
+}
+
+function completeAutoReminderSend() {
+  const records = extractUpcomingRecordsWithDateObjects();
+  markNearTermReminderRecordsAsSent_(records, new Date());
+}
+
+function loadAutoReminderSentKeyMap_() {
+  const props = PropertiesService.getScriptProperties();
+  const payload = props.getProperty(AUTO_REMINDER_SENT_CACHE_CONFIG.propertyKey);
+  if (!payload) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(payload);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return cleanupAutoReminderSentKeyMap_(parsed, false);
+  } catch (err) {
+    Log.debug(`⚠️ auto reminder sent cache parse failed: ${err.message}`);
+    return {};
+  }
+}
+
+function cleanupAutoReminderSentKeyMap_(sentKeyMap, shouldPersist) {
+  const today = startOfDay_(new Date());
+  const retentionMs = AUTO_REMINDER_SENT_CACHE_CONFIG.retentionDays * 24 * 60 * 60 * 1000;
+  const cleaned = {};
+
+  Object.keys(sentKeyMap || {}).forEach(key => {
+    const notifiedAt = new Date(sentKeyMap[key]);
+    if (!isValidDate(notifiedAt)) {
+      return;
+    }
+
+    if (today.getTime() - startOfDay_(notifiedAt).getTime() <= retentionMs) {
+      cleaned[key] = sentKeyMap[key];
+    }
   });
+
+  if (shouldPersist) {
+    PropertiesService.getScriptProperties().setProperty(
+      AUTO_REMINDER_SENT_CACHE_CONFIG.propertyKey,
+      JSON.stringify(cleaned)
+    );
+  }
+
+  return cleaned;
+}
+
+function markNearTermReminderRecordsAsSent_(records, now) {
+  const nearTermDays = getAutoReminderNearTermDays_();
+  const sentKeyMap = cleanupAutoReminderSentKeyMap_(loadAutoReminderSentKeyMap_(), false);
+  const notifiedAt = new Date().toISOString();
+
+  records.forEach(record => {
+    const diffDays = diffDaysFromToday_(record.date, now);
+    if (diffDays < 0 || diffDays > nearTermDays) {
+      return;
+    }
+
+    sentKeyMap[buildReminderRecordKey_(record)] = notifiedAt;
+  });
+
+  cleanupAutoReminderSentKeyMap_(sentKeyMap, true);
 }
 
 function main() {
   Log.start();
-  if (shouldSendRemindMessage()) {
-    const messages = createAutoReminderFlexMessages_();
+  const records = extractUpcomingRecordsWithDateObjects();
+  const targetRecords = getReminderTargetRecords_(records, new Date());
+
+  if (targetRecords.length > 0) {
+    const messages = createAutoReminderMessages();
     if (messages) {
       Log.debug("Flexリマインド送信");
       // LineApiDriver.PostAllMessages(GROUP_ID, messages);
       // LineApiDriver.reply(messages);
+      completeAutoReminderSend();
     }
   } else {
     Log.debug("⏭️ リマインド対象日ではないためスキップ");
