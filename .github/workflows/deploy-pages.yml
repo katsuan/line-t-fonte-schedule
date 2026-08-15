@@ -33,10 +33,21 @@ jobs:
         run: test -f index.html
 
       - name: Prepare static site
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          GENERATED_AT: ${{ github.event.head_commit.timestamp }}
         run: |
           mkdir -p _site
           cp index.html _site/index.html
           cp .nojekyll _site/.nojekyll
+          short_sha="${COMMIT_SHA::7}"
+          cat <<EOF > _site/version.json
+          {
+            "version": "${short_sha}",
+            "commit": "${COMMIT_SHA}",
+            "generatedAt": "${GENERATED_AT}"
+          }
+          EOF
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
