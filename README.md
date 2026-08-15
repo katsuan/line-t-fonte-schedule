@@ -15,14 +15,20 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   Logger 初期化
 - `appsscript.json`
   Apps Script マニフェスト
-- `docs/project_rules.md`
+- `rules/project_rules.md`
   このプロジェクト専用のローカル RULES
 - `docs/backups/`
   大きな送信仕様変更や LIFF 切り分け前の退避ファイル置き場
 
+## 版情報
+
+- デプロイ時に `version.json`（commit SHA・生成時刻）を公開ページ直下に生成する（`.github/workflows/deploy-pages.yml`）
+- 公開ページの版確認は `<公開URL>/version.json` を参照する
+- この仕組みは LearningPlatform の `docs/version.json` 自動更新パターンを移植したもの（2026-08-15）
+
 ## Rules
 
-共通ルールは `/Users/katsu/GitHub/RULES` を参照し、このプロジェクトでは [docs/project_rules.md](/Users/katsu/GitHub/T-FONTE_reminder/docs/project_rules.md) を追加ルールとして扱います。
+共通ルールは、開発者がローカルで管理する共通 RULES（プロジェクト外の内部資産、非公開）を参照し、このプロジェクトでは [rules/project_rules.md](rules/project_rules.md) を追加ルールとして扱います。
 
 特に次を固定方針にします。
 
