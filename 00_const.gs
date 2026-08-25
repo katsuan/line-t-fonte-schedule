@@ -19,6 +19,8 @@ const LIFF_URLS = {
   FlexSender: "https://liff.line.me/2009927582-9QtOstUK"
 }
 
+const GROUP_LINK = "line://ti/g/hwc5nRC7mS"
+
 const WEATHER_CONFIG = {
   Enabled: true,
   TimeZone: "Asia/Tokyo",

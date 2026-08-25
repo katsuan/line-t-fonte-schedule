@@ -39,6 +39,7 @@ const AUTO_REMINDER_GUIDE_CONFIG = {
   bodyLabel: "これまでのテキスト文面",
   copyButtonLabel: "文章をコピー",
   sheetButtonLabel: "シート",
+  groupButtonLabel: "グループへ",
   richButtonLabel: "リッチに送る",
   cardBackgroundColor: "#FFF9EC",
   bodyBackgroundColor: "#FFFFFF",
@@ -379,6 +380,15 @@ function createAutoReminderGuideBubble_(reminderText, altText) {
               }
             }
           ]
+        },
+        {
+          type: "button",
+          style: "secondary",
+          action: {
+            type: "uri",
+            label: AUTO_REMINDER_GUIDE_CONFIG.groupButtonLabel,
+            uri: GROUP_LINK
+          }
         },
         {
           type: "button",

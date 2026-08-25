@@ -497,6 +497,7 @@
     <script>
         const LIFF_ID = "2009927582-9QtOstUK";
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+        const GROUP_LINK = "line://ti/g/hwc5nRC7mS";
         const PREVIEW_CACHE_KEY = "t_fonte_reminder_preview_cache_v2";
         const STATUS_TEXT = {
             noLiff: "LIFFなしのプレビュー表示です。",
@@ -549,7 +550,7 @@
 
             } catch (err) {
                 console.error(err);
-                setError(err.message);
+                setError("予定の読み込みに失敗しました。時間をおいてもう一度お試しください。");
             }
         }
 
@@ -733,7 +734,7 @@
 
             const type = document.createElement("div");
             type.className = "message-card-type";
-            type.textContent = message.type === "flex" ? "FLEX" : "TEXT";
+            type.textContent = message.type === "flex" ? "カード" : "テキスト";
 
             head.append(titleWrap, type);
 
@@ -1380,10 +1381,10 @@
 
                 if (result && result.status === "success") {
                     els.shareBtn.textContent = "送信しました";
-                    setStatus(`${countPreviewUnits(shareTargetPickerMessages)}か月分の予定を送信しました。`);
+                    setStatus(`${countPreviewUnits(shareTargetPickerMessages)}か月分の予定を送信しました。グループに移動します...`);
 
                     setTimeout(() => {
-                        liff.closeWindow();
+                        window.location.href = GROUP_LINK;
                     }, 1200);
                 } else {
                     els.shareBtn.disabled = false;
@@ -1395,7 +1396,7 @@
                 console.error(err);
                 els.shareBtn.disabled = false;
                 els.shareBtn.textContent = "LINEで送る";
-                setStatus("送信失敗: " + err.message);
+                setStatus("送信に失敗しました。時間をおいてもう一度お試しください。");
             }
         }
 
