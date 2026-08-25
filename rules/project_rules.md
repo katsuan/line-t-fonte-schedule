@@ -5,22 +5,39 @@
 このファイルは、共通 `RULES` を `T-FONTE_reminder` 向けに具体化したローカルルールです。
 GAS と LINE メッセージ生成が中心のため、責務分離、設定管理、メッセージ体験、運用時の安全性を明確にします。
 
-参照元:
+参照元（開発者がローカルで管理する共通 RULES、プロジェクト外の内部資産、非公開）:
 
-- `/Users/katsu/GitHub/RULES/01_architecture_and_implementation_rules.md`
-- `/Users/katsu/GitHub/RULES/04_naming_and_directory_rules.md`
-- `/Users/katsu/GitHub/RULES/05_messaging_experience_rules.md`
+- 共通 RULES: `01_architecture_and_implementation_rules.md`
+- 共通 RULES: `04_naming_and_directory_rules.md`
+- 共通 RULES: `05_messaging_experience_rules.md`
+
+## ファイル命名（レイヤー番号）
+
+共通 RULES の `04_naming_and_directory_rules.md` に従い、先頭番号でレイヤーを表す。
+
+- `00_*` 共通設定・ロガー・デバッグログ
+- `10_*` ドメインロジック
+- `20_*` ルーティング
+- `30_*` Web入口・Flex表示整形
+
+`00_const.gs` はグローバル定数の初期化を持つため、番号にかかわらず他ファイルより先に評価される前提を崩さない（`const` を伴うトップレベル参照を追加する場合は評価順に注意する）。
 
 ## このプロジェクトで固定する責務
 
-- `handleTextMessage.gs`
-  テキスト入力の解釈と、どのメッセージ生成処理を呼ぶかのルーティングだけを持つ
-- `webappFlexEndpoint.gs`
-  Web App 入口と、Flex Message 用の整形・表示ロジックを持つ
-- `reminderCore.gs`
-  予定取得、キャッシュ、リマインド判定、テキスト文面生成の共通ロジックを持つ
+- `00_const.gs`
+  Spreadsheet・設定値・quick reply アクションなどのグローバル初期化だけを持つ
 - `00_LoggerLib.gs`
   ログ初期化だけを持つ
+- `00_debugLog.gs`
+  スプレッドシート(`DebugLog`シート)への簡易ログ出力だけを持つ
+- `10_reminderCore.gs`
+  予定取得、キャッシュ、リマインド判定、テキスト文面生成の共通ロジックを持つ
+- `11_scheduleRegistration.gs`
+  `#予定登録`テキストのパース、確認待ちデータの一時保存（CacheService）、`#予定確定`/`#予定キャンセル`によるシート書き込み・破棄を持つ
+- `20_handleTextMessage.gs`
+  テキスト入力の解釈と、どのメッセージ生成処理を呼ぶかのルーティングだけを持つ
+- `30_webappFlexEndpoint.gs`
+  Web App 入口と、Flex Message 用の整形・表示ロジックを持つ
 
 ## 追加ルール
 
@@ -28,7 +45,7 @@ GAS と LINE メッセージ生成が中心のため、責務分離、設定管�
 
 - `doGet` と `handleTextMessage` に業務判断を増やしすぎない
 - 新しい入力トリガーは、条件分岐を直書きで増やす前にルーティング関数へ集約する
-- 将来 `doPost` や定期実行の入口が増えても、共通ロジックは `reminderCore.gs` か専用関数へ寄せる
+- 将来 `doPost` や定期実行の入口が増えても、共通ロジックは `10_reminderCore.gs` か専用関数へ寄せる
 
 ### 2. 予定データの取得と表示整形を分ける
 
@@ -39,7 +56,7 @@ GAS と LINE メッセージ生成が中心のため、責務分離、設定管�
 ### 3. 設定値は意味ごとにまとめる
 
 - UI 設定は `FLEX_CONFIG` や `AUTO_REMINDER_GUIDE_CONFIG` のように用途別に持つ
-- キャッシュや保持日数のような運用設定は `reminderCore.gs` 側へ置く
+- キャッシュや保持日数のような運用設定は `10_reminderCore.gs` 側へ置く
 - Script Properties に置くべき値はコードへ直書きしない
 
 ### 4. メッセージ体験は「確認しやすさ」を優先する
@@ -70,6 +87,6 @@ GAS と LINE メッセージ生成が中心のため、責務分離、設定管�
 
 ## 次に分割候補となる領域
 
-- `reminderCore.gs` 内の weather 取得まわり
-- `reminderCore.gs` 内の upcoming records cache まわり
-- `webappFlexEndpoint.gs` 内の Flex bubble renderer 群
+- `10_reminderCore.gs` 内の weather 取得まわり
+- `10_reminderCore.gs` 内の upcoming records cache まわり
+- `30_webappFlexEndpoint.gs` 内の Flex bubble renderer 群

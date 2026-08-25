@@ -5,14 +5,29 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
 
 ## Structure
 
-- `reminderCore.gs`
-  予定取得、キャッシュ、リマインド判定、テキスト文面生成
-- `webappFlexEndpoint.gs`
-  Web App 入口と Flex Message の整形
-- `handleTextMessage.gs`
-  テキストトリガーのルーティング
+ファイル名の先頭番号はレイヤーを表す（共通 RULES の `04_naming_and_directory_rules.md` 準拠）。
+
+- `00_*` 共通設定・ロガー・デバッグログ
+- `10_*` ドメインロジック（予定取得・リマインド判定・予定登録パース）
+- `20_*` ルーティング（テキストトリガー解釈）
+- `30_*` Web入口・Flex表示整形
+
+同じ番号内の並びは責務の近さを表し、実行順を厳密に保証するものではない（`00_const.gs` はグローバル定数の初期化が他ファイルより先に必要なため、番号にかかわらず必ず最初に評価される前提を保つ）。
+
+- `00_const.gs`
+  Spreadsheet・設定値・アイコン・quick reply アクションなどのグローバル初期化
 - `00_LoggerLib.gs`
   Logger 初期化
+- `00_debugLog.gs`
+  親プロジェクトの実行ログを確認できない場合向けの、スプレッドシート(`DebugLog`シート)への簡易ログ出力
+- `10_reminderCore.gs`
+  予定取得、キャッシュ、リマインド判定、テキスト文面生成
+- `11_scheduleRegistration.gs`
+  `#予定登録` からのテキスト予定一括登録（パース・確認保留・確定書き込み）
+- `20_handleTextMessage.gs`
+  テキストトリガーのルーティング
+- `30_webappFlexEndpoint.gs`
+  Web App 入口と Flex Message の整形
 - `appsscript.json`
   Apps Script マニフェスト
 - `rules/project_rules.md`
@@ -58,4 +73,4 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
 
 - 大きな 1 ファイル構成のままでも、入口・取得・判定・表示の境界は守る
 - 新しい機能追加時は、まず既存の責務へ乗るか確認する
-- `reminderCore.gs` の weather / cache、`webappFlexEndpoint.gs` の renderer 群は今後の分割候補
+- `10_reminderCore.gs` の weather / cache、`30_webappFlexEndpoint.gs` の renderer 群は今後の分割候補
