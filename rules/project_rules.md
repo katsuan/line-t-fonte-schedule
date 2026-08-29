@@ -39,6 +39,14 @@ GAS と LINE メッセージ生成が中心のため、責務分離、設定管�
 - `30_webappFlexEndpoint.gs`
   Web App 入口と、Flex Message 用の整形・表示ロジックを持つ
 
+## テスト方針
+
+- 共通の考え方は、開発者がローカルで管理する共通 RULES の `09_testing_and_verification_rules.md`（プロジェクト外の内部資産、非公開）を前提にする
+- 現時点で自動テストは未整備
+- 自動テスト化の候補: `10_reminderCore.gs` のリマインド判定・月別グルーピングのような純粋ロジック
+- 実機確認の対象: `index.html`（共有プレビューLIFF画面）を LINE アプリ内（iOS / Android）で開いた表示、`shareTargetPicker` での実送信、carousel を bubble 単位へ分解した際の見え方
+- 実機確認には、送信用メッセージが作成できない・取得に失敗するといった異常系表示も含める
+
 ## 追加ルール
 
 ### 1. 入口は薄く保つ
