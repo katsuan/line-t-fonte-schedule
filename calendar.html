@@ -63,14 +63,76 @@
         .subscribe-link {
             flex: 0 0 auto;
             padding: 5px 9px;
+            border: 0;
             border-radius: 999px;
             background: #ffffff;
             box-shadow: 0 2px 8px rgba(42, 72, 120, 0.12);
             color: var(--accent);
+            font: inherit;
             font-size: 11px;
             font-weight: 800;
-            text-decoration: none;
             white-space: nowrap;
+            cursor: pointer;
+        }
+
+        /* 登録の選び方を出すシート（Googleカレンダー／iPhoneのカレンダー） */
+        #subscribeDialog {
+            width: min(360px, calc(100% - 24px));
+            padding: 16px;
+            border: 0;
+            border-radius: 20px;
+            color: var(--text);
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+        }
+
+        #subscribeDialog::backdrop {
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .sub-title {
+            margin: 0 0 4px;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .sub-title:focus {
+            outline: none;
+        }
+
+        .sub-lead,
+        .sub-note {
+            margin: 0 0 10px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .sub-option {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            padding: 13px 12px;
+            border-radius: 12px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .sub-close {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 0;
+            border-radius: 12px;
+            background: #e8eef6;
+            color: #334155;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
         }
 
         .next-bar {
@@ -601,7 +663,7 @@
     <main class="shell">
         <div class="top">
             <h1 class="title">T-FONTE 活動予定</h1>
-            <a id="subscribeLink" class="subscribe-link" href="#" target="_blank" rel="noopener noreferrer" hidden>📅 カレンダーに登録</a>
+            <button id="subscribeLink" class="subscribe-link" type="button" hidden>📅 カレンダーに登録</button>
         </div>
 
         <button id="nextBar" class="next-bar" type="button" hidden>
@@ -629,6 +691,16 @@
             <div id="list" hidden></div>
         </section>
     </main>
+
+    <dialog id="subscribeDialog">
+        <h2 id="subTitle" class="sub-title" tabindex="-1">カレンダーに登録</h2>
+        <p class="sub-lead">活動予定を、ご自分のカレンダーに表示できます。</p>
+        <a id="subGoogle" class="sub-option" href="#" target="_blank" rel="noopener noreferrer">📅 Googleカレンダーに追加</a>
+        <a id="subApple" class="sub-option" href="#" hidden>🍎 iPhoneのカレンダーに追加</a>
+        <p class="sub-note">スマホで追加できないときは、パソコンのブラウザでこのページを開いて、「Googleカレンダーに追加」を押してください。</p>
+        <p id="subAppleNote" class="sub-note" hidden>iPhoneのカレンダーは、予定の更新が反映されるまで、時間がかかることがあります。</p>
+        <button id="subClose" class="sub-close" type="button">閉じる</button>
+    </dialog>
 
     <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
@@ -672,10 +744,36 @@
 
         /** 登録リンクがあるときだけ、ページ下部に出す（リンクは https://calendar.google.com/ のものに限る） */
         function setSubscribeLink(url) {
-            const link = $("subscribeLink");
+            const button = $("subscribeLink");
             const valid = typeof url === "string" && url.startsWith("https://calendar.google.com/");
-            link.hidden = !valid;
-            if (valid) link.href = url;
+            button.hidden = !valid;
+            if (!valid) return;
+
+            $("subGoogle").href = url;
+
+            // iPhone の標準カレンダー用: 登録リンクの cid（カレンダーIDの base64）から、公開 iCal の webcal:// を作る。
+            // cid はすでに公開されているので、新しく ID が露出することはない。専用カレンダーの形式のときだけ作る。
+            const webcalUrl = buildWebcalUrl(url);
+            const isApple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+            $("subApple").hidden = !(webcalUrl && isApple);
+            $("subAppleNote").hidden = $("subApple").hidden;
+            if (webcalUrl) $("subApple").href = webcalUrl;
+        }
+
+        function buildWebcalUrl(subscribeUrl) {
+            try {
+                const cid = decodeURIComponent(new URL(subscribeUrl).searchParams.get("cid") || "");
+                const calendarId = atob(cid + "=".repeat((4 - cid.length % 4) % 4));
+                if (!/^[^@\s]+@(group|import)\.calendar\.google\.com$/i.test(calendarId)) return "";
+                return `webcal://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
+            } catch (err) {
+                return "";
+            }
+        }
+
+        function openSubscribeSheet() {
+            $("subscribeDialog").showModal();
+            $("subTitle").focus({ preventScroll: true });
         }
 
         function todayKey() {
@@ -1168,6 +1266,8 @@
         $("tabCal").addEventListener("click", () => { view = "calendar"; render(); });
         $("tabList").addEventListener("click", () => { view = "list"; render(); });
         $("retryBtn").addEventListener("click", load);
+        $("subscribeLink").addEventListener("click", openSubscribeSheet);
+        $("subClose").addEventListener("click", () => $("subscribeDialog").close());
         $("nextBar").addEventListener("click", selectNextRecord);
         setInterval(updateNextBar, 1000);
         document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNextBar(); });
