@@ -112,6 +112,9 @@ function isAdminUserId_(userId) {
 
 function runAdminAction_(request) {
   if (request.action === "list") return { ok: true, records: listAdminPlanRows_() };
+  if (request.action === "syncCalendar") {
+    return { ok: true, records: listAdminPlanRows_(), calendar: syncPlansToCalendarSafely_(true) };
+  }
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(ADMIN_API_CONFIG.lockWaitMs)) {
@@ -132,7 +135,8 @@ function runAdminAction_(request) {
     lock.releaseLock();
   }
 
-  return { ok: true, records: listAdminPlanRows_() };
+  // 書き込みのロックを手放してから同期する（同期も同じロックを使うため）。同期に失敗しても、保存は成功のまま返す
+  return { ok: true, records: listAdminPlanRows_(), calendar: syncPlansToCalendarSafely_(true) };
 }
 
 function listAdminPlanRows_() {

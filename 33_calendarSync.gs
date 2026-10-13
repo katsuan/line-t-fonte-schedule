@@ -1,0 +1,213 @@
+// ==========[ Google カレンダー同期: Plan シートの今日以降の予定をカレンダーへ反映（シート→カレンダーの一方向） ]==========
+//
+// - 正はシート。カレンダー側の編集は、次の同期でシートの内容に戻る
+// - 同期するのは「今日以降」の予定だけ。過去の予定には触れない
+// - このシステムが作った予定にだけタグを付け、タグのある予定だけを追加・削除する（手で作った予定には触れない）
+// - 予定の内容（日時・場所・内容・補足・リンク）から作ったハッシュで「同じ予定か」を判定する。
+//   内容が変わった予定は、古い予定を削除して作り直す
+// - カレンダーID は Script Property `CALENDAR_ID`（子プロジェクト側）に入れる。未設定なら何もしない
+// - 実行のきっかけ: 管理ページでの保存直後 / 定期トリガー（`installCalendarSyncTrigger`）
+//   定期トリガーは、シートの「更新バージョン」が前回の同期から変わったときだけ動く（#予定確定・手編集もこれで拾う）
+
+const CALENDAR_SYNC_CONFIG = {
+  idProperty: "CALENDAR_ID",
+  syncedVersionProperty: "CALENDAR_SYNCED_VERSION",
+  statusProperty: "CALENDAR_SYNC_STATUS",
+  tagKey: "tfonte_plan",
+  defaultDurationHours: 2,
+  horizonDays: 400,
+  lockWaitMs: 20000,
+  triggerMinutes: 10,
+  footerText: "※ 予定管理のシートから自動で同期しています。ここでの変更は、次の同期でシートの内容に戻ります。"
+};
+
+/**
+ * Plan シートの今日以降の予定を、カレンダーに合わせる。
+ * @param {boolean} force true なら、シートの更新バージョンが前回と同じでも実行する
+ * @return {{ok: boolean, skipped?: boolean, message?: string, created?: number, deleted?: number, kept?: number, failed?: number}}
+ */
+function syncPlansToCalendar_(force) {
+  const props = PropertiesService.getScriptProperties();
+  const calendarId = (props.getProperty(CALENDAR_SYNC_CONFIG.idProperty) || "").trim();
+  if (!calendarId) {
+    return { ok: false, skipped: true, message: "CALENDAR_ID が未設定です。" };
+  }
+
+  const version = getPlanVersion_();
+  if (!force && version !== "0" && version === props.getProperty(CALENDAR_SYNC_CONFIG.syncedVersionProperty)) {
+    return { ok: true, skipped: true, message: "シートに変更がないため、同期しませんでした。" };
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(CALENDAR_SYNC_CONFIG.lockWaitMs)) {
+    return { ok: false, message: "ほかの処理中のため、同期できませんでした。" };
+  }
+
+  try {
+    const calendar = CalendarApp.getCalendarById(calendarId);
+    if (!calendar) {
+      return { ok: false, message: "カレンダーを開けません。CALENDAR_ID と、カレンダーの共有設定（変更権限）を確認してください。" };
+    }
+
+    const now = new Date();
+    const rangeStart = startOfDay_(now);
+    const rangeEnd = new Date(rangeStart.getTime() + CALENDAR_SYNC_CONFIG.horizonDays * 24 * 60 * 60 * 1000);
+
+    const desired = buildDesiredCalendarEvents_(_formatDate_(now, "yyyy-MM-dd"));
+    const existing = groupSyncedEventsByHash_(listSyncedCalendarEvents_(calendar, rangeStart, rangeEnd));
+    const result = reconcileCalendarEvents_(calendar, desired, existing);
+
+    result.ok = result.failed === 0;
+    if (result.ok) props.setProperty(CALENDAR_SYNC_CONFIG.syncedVersionProperty, version);
+    result.message = `追加${result.created}件・削除${result.deleted}件・そのまま${result.kept}件${result.failed ? `・失敗${result.failed}件` : ""}`;
+    props.setProperty(CALENDAR_SYNC_CONFIG.statusProperty, `${_formatDate_(new Date(), "yyyy-MM-dd HH:mm")} ${result.message}`);
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** 同期の失敗で、予定の保存そのものを失敗させないための包み。失敗は結果として返す */
+function syncPlansToCalendarSafely_(force) {
+  try {
+    return syncPlansToCalendar_(force);
+  } catch (err) {
+    Log.debug(`⚠️ calendar sync failed: ${err.message}`);
+    return { ok: false, message: `カレンダー同期に失敗しました: ${err.message}` };
+  }
+}
+
+// ---------- 望ましい状態（シート）と、現在の状態（カレンダー） ----------
+
+/**
+ * シートの今日以降の予定を、カレンダーに作りたい予定の形にする。
+ * 終了時刻が空、または開始以前のときは、開始の2時間後にする（管理ページの初期値と同じ）。
+ */
+function buildDesiredCalendarEvents_(todayDateKey) {
+  return listAdminPlanRows_()
+    .filter(function (row) { return row.date >= todayDateKey && row.start; })
+    .map(function (row) {
+      const start = parseCalendarDateTime_(row.date, row.start);
+      let end = row.end ? parseCalendarDateTime_(row.date, row.end) : null;
+      if (!end || end.getTime() <= start.getTime()) {
+        end = new Date(start.getTime() + CALENDAR_SYNC_CONFIG.defaultDurationHours * 60 * 60 * 1000);
+      }
+
+      const title = [row.memo1, row.memo2].filter(Boolean).join(" ");
+      const descriptionLines = [];
+      if (row.link) descriptionLines.push(`回答リンク: ${row.link}`);
+      descriptionLines.push(CALENDAR_SYNC_CONFIG.footerText);
+
+      const event = {
+        title: title,
+        start: start,
+        end: end,
+        options: { location: row.place || "", description: descriptionLines.join("\n") }
+      };
+      event.hash = hashCalendarEvent_(event);
+      return event;
+    });
+}
+
+function parseCalendarDateTime_(dateText, timeText) {
+  const date = dateText.split("-").map(Number);
+  const time = timeText.split(":").map(Number);
+  return new Date(date[0], date[1] - 1, date[2], time[0], time[1]);
+}
+
+function hashCalendarEvent_(event) {
+  const source = JSON.stringify([
+    event.title, event.start.getTime(), event.end.getTime(), event.options.location, event.options.description
+  ]);
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, source, Utilities.Charset.UTF_8)
+    .map(function (byte) { return ("0" + (byte & 0xff).toString(16)).slice(-2); })
+    .join("");
+}
+
+/** このシステムが作った（タグのある）予定だけを取り出す */
+function listSyncedCalendarEvents_(calendar, rangeStart, rangeEnd) {
+  return calendar.getEvents(rangeStart, rangeEnd).filter(function (event) {
+    return !!event.getTag(CALENDAR_SYNC_CONFIG.tagKey);
+  });
+}
+
+function groupSyncedEventsByHash_(events) {
+  const grouped = {};
+  events.forEach(function (event) {
+    const hash = event.getTag(CALENDAR_SYNC_CONFIG.tagKey);
+    (grouped[hash] = grouped[hash] || []).push(event);
+  });
+  return grouped;
+}
+
+/**
+ * 同じ内容の予定はそのまま残し、足りない予定は作り、余った予定（シートに無い・内容が変わった・重複）は削除する。
+ * 1件の失敗で全体を止めず、失敗件数を数える。
+ */
+function reconcileCalendarEvents_(calendar, desired, existingByHash) {
+  const result = { created: 0, deleted: 0, kept: 0, failed: 0 };
+
+  desired.forEach(function (event) {
+    const sameEvents = existingByHash[event.hash];
+    if (sameEvents && sameEvents.length) {
+      sameEvents.pop();
+      result.kept += 1;
+      return;
+    }
+
+    try {
+      calendar.createEvent(event.title, event.start, event.end, event.options)
+        .setTag(CALENDAR_SYNC_CONFIG.tagKey, event.hash);
+      result.created += 1;
+    } catch (err) {
+      Log.debug(`⚠️ calendar create failed: ${err.message}`);
+      result.failed += 1;
+    }
+  });
+
+  Object.keys(existingByHash).forEach(function (hash) {
+    existingByHash[hash].forEach(function (event) {
+      try {
+        event.deleteEvent();
+        result.deleted += 1;
+      } catch (err) {
+        Log.debug(`⚠️ calendar delete failed: ${err.message}`);
+        result.failed += 1;
+      }
+    });
+  });
+
+  return result;
+}
+
+// ---------- 定期実行・初期設定（GAS エディタから実行する） ----------
+
+/** 定期トリガーから呼ばれる。シートに変更があったときだけ同期する */
+function syncPlansToCalendarJob() {
+  syncPlansToCalendarSafely_(false);
+}
+
+/**
+ * 最初に一度だけ GAS エディタで実行する。カレンダーを扱う権限の承認画面を出し、カレンダーを開けるか確かめる。
+ * 実行ログに、カレンダー名が出れば OK。
+ */
+function authorizeCalendarSync() {
+  const calendarId = (PropertiesService.getScriptProperties().getProperty(CALENDAR_SYNC_CONFIG.idProperty) || "").trim();
+  if (!calendarId) throw new Error("先に Script Property CALENDAR_ID にカレンダーIDを入れてください。");
+
+  const calendar = CalendarApp.getCalendarById(calendarId);
+  if (!calendar) throw new Error("カレンダーを開けません。IDと共有設定（この Google アカウントに「予定の変更」権限）を確認してください。");
+  console.log(`OK: ${calendar.getName()}`);
+}
+
+/** 一度だけ GAS エディタで実行する。定期トリガーを作る（何度実行しても1つだけになる） */
+function installCalendarSyncTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(function (trigger) { return trigger.getHandlerFunction() === "syncPlansToCalendarJob"; })
+    .forEach(function (trigger) { ScriptApp.deleteTrigger(trigger); });
+
+  ScriptApp.newTrigger("syncPlansToCalendarJob")
+    .timeBased()
+    .everyMinutes(CALENDAR_SYNC_CONFIG.triggerMinutes)
+    .create();
+}
