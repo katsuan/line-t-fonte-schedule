@@ -825,6 +825,8 @@
 
         let records = [];
         let editing = null; // 編集中の予定（追加のときは null）
+        const DEFAULT_DURATION_HOURS = 2; // 終了時刻の初期値は、開始の2時間後
+        let endTouched = false; // 終了を自分で入力したら、開始を変えても上書きしない
         let commonPref = true; // 「月の共通リンクを使う」の希望（共通リンクのない月では一時的に使えなくなる）
         let toastTimer = null;
 
@@ -1433,6 +1435,8 @@
             $("fDate").value = asCopy ? "" : (source.date || presetDate || todayKey());
             $("fStart").value = source.start || "";
             $("fEnd").value = source.end || "";
+            // すでに終了時刻がある予定はそのまま。追加や、終了が空の予定は、開始を入れたときに2時間後を入れる
+            endTouched = !!source.end;
             setChoiceValue(choices.place, source.place);
             setChoiceValue(choices.memo1, source.memo1);
             $("fMemo2").value = source.memo2 || "";
@@ -1444,6 +1448,20 @@
             setFormError("");
             els.editor.showModal();
             els.formTitle.focus({ preventScroll: true });
+        }
+
+        /** 開始時刻の2時間後（日をまたがないよう、23:59までに収める） */
+        function defaultEndFor(start) {
+            const match = /^(\d{1,2}):(\d{2})$/.exec(start || "");
+            if (!match) return "";
+            const total = Math.min(Number(match[1]) * 60 + Number(match[2]) + DEFAULT_DURATION_HOURS * 60, 23 * 60 + 59);
+            return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+        }
+
+        function applyDefaultEnd() {
+            if (endTouched) return;
+            const end = defaultEndFor($("fStart").value);
+            if (end) $("fEnd").value = end;
         }
 
         /** 日付の月に合わせて、「共通リンクを使う」のトグルとリンク欄の表示を整える */
@@ -1567,6 +1585,9 @@
 
         els.form.addEventListener("submit", saveForm);
         $("fDate").addEventListener("change", syncLinkField);
+        $("fStart").addEventListener("input", applyDefaultEnd);
+        $("fStart").addEventListener("change", applyDefaultEnd);
+        $("fEnd").addEventListener("input", () => { endTouched = true; });
         $("fLinkCommon").addEventListener("change", () => {
             commonPref = $("fLinkCommon").checked;
             syncLinkField();
