@@ -53,6 +53,74 @@
             font-weight: 800;
         }
 
+        /* 上部の「次回」（タップでその予定のカードを選択状態にする）。1行目に日時と内容、2行目にカウントダウン */
+        .next-bar {
+            display: grid;
+            gap: 2px;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px 12px;
+            border: 0;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.1);
+            font: inherit;
+            color: var(--text);
+            text-align: left;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .next-bar:active {
+            background: var(--accent-soft);
+        }
+
+        .next-top {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            font-size: 12px;
+        }
+
+        .next-label {
+            flex: 0 0 auto;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: var(--accent);
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .next-when {
+            flex: 0 0 auto;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .next-what {
+            flex: 1;
+            min-width: 0;
+            color: var(--muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .next-count {
+            font-size: 18px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: var(--accent);
+            white-space: nowrap;
+        }
+
+        .next-count.now {
+            color: #c2410c;
+        }
+
         .btn {
             border: 0;
             border-radius: 12px;
@@ -406,6 +474,11 @@
             background: #f5f8fd;
         }
 
+        .row-item.is-selected {
+            background: #e4eeff;
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+
         .row-item.past {
             opacity: .5;
         }
@@ -511,6 +584,15 @@
             <h1 class="title">T-FONTE 活動予定</h1>
         </div>
 
+        <button id="nextBar" class="next-bar" type="button" hidden>
+            <span class="next-top">
+                <span class="next-label">次回</span>
+                <span id="nextWhen" class="next-when"></span>
+                <span id="nextWhat" class="next-what"></span>
+            </span>
+            <span id="nextCount" class="next-count"></span>
+        </button>
+
         <div id="loading" class="notice"><span class="spinner"></span>読み込み中...</div>
 
         <section id="error" class="notice" hidden>
@@ -538,6 +620,7 @@
         let view = "calendar";
         let calMonth = "";
         let selectedDate = "";
+        let selectedKey = ""; // 選択状態にしている予定（上部の「次回」をタップしたとき）
 
         // ---------- 読み込み ----------
 
@@ -553,9 +636,11 @@
                 records = data.records;
                 calMonth = todayKey().slice(0, 7);
                 selectedDate = "";
+                selectedKey = "";
                 $("loading").hidden = true;
                 $("main").hidden = false;
                 render();
+                updateNextBar();
             } catch (err) {
                 console.error(err);
                 $("loading").hidden = true;
@@ -655,6 +740,7 @@
             if (target < first || target > last) return;
             calMonth = target;
             selectedDate = "";
+            selectedKey = "";
             renderCalendar();
         }
 
@@ -797,6 +883,7 @@
                 cell.setAttribute("aria-label", `${date} 予定${dayRecords.length}件`);
                 cell.addEventListener("click", () => {
                     selectedDate = date;
+                    selectedKey = "";
                     renderCalendar();
                 });
             }
@@ -905,7 +992,8 @@
             const { icon: iconText, title: titleText } = splitMemoIcon(record.memo1);
 
             const row = document.createElement("article");
-            row.className = `row-item${record.date < today ? " past" : ""}`;
+            row.className = `row-item${record.date < today ? " past" : ""}${recordKey(record) === selectedKey ? " is-selected" : ""}`;
+            row.dataset.key = recordKey(record);
 
             const icon = document.createElement("div");
             icon.className = "row-icon";
@@ -980,12 +1068,80 @@
             return link;
         }
 
+        // ---------- 次回の予定（カウントダウン）と選択 ----------
+
+        function recordKey(record) {
+            return `${record.date} ${record.start} ${record.place} ${record.memo1}`;
+        }
+
+        function timeMs(date, time) {
+            const [y, m, d] = date.split("-").map(Number);
+            const [hh, mm] = String(time || "0:0").split(":").map(Number);
+            return new Date(y, m - 1, d, hh, mm).getTime();
+        }
+
+        /** 終わっていない最初の予定（開催中の予定を含む。終了時刻がなければ開始時刻で終わり） */
+        function findNextRecord(now) {
+            return records.find(record => timeMs(record.date, record.end || record.start) > now) || null;
+        }
+
+        /** 残り時間を「あと2日3時間24分05秒」の形にする（大きい単位が0なら省く。桁が揺れないよう分・秒は2桁） */
+        function formatCountdown(ms) {
+            const totalSeconds = Math.max(Math.floor(ms / 1000), 0);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            const two = n => String(n).padStart(2, "0");
+            if (days > 0) return `あと${days}日${hours}時間${two(minutes)}分${two(seconds)}秒`;
+            if (hours > 0) return `あと${hours}時間${two(minutes)}分${two(seconds)}秒`;
+            if (minutes > 0) return `あと${minutes}分${two(seconds)}秒`;
+            return `あと${seconds}秒`;
+        }
+
+        function updateNextBar() {
+            const bar = $("nextBar");
+            const now = Date.now();
+            const next = findNextRecord(now);
+            bar.hidden = !next || $("main").hidden;
+            if (!next) return;
+
+            const [y, m, d] = next.date.split("-").map(Number);
+            const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+            $("nextWhen").textContent = `${m}/${d}(${weekday}) ${next.start}`;
+            $("nextWhat").textContent = [next.memo1, next.place].filter(Boolean).join(" ");
+
+            const startMs = timeMs(next.date, next.start);
+            const inProgress = now >= startMs;
+            $("nextCount").textContent = inProgress ? "開催中" : formatCountdown(startMs - now);
+            $("nextCount").classList.toggle("now", inProgress);
+        }
+
+        /** 次回の予定のカードを選択状態にして、見える位置へ移す */
+        function selectNextRecord() {
+            const next = findNextRecord(Date.now());
+            if (!next) return;
+
+            calMonth = next.date.slice(0, 7);
+            selectedDate = next.date;
+            selectedKey = recordKey(next);
+            render();
+
+            const row = [...document.querySelectorAll(".row-item.is-selected")].find(el => el.offsetParent !== null);
+            if (!row) return;
+            // リストは横スクロールの月カードごと、カレンダーは下に出る日付のカードごと見える位置へ
+            (row.closest(".month-card") || row).scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+        }
+
         // ---------- イベント ----------
 
         setupCalendarSwipe($("calendar"), delta => shiftMonth(delta));
         $("tabCal").addEventListener("click", () => { view = "calendar"; render(); });
         $("tabList").addEventListener("click", () => { view = "list"; render(); });
         $("retryBtn").addEventListener("click", load);
+        $("nextBar").addEventListener("click", selectNextRecord);
+        setInterval(updateNextBar, 1000);
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNextBar(); });
 
         load();
     </script>
