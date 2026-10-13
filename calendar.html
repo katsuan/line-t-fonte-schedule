@@ -44,29 +44,33 @@
         }
 
         .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
             margin-bottom: 10px;
         }
 
         .title {
             margin: 0;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 800;
+            white-space: nowrap;
         }
 
         /* 上部の「次回」（タップでその予定のカードを選択状態にする）。1行目に日時と内容、2行目にカウントダウン */
-        /* 同期先のGoogleカレンダーを、自分のカレンダーに登録するリンク（登録リンクがあるときだけ出す） */
+        /* 同期先のGoogleカレンダーを、自分のカレンダーに登録するリンク（画面右上。登録リンクがあるときだけ出す） */
         .subscribe-link {
-            display: flex;
-            justify-content: center;
-            margin: 4px 0 8px;
-            padding: 12px 14px;
-            border-radius: 12px;
+            flex: 0 0 auto;
+            padding: 5px 9px;
+            border-radius: 999px;
             background: #ffffff;
-            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.1);
+            box-shadow: 0 2px 8px rgba(42, 72, 120, 0.12);
             color: var(--accent);
-            font-size: 14px;
+            font-size: 11px;
             font-weight: 800;
             text-decoration: none;
+            white-space: nowrap;
         }
 
         .next-bar {
@@ -597,6 +601,7 @@
     <main class="shell">
         <div class="top">
             <h1 class="title">T-FONTE 活動予定</h1>
+            <a id="subscribeLink" class="subscribe-link" href="#" target="_blank" rel="noopener noreferrer" hidden>📅 カレンダーに登録</a>
         </div>
 
         <button id="nextBar" class="next-bar" type="button" hidden>
@@ -622,9 +627,6 @@
             </div>
             <div id="calendar"></div>
             <div id="list" hidden></div>
-            <a id="subscribeLink" class="subscribe-link" href="#" target="_blank" rel="noopener noreferrer" hidden>
-                📅 Googleカレンダーに登録
-            </a>
         </section>
     </main>
 

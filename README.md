@@ -30,6 +30,8 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   Web App 入口と Flex Message の整形
 - `31_adminApi.gs`
   管理者ページ用 API（`doPost`）。LIFF アクセストークンを LINE API で検証し、Script Property `ADMIN_USER_IDS`（カンマ区切りの userId）に含まれる人だけが予定の一覧・追加・編集・削除を行える
+- `34_adminBulkAdd.gs`
+  管理ページの「📝 文章で追加」用。チャットの `#予定登録` と同じ流れ（プレーンテキスト入力 → 入力値の分解 → 確認 → 登録）。読み取りは `11_scheduleRegistration.gs` のパーサを再利用し、確認用の読み取り（`parseSchedule`、書き込まない）と、確認済みの予定のまとめて登録（`addBatch`、1件でも不正なら全件書き込まない）に分ける。登録済みと同じ予定（日付・開始・場所）は、確認画面で未チェックにする
 - `32_publicCalendarApi.gs`
   公開カレンダー用の読み取り API（`doGet` の `?action=plans`）。同期先カレンダーの登録リンク（`subscribeUrl`）も返すが、カレンダーIDがメールアドレス形式（個人のメインカレンダー）のときは、IDが読み取れてしまうため返さない（専用カレンダー `@group.calendar.google.com` のときだけ返す）。Plan シートの「更新バージョン」（スプレッドシートのドキュメント公開範囲メタデータ）をキーにキャッシュし、予定を書き込む処理（管理ページ・`#予定確定`）がバージョンを進める。シートを手で編集した場合は、GAS エディタで `installPlanChangeTrigger` を一度だけ実行して変更検知トリガーを作る（未実行でも有効期限1時間で自然に更新される）
 - `33_calendarSync.gs`

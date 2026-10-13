@@ -112,6 +112,7 @@ function isAdminUserId_(userId) {
 
 function runAdminAction_(request) {
   if (request.action === "list") return { ok: true, records: listAdminPlanRows_() };
+  if (request.action === "parseSchedule") return Object.assign({ ok: true }, previewAdminBulkText_(request.text));
   if (request.action === "syncCalendar") {
     return { ok: true, records: listAdminPlanRows_(), calendar: syncPlansToCalendarSafely_(true) };
   }
@@ -123,6 +124,7 @@ function runAdminAction_(request) {
 
   try {
     if (request.action === "add") addAdminPlanRow_(request.record);
+    else if (request.action === "addBatch") addAdminPlanRows_(request.records);
     else if (request.action === "update") updateAdminPlanRow_(request.rowNumber, request.expected, request.record);
     else if (request.action === "delete") deleteAdminPlanRow_(request.rowNumber, request.expected);
     else if (request.action === "setMonthLink") setAdminMonthLink_(request.month, request.fromLink, request.link);

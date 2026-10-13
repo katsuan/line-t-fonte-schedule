@@ -89,6 +89,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 8px;
+            flex-wrap: wrap;
             margin-bottom: 10px;
             font-size: 13px;
             color: var(--muted);
@@ -656,6 +657,109 @@
             text-align: left;
         }
 
+        /* 文章でまとめて追加（チャットの #予定登録 と同じ流れ: 入力 → 確認 → 登録） */
+        .bulk-step {
+            display: grid;
+            gap: 12px;
+        }
+
+        .bulk-help {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        #bulkText {
+            display: block;
+            width: 100%;
+            min-height: 180px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            font: inherit;
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--text);
+            resize: vertical;
+        }
+
+        .bulk-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .bulk-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 12px;
+            background: #f5f8fd;
+            cursor: pointer;
+        }
+
+        .bulk-item.is-off {
+            opacity: .5;
+        }
+
+        .bulk-item input[type="checkbox"] {
+            flex: 0 0 auto;
+            width: 22px;
+            height: 22px;
+            margin-top: 2px;
+            accent-color: var(--primary);
+        }
+
+        .bulk-item-body {
+            min-width: 0;
+            flex: 1;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .bulk-item-when {
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .bulk-item-what {
+            word-break: break-word;
+        }
+
+        .bulk-item-sub {
+            color: var(--muted);
+            font-size: 12px;
+            word-break: break-word;
+        }
+
+        .bulk-tag {
+            display: inline-block;
+            margin-left: 4px;
+            padding: 0 7px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .bulk-tag.warn {
+            background: #ffe2bf;
+            color: #a54b00;
+        }
+
+        .bulk-errors {
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: var(--danger-soft);
+            color: var(--danger);
+            font-size: 12px;
+            line-height: 1.6;
+            word-break: break-word;
+        }
+
         .toggle {
             display: flex;
             align-items: center;
@@ -764,6 +868,7 @@
             <div class="toolbar">
                 <label id="pastLabel"><input id="showPast" type="checkbox" /> 過去の予定も表示</label>
                 <div class="toolbar-actions">
+                    <button id="bulkBtn" class="btn btn-small" type="button">📝 文章で追加</button>
                     <button id="syncBtn" class="btn btn-small" type="button">📅 カレンダー同期</button>
                     <button id="reloadBtn" class="btn btn-small" type="button">再読み込み</button>
                 </div>
@@ -809,6 +914,33 @@
                 <button id="saveBtn" class="btn btn-primary" type="submit">保存</button>
             </div>
         </form>
+    </dialog>
+
+    <dialog id="bulkDialog">
+        <div class="form">
+            <h2 id="bulkTitle" tabindex="-1">文章でまとめて追加</h2>
+
+            <section id="bulkStepInput" class="bulk-step">
+                <p class="bulk-help">1行に1件、「日付 開始〜終了 場所 内容」の順に書きます。最後の行にURLを書くと、リンクのない予定に入ります。スプレッドシートからコピーした行（タブ区切り）も読めます。</p>
+                <textarea id="bulkText" spellcheck="false" placeholder="10月17日 17:00〜19:00 灘崎総合公園 フットサル①&#10;10月24日 18:00〜20:00 灘崎総合公園 フットサル②&#10;https://example.com/answer"></textarea>
+                <p id="bulkError" class="form-error" hidden></p>
+                <div class="form-actions">
+                    <button id="bulkCancel" class="btn" type="button">キャンセル</button>
+                    <button id="bulkParse" class="btn btn-primary" type="button">読み取る</button>
+                </div>
+            </section>
+
+            <section id="bulkStepConfirm" class="bulk-step" hidden>
+                <p id="bulkSummary" class="bulk-help"></p>
+                <div id="bulkList" class="bulk-list"></div>
+                <div id="bulkErrors" class="bulk-errors" hidden></div>
+                <p id="bulkConfirmError" class="form-error" hidden></p>
+                <div class="form-actions">
+                    <button id="bulkBack" class="btn" type="button">‹ 入力に戻る</button>
+                    <button id="bulkSubmit" class="btn btn-primary" type="button">登録する</button>
+                </div>
+            </section>
+        </div>
     </dialog>
 
     <div id="toast" class="toast" hidden></div>
@@ -1578,6 +1710,152 @@
             showToast(result.message || "失敗しました", true);
         }
 
+        // ---------- 文章でまとめて追加（入力 → 分解 → 確認 → 登録） ----------
+
+        let bulkRecords = []; // 読み取った予定の候補（確認画面で、チェックを外したものは登録しない）
+
+        function setBulkStep(step) {
+            $("bulkStepInput").hidden = step !== "input";
+            $("bulkStepConfirm").hidden = step !== "confirm";
+        }
+
+        function setBulkMessage(id, message) {
+            $(id).textContent = message;
+            $(id).hidden = !message;
+        }
+
+        function openBulk() {
+            setBulkStep("input");
+            setBulkMessage("bulkError", "");
+            $("bulkDialog").showModal();
+            $("bulkTitle").focus({ preventScroll: true }); // 入力欄に自動で当たると、キーボードが先に出てしまう
+        }
+
+        /** 文章を、サーバーのパーサ（チャットの #予定登録 と同じ）で予定に分解して、確認画面に出す */
+        async function parseBulk() {
+            const text = $("bulkText").value;
+            if (!text.trim()) return setBulkMessage("bulkError", "予定の文章を入力してください。");
+
+            $("bulkParse").disabled = true;
+            setBulkMessage("bulkError", "");
+            try {
+                const result = await callApi("parseSchedule", { text });
+                if (!result.ok) return setBulkMessage("bulkError", result.message || "読み取れませんでした。");
+                if (!result.records.length) {
+                    return setBulkMessage("bulkError", result.errors.length
+                        ? `読み取れる予定がありませんでした。\n${formatBulkErrors(result.errors)}`
+                        : "読み取れる予定がありませんでした。「日付 開始〜終了 場所 内容」の順に書いてください。");
+                }
+                bulkRecords = result.records.map(record => ({ ...record, checked: !record.duplicate }));
+                renderBulkConfirm(result);
+                setBulkStep("confirm");
+            } catch (err) {
+                console.error(err);
+                setBulkMessage("bulkError", "通信に失敗しました。もう一度お試しください。");
+            } finally {
+                $("bulkParse").disabled = false;
+            }
+        }
+
+        function formatBulkErrors(errors) {
+            return errors.map(error => `${error.lineNumber}行目: 「${error.raw}」`).join("\n");
+        }
+
+        function renderBulkConfirm(result) {
+            const notes = [];
+            if (result.autoFilledCount) notes.push(`${result.autoFilledCount}件は、同じ月の既存リンクを入れました。`);
+            if (result.truncated) notes.push("多いため、先頭の50件だけ読み取りました。");
+            $("bulkSummary").textContent = `${bulkRecords.length}件読み取りました。この内容で登録しますか？${notes.length ? `\n${notes.join("")}` : ""}`;
+            $("bulkSummary").style.whiteSpace = "pre-line";
+
+            $("bulkList").replaceChildren(...bulkRecords.map((record, index) => createBulkItem(record, index)));
+
+            const errors = result.errors || [];
+            $("bulkErrors").textContent = errors.length ? `読み取れなかった行（登録されません）\n${formatBulkErrors(errors)}` : "";
+            $("bulkErrors").style.whiteSpace = "pre-line";
+            $("bulkErrors").hidden = !errors.length;
+            setBulkMessage("bulkConfirmError", "");
+            updateBulkSubmit();
+        }
+
+        function createBulkItem(record, index) {
+            const [y, m, d] = record.date.split("-").map(Number);
+            const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+
+            const item = document.createElement("label");
+            item.className = `bulk-item${record.checked ? "" : " is-off"}`;
+
+            const box = document.createElement("input");
+            box.type = "checkbox";
+            box.checked = record.checked;
+            box.addEventListener("change", () => {
+                bulkRecords[index].checked = box.checked;
+                item.classList.toggle("is-off", !box.checked);
+                updateBulkSubmit();
+            });
+
+            const body = document.createElement("div");
+            body.className = "bulk-item-body";
+
+            const when = document.createElement("div");
+            when.className = "bulk-item-when";
+            when.textContent = `${m}/${d}(${weekday}) ${record.start}-${record.end}`;
+            if (record.endIsDefault) when.appendChild(createBulkTag("終了は2時間後"));
+            if (record.duplicate) when.appendChild(createBulkTag("登録済みと同じ", true));
+
+            const what = document.createElement("div");
+            what.className = "bulk-item-what";
+            what.textContent = [record.memo1, record.memo2].filter(Boolean).join(" ");
+
+            const sub = document.createElement("div");
+            sub.className = "bulk-item-sub";
+            sub.textContent = `📍 ${record.place}　${record.link ? "🔗 リンクあり" : "🔗 リンクなし"}`;
+
+            body.append(when, what, sub);
+            item.append(box, body);
+            return item;
+        }
+
+        function createBulkTag(text, warn = false) {
+            const tag = document.createElement("span");
+            tag.className = `bulk-tag${warn ? " warn" : ""}`;
+            tag.textContent = text;
+            return tag;
+        }
+
+        function updateBulkSubmit() {
+            const count = bulkRecords.filter(record => record.checked).length;
+            $("bulkSubmit").textContent = count ? `${count}件を登録する` : "登録する";
+            $("bulkSubmit").disabled = count === 0;
+        }
+
+        /** 確認した内容を登録する（チェックを外した予定は登録しない） */
+        async function submitBulk() {
+            const records = bulkRecords.filter(record => record.checked).map(record => ({
+                date: record.date, start: record.start, end: record.end,
+                place: record.place, memo1: record.memo1, memo2: record.memo2, link: record.link
+            }));
+            if (!records.length) return;
+
+            $("bulkSubmit").disabled = true;
+            setBulkMessage("bulkConfirmError", "");
+            try {
+                const result = await callApi("addBatch", { records });
+                if (!result.ok) {
+                    setBulkMessage("bulkConfirmError", result.message || "登録できませんでした。");
+                    return updateBulkSubmit();
+                }
+                applyRecords(result.records);
+                $("bulkText").value = "";
+                $("bulkDialog").close();
+                showSaved(`${records.length}件を登録しました`, result);
+            } catch (err) {
+                console.error(err);
+                setBulkMessage("bulkConfirmError", "通信に失敗しました。もう一度お試しください。");
+                updateBulkSubmit();
+            }
+        }
+
         /** 保存の完了を知らせる。Googleカレンダーの同期に失敗していたら、保存は成功したうえで、そのことも伝える */
         function showSaved(message, result) {
             const calendar = result && result.calendar;
@@ -1634,6 +1912,11 @@
         els.showPast.addEventListener("change", render);
         $("retryBtn").addEventListener("click", start);
         $("syncBtn").addEventListener("click", syncCalendarNow);
+        $("bulkBtn").addEventListener("click", openBulk);
+        $("bulkCancel").addEventListener("click", () => $("bulkDialog").close());
+        $("bulkParse").addEventListener("click", parseBulk);
+        $("bulkBack").addEventListener("click", () => { setBulkStep("input"); $("bulkText").focus(); });
+        $("bulkSubmit").addEventListener("click", submitBulk);
         $("reloadBtn").addEventListener("click", async () => {
             try { await loadRecords(); showToast("最新にしました"); } catch (err) { showToast("読み込みに失敗しました", true); }
         });
