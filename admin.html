@@ -649,6 +649,37 @@
             text-align: left;
         }
 
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 44px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .field .toggle input[type="checkbox"] {
+            flex: 0 0 auto;
+            width: 22px;
+            height: 22px;
+            min-height: 0;
+            padding: 0;
+            -webkit-appearance: auto;
+            appearance: auto;
+            accent-color: var(--primary);
+        }
+
+        .link-note {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--muted);
+            word-break: break-all;
+        }
+
         .form-error {
             margin: 0;
             font-size: 13px;
@@ -753,7 +784,15 @@
                 <input id="fMemo1" type="text" placeholder="例: ⚽フットサル" autocomplete="off" hidden />
             </div>
             <label class="field">補足（例: ①）<input id="fMemo2" type="text" autocomplete="off" /></label>
-            <label class="field">リンク<input id="fLink" type="url" inputmode="url" placeholder="月の共通リンクが自動で入ります" /></label>
+            <div class="field">
+                <span>回答リンク</span>
+                <label class="toggle">
+                    <input id="fLinkCommon" type="checkbox" />
+                    <span id="fLinkCommonText">月の共通リンクを使う</span>
+                </label>
+                <input id="fLink" type="url" inputmode="url" placeholder="この予定だけのリンク（https://…）" />
+                <p id="fLinkNote" class="link-note" hidden></p>
+            </div>
             <p id="formError" class="form-error" hidden></p>
             <div class="form-actions">
                 <button id="cancelBtn" class="btn" type="button">キャンセル</button>
@@ -781,7 +820,7 @@
 
         let records = [];
         let editing = null; // 編集中の予定（追加のときは null）
-        let linkTouched = false; // リンク欄を自分で書き換えたら、日付を変えても月の共通リンクで上書きしない
+        let commonPref = true; // 「月の共通リンクを使う」の希望（共通リンクのない月では一時的に使えなくなる）
         let toastTimer = null;
 
         // ---------- 通信 ----------
@@ -1392,25 +1431,46 @@
             setChoiceValue(choices.place, source.place);
             setChoiceValue(choices.memo1, source.memo1);
             $("fMemo2").value = source.memo2 || "";
-            $("fLink").value = source.link || "";
-            if (editing) {
-                linkTouched = true;
-            } else if (asCopy) {
-                // 複製元が月の共通リンクと違う（その予定だけ別リンク）なら、そのまま引き継ぐ
-                linkTouched = !!source.link && source.link !== baseLinkFor(source.date.slice(0, 7));
-            } else {
-                linkTouched = false;
-                applyMonthLink();
-            }
+            // 回答リンク: 月の共通リンクと同じ（または空）なら「共通リンクを使う」、違えばその予定だけのリンク
+            const linkMonth = (source.date || $("fDate").value).slice(0, 7);
+            commonPref = !record || !source.link || source.link === baseLinkFor(linkMonth);
+            $("fLink").value = commonPref ? "" : source.link;
+            syncLinkField();
             setFormError("");
             els.editor.showModal();
         }
 
-        /** 追加のとき、日付の月の共通リンクをリンク欄へ入れる */
-        function applyMonthLink() {
-            if (editing || linkTouched) return;
+        /** 日付の月に合わせて、「共通リンクを使う」のトグルとリンク欄の表示を整える */
+        function syncLinkField() {
             const date = $("fDate").value;
-            $("fLink").value = date ? baseLinkFor(date.slice(0, 7)) : "";
+            const month = date ? date.slice(0, 7) : "";
+            const base = month ? baseLinkFor(month) : "";
+            const box = $("fLinkCommon");
+            const note = $("fLinkNote");
+
+            $("fLinkCommonText").textContent = month ? `${Number(month.slice(5, 7))}月の共通リンクを使う` : "月の共通リンクを使う";
+            box.disabled = !base;
+            box.checked = !!base && commonPref;
+            $("fLink").hidden = box.checked;
+
+            if (box.checked) {
+                note.textContent = base;
+                note.hidden = false;
+            } else if (!base) {
+                note.textContent = month
+                    ? "この月の共通リンクはまだありません。入力したリンクは、この予定だけのリンクになります。"
+                    : "日付を選ぶと、その月の共通リンクを使えます。";
+                note.hidden = false;
+            } else {
+                note.hidden = true;
+            }
+        }
+
+        /** 保存するリンク: 共通リンクを使うならその月の共通リンク、そうでなければ入力したリンク */
+        function readLinkField() {
+            if (!$("fLinkCommon").checked) return $("fLink").value.trim();
+            const date = $("fDate").value;
+            return date ? baseLinkFor(date.slice(0, 7)) : "";
         }
 
         function setFormError(message) {
@@ -1426,7 +1486,7 @@
                 place: getChoiceValue(choices.place),
                 memo1: getChoiceValue(choices.memo1),
                 memo2: $("fMemo2").value.trim(),
-                link: $("fLink").value.trim()
+                link: readLinkField()
             };
         }
 
@@ -1500,8 +1560,12 @@
         // ---------- イベント ----------
 
         els.form.addEventListener("submit", saveForm);
-        $("fDate").addEventListener("change", applyMonthLink);
-        $("fLink").addEventListener("input", () => { linkTouched = true; });
+        $("fDate").addEventListener("change", syncLinkField);
+        $("fLinkCommon").addEventListener("change", () => {
+            commonPref = $("fLinkCommon").checked;
+            syncLinkField();
+            if (!commonPref) $("fLink").focus();
+        });
         $("cancelBtn").addEventListener("click", () => els.editor.close());
         els.addBtn.addEventListener("click", () => openEditor(null, false, view === "calendar" ? selectedDate : ""));
         setupCalendarSwipe($("calendar"), delta => shiftCalMonth(delta));
