@@ -28,6 +28,10 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   テキストトリガーのルーティング
 - `30_webappFlexEndpoint.gs`
   Web App 入口と Flex Message の整形
+- `31_adminApi.gs`
+  管理者ページ用 API（`doPost`）。LIFF アクセストークンを LINE API で検証し、Script Property `ADMIN_USER_IDS`（カンマ区切りの userId）に含まれる人だけが予定の一覧・追加・編集・削除を行える
+- `admin.html`
+  管理者ページ（別ページ）。LIFF 経由で `https://liff.line.me/<LIFF_ID>/admin.html` から開く。管理者未登録のときは自分の userId を表示するので、それを `ADMIN_USER_IDS` に追加する
 - `appsscript.json`
   Apps Script マニフェスト
 - `rules/project_rules.md`
@@ -61,6 +65,8 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   チャット上のテキストトリガーを解釈して返答メッセージを選ぶ
 - `main`
   定期実行を想定した自動リマインド送信処理
+- `doPost`
+  管理者ページからの予定の一覧・追加・編集・削除（要 `ADMIN_USER_IDS`）
 
 ## Config And Dependencies
 
