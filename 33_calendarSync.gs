@@ -6,8 +6,11 @@
 // - 予定の内容（日時・場所・内容・補足・リンク）から作ったハッシュで「同じ予定か」を判定する。
 //   内容が変わった予定は、古い予定を削除して作り直す
 // - カレンダーID は Script Property `CALENDAR_ID`（子プロジェクト側）に入れる。未設定なら何もしない
-// - 実行のきっかけ: 管理ページでの保存直後 / 定期トリガー（`installCalendarSyncTrigger`）
-//   定期トリガーは、シートの「更新バージョン」が前回の同期から変わったときだけ動く（#予定確定・手編集もこれで拾う）
+// - 実行のきっかけ:
+//   ・管理ページでの保存直後、「カレンダー同期」ボタン
+//   ・シートを手で編集したとき（`installPlanChangeTrigger` で作る変更検知トリガーから）
+//   ・1日1回の定期トリガー（`installCalendarSyncTrigger`）。LINE の #予定確定 など、上の2つで拾えない変更の取りこぼし対策
+//   定期トリガーは、シートの「更新バージョン」が前回の同期から変わったときだけ動く
 
 const CALENDAR_SYNC_CONFIG = {
   idProperty: "CALENDAR_ID",
@@ -17,8 +20,7 @@ const CALENDAR_SYNC_CONFIG = {
   defaultDurationHours: 2,
   horizonDays: 400,
   lockWaitMs: 20000,
-  triggerMinutes: 10,
-  footerText: "※ 予定管理のシートから自動で同期しています。ここでの変更は、次の同期でシートの内容に戻ります。"
+  triggerHour: 3
 };
 
 /**
@@ -93,16 +95,14 @@ function buildDesiredCalendarEvents_(todayDateKey) {
         end = new Date(start.getTime() + CALENDAR_SYNC_CONFIG.defaultDurationHours * 60 * 60 * 1000);
       }
 
-      const title = [row.memo1, row.memo2].filter(Boolean).join(" ");
-      const descriptionLines = [];
-      if (row.link) descriptionLines.push(`回答リンク: ${row.link}`);
-      descriptionLines.push(CALENDAR_SYNC_CONFIG.footerText);
+      // タイトルは内容だけ。補足は説明欄に書き、改行してリンクを続ける（どちらも無ければ説明欄は空）
+      const description = [row.memo2, row.link].filter(Boolean).join("\n");
 
       const event = {
-        title: title,
+        title: row.memo1,
         start: start,
         end: end,
-        options: { location: row.place || "", description: descriptionLines.join("\n") }
+        options: { location: row.place || "", description: description }
       };
       event.hash = hashCalendarEvent_(event);
       return event;
@@ -200,7 +200,7 @@ function authorizeCalendarSync() {
   console.log(`OK: ${calendar.getName()}`);
 }
 
-/** 一度だけ GAS エディタで実行する。定期トリガーを作る（何度実行しても1つだけになる） */
+/** 一度だけ GAS エディタで実行する。1日1回の定期トリガーを作る（何度実行しても1つだけになる） */
 function installCalendarSyncTrigger() {
   ScriptApp.getProjectTriggers()
     .filter(function (trigger) { return trigger.getHandlerFunction() === "syncPlansToCalendarJob"; })
@@ -208,6 +208,7 @@ function installCalendarSyncTrigger() {
 
   ScriptApp.newTrigger("syncPlansToCalendarJob")
     .timeBased()
-    .everyMinutes(CALENDAR_SYNC_CONFIG.triggerMinutes)
+    .everyDays(1)
+    .atHour(CALENDAR_SYNC_CONFIG.triggerHour)
     .create();
 }

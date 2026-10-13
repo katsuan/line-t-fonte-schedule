@@ -31,9 +31,9 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
 - `31_adminApi.gs`
   管理者ページ用 API（`doPost`）。LIFF アクセストークンを LINE API で検証し、Script Property `ADMIN_USER_IDS`（カンマ区切りの userId）に含まれる人だけが予定の一覧・追加・編集・削除を行える
 - `32_publicCalendarApi.gs`
-  公開カレンダー用の読み取り API（`doGet` の `?action=plans`）。Plan シートの「更新バージョン」（スプレッドシートのドキュメント公開範囲メタデータ）をキーにキャッシュし、予定を書き込む処理（管理ページ・`#予定確定`）がバージョンを進める。シートを手で編集した場合は、GAS エディタで `installPlanChangeTrigger` を一度だけ実行して変更検知トリガーを作る（未実行でも有効期限1時間で自然に更新される）
+  公開カレンダー用の読み取り API（`doGet` の `?action=plans`）。同期先カレンダーの登録リンク（`subscribeUrl`）も返すが、カレンダーIDがメールアドレス形式（個人のメインカレンダー）のときは、IDが読み取れてしまうため返さない（専用カレンダー `@group.calendar.google.com` のときだけ返す）。Plan シートの「更新バージョン」（スプレッドシートのドキュメント公開範囲メタデータ）をキーにキャッシュし、予定を書き込む処理（管理ページ・`#予定確定`）がバージョンを進める。シートを手で編集した場合は、GAS エディタで `installPlanChangeTrigger` を一度だけ実行して変更検知トリガーを作る（未実行でも有効期限1時間で自然に更新される）
 - `33_calendarSync.gs`
-  Plan シートの今日以降の予定を Google カレンダーへ反映する（シート→カレンダーの一方向）。このシステムが作った予定だけにタグを付けて追加・削除し、手で作った予定や過去の予定には触れない。カレンダーIDは Script Property `CALENDAR_ID`（子プロジェクト側）。初期設定は、`authorizeCalendarSync`（権限の承認）→ `installCalendarSyncTrigger`（10分おきの定期トリガー）を GAS エディタで一度ずつ実行する。管理ページの保存直後と「📅 カレンダー同期」ボタンでも同期する
+  Plan シートの今日以降の予定を Google カレンダーへ反映する（シート→カレンダーの一方向）。このシステムが作った予定だけにタグを付けて追加・削除し、手で作った予定や過去の予定には触れない。カレンダーIDは Script Property `CALENDAR_ID`（子プロジェクト側）。カレンダーの予定は、タイトル=内容、場所=場所、説明欄=「補足＋改行＋リンク」で作る。初期設定は、`authorizeCalendarSync`（権限の承認）→ `installCalendarSyncTrigger`（1日1回の定期トリガー）を GAS エディタで一度ずつ実行する。同期するタイミングは、管理ページの保存直後、「📅 カレンダー同期」ボタン、シートの手編集（`installPlanChangeTrigger` の変更検知トリガー）、1日1回の定期トリガー（LINE の `#予定確定` など、他で拾えない変更の取りこぼし対策）
   **注意**: カレンダーを扱う権限が増えるため、子を `clasp push` すると、子をライブラリ（開発モード）で使う親プロジェクト（LINE Webhook）も再承認が必要になる。push の前に手順を確認すること
 - `admin.html`
   管理者ページ（別ページ）。LIFF 経由で `https://liff.line.me/<LIFF_ID>/admin.html` から開く。管理者未登録のときは自分の userId を表示するので、それを `ADMIN_USER_IDS` に追加する
