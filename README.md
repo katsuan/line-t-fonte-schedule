@@ -30,6 +30,8 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   Web App 入口と Flex Message の整形
 - `31_adminApi.gs`
   管理者ページ用 API（`doPost`）。LIFF アクセストークンを LINE API で検証し、Script Property `ADMIN_USER_IDS`（カンマ区切りの userId）に含まれる人だけが予定の一覧・追加・編集・削除を行える
+- `32_publicCalendarApi.gs`
+  公開カレンダー用の読み取り API（`doGet` の `?action=plans`）。Plan シートの「更新バージョン」（スプレッドシートのドキュメント公開範囲メタデータ）をキーにキャッシュし、予定を書き込む処理（管理ページ・`#予定確定`）がバージョンを進める。シートを手で編集した場合は、GAS エディタで `installPlanChangeTrigger` を一度だけ実行して変更検知トリガーを作る（未実行でも有効期限1時間で自然に更新される）
 - `admin.html`
   管理者ページ（別ページ）。LIFF 経由で `https://liff.line.me/<LIFF_ID>/admin.html` から開く。管理者未登録のときは自分の userId を表示するので、それを `ADMIN_USER_IDS` に追加する
 - `appsscript.json`

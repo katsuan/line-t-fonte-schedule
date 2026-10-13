@@ -461,6 +461,7 @@ function appendScheduleRecordsToSheet_(records) {
   const destRange = SHEETS.Plan.getRange(lastRow + 1, 1, rows.length, 7);
   copyExistingRowFormatToRange_(lastRow, destRange);
   destRange.setValues(rows);
+  bumpPlanVersion_();
 }
 
 /**
