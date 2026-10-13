@@ -81,12 +81,23 @@ function verifyLineAccessToken_(accessToken) {
     throw createAdminError_("unauthorized", "このアプリ用のログインではありません。");
   }
 
+  // profile スコープが無いトークンでは、プロフィール（userId）を取得できない
+  if (String(verified.scope || "").split(/\s+/).indexOf("profile") === -1) {
+    throw createAdminError_(
+      "scope",
+      `LIFFアプリのScopeで「profile」を有効にしてください（今のScope: ${verified.scope || "なし"}）。`
+    );
+  }
+
   const profileResponse = UrlFetchApp.fetch(ADMIN_API_CONFIG.profileUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
     muteHttpExceptions: true
   });
   if (profileResponse.getResponseCode() !== 200) {
-    throw createAdminError_("unauthorized", "プロフィールを取得できませんでした。");
+    throw createAdminError_(
+      "unauthorized",
+      `プロフィールを取得できませんでした（${profileResponse.getResponseCode()}）。`
+    );
   }
 
   return JSON.parse(profileResponse.getContentText()).userId;
@@ -111,6 +122,7 @@ function runAdminAction_(request) {
     if (request.action === "add") addAdminPlanRow_(request.record);
     else if (request.action === "update") updateAdminPlanRow_(request.rowNumber, request.expected, request.record);
     else if (request.action === "delete") deleteAdminPlanRow_(request.rowNumber, request.expected);
+    else if (request.action === "setMonthLink") setAdminMonthLink_(request.month, request.fromLink, request.link);
     else throw createAdminError_("bad_request", "不明な操作です。");
 
     SpreadsheetApp.flush();
@@ -167,6 +179,35 @@ function updateAdminPlanRow_(rowNumber, expected, input) {
 function deleteAdminPlanRow_(rowNumber, expected) {
   const row = assertAdminRowUnchanged_(rowNumber, expected);
   SHEETS.Plan.deleteRow(row);
+}
+
+/**
+ * 月の共通リンクを更新する。
+ * 対象はその月の予定のうち、リンクが空か、これまでの共通リンク(fromLink)と同じ行だけ。
+ * 予定ごとに別のリンクを入れている行は、そのまま残す。
+ */
+function setAdminMonthLink_(month, fromLink, link) {
+  if (!/^\d{4}-\d{2}$/.test(String(month || ""))) {
+    throw createAdminError_("invalid", "月が正しくありません。");
+  }
+
+  const nextLink = String(link || "").trim();
+  if (!/^https?:\/\//.test(nextLink)) {
+    throw createAdminError_("invalid", "リンクは http(s):// から入力してください。");
+  }
+
+  const previousLink = String(fromLink || "").trim();
+  const values = SHEETS.Plan.getDataRange().getValues();
+
+  values.forEach(function (row, index) {
+    if (index === 0 || !isValidDate(row[0])) return;
+    if (_formatDate_(row[0], "yyyy-MM") !== month) return;
+
+    const currentLink = String(row[6] || "").trim();
+    if (currentLink && currentLink !== previousLink) return;
+
+    SHEETS.Plan.getRange(index + 1, 7).setValue(nextLink);
+  });
 }
 
 /**

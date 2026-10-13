@@ -82,6 +82,10 @@
             color: var(--muted);
         }
 
+        .toolbar #reloadBtn {
+            margin-left: auto;
+        }
+
         .toolbar label {
             display: inline-flex;
             align-items: center;
@@ -120,11 +124,204 @@
             font-size: 12px;
         }
 
+        .tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            margin-bottom: 10px;
+            padding: 4px;
+            border-radius: 14px;
+            background: #e1e9f4;
+        }
+
+        .tab {
+            padding: 9px 6px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .tab.is-active {
+            background: #ffffff;
+            color: var(--accent);
+            box-shadow: 0 2px 8px rgba(42, 72, 120, 0.12);
+        }
+
+        .cal-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .cal-title {
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .cal-nav .btn {
+            min-width: 44px;
+        }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 3px;
+            padding: 8px 6px;
+            border-radius: 16px;
+            background: var(--card);
+            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+        }
+
+        .cal-dow {
+            padding: 2px 0 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .cal-dow.sun,
+        .cal-cell.sun .cal-day {
+            color: var(--sun);
+        }
+
+        .cal-dow.sat,
+        .cal-cell.sat .cal-day {
+            color: var(--sat);
+        }
+
+        .cal-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 1px;
+            min-width: 0;
+            min-height: 58px;
+            padding: 4px 1px 3px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            background: transparent;
+            font: inherit;
+            color: var(--text);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .cal-cell.blank {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .cal-cell.has-events {
+            background: var(--accent-soft);
+        }
+
+        .cal-cell.past {
+            opacity: .5;
+        }
+
+        .cal-cell.today .cal-day {
+            display: inline-grid;
+            place-items: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #ffffff;
+        }
+
+        .cal-cell.selected {
+            border-color: var(--accent);
+        }
+
+        .cal-day {
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 22px;
+        }
+
+        .cal-icons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0 1px;
+            font-size: 15px;
+            line-height: 1.25;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        .cal-more {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .day-panel {
+            margin-top: 12px;
+        }
+
+        .day-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 0 4px 8px;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .field select {
+            display: block;
+            width: 100%;
+            min-height: 46px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            font: inherit;
+            font-size: 16px;
+            font-weight: 400;
+            color: var(--text);
+            background: #ffffff;
+        }
+
+        .field > label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
         .month {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
             margin: 14px 4px 6px;
+        }
+
+        .month-label {
             font-size: 13px;
             font-weight: 800;
             color: var(--accent);
+        }
+
+        .month-link {
+            margin: -2px 4px 6px;
+            font-size: 11px;
+            line-height: 1.5;
+            color: var(--muted);
+            word-break: break-all;
+        }
+
+        .month-link.unset {
+            color: var(--danger);
         }
 
         .list {
@@ -192,6 +389,15 @@
             word-break: break-word;
         }
 
+        .item-time {
+            margin: 3px 0 0;
+            font-size: 13px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            color: var(--text);
+        }
+
         .item-meta {
             margin: 2px 0 0;
             font-size: 12px;
@@ -202,8 +408,21 @@
 
         .item-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             justify-content: flex-end;
+        }
+
+        a.btn {
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+        }
+
+        .btn-calendar {
+            margin-right: auto;
+            background: var(--accent-soft);
+            color: var(--accent);
         }
 
         .empty,
@@ -286,7 +505,13 @@
         }
 
         .field input {
+            display: block;
             width: 100%;
+            min-width: 0;
+            min-height: 46px;
+            -webkit-appearance: none;
+            appearance: none;
+            text-align: left;
             padding: 10px 12px;
             border: 1px solid var(--line);
             border-radius: 10px;
@@ -299,8 +524,19 @@
 
         .row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 10px;
+        }
+
+        /* iOS の date / time 入力は中の表示が中央寄せ・縮みやすいので、左寄せで高さをそろえる */
+        .field input[type="date"],
+        .field input[type="time"] {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .field input::-webkit-date-and-time-value {
+            min-height: 1.4em;
+            text-align: left;
         }
 
         .form-error {
@@ -370,11 +606,16 @@
         </section>
 
         <section id="main" hidden>
+            <div class="tabs" role="tablist">
+                <button id="tabList" class="tab is-active" type="button" role="tab" aria-selected="true">📋 リスト</button>
+                <button id="tabCal" class="tab" type="button" role="tab" aria-selected="false">🗓️ カレンダー</button>
+            </div>
             <div class="toolbar">
-                <label><input id="showPast" type="checkbox" /> 過去の予定も表示</label>
+                <label id="pastLabel"><input id="showPast" type="checkbox" /> 過去の予定も表示</label>
                 <button id="reloadBtn" class="btn btn-small" type="button">再読み込み</button>
             </div>
             <div id="list"></div>
+            <div id="calendar" hidden></div>
         </section>
     </main>
 
@@ -388,10 +629,18 @@
                 <label class="field">開始<input id="fStart" type="time" required /></label>
                 <label class="field">終了<input id="fEnd" type="time" /></label>
             </div>
-            <label class="field">場所<input id="fPlace" type="text" list="placeList" required autocomplete="off" /></label>
-            <label class="field">内容（例: ⚽フットサル）<input id="fMemo1" type="text" list="memoList" required autocomplete="off" /></label>
+            <div class="field">
+                <label for="fPlaceSel">場所</label>
+                <select id="fPlaceSel"></select>
+                <input id="fPlace" type="text" placeholder="場所を入力" autocomplete="off" hidden />
+            </div>
+            <div class="field">
+                <label for="fMemo1Sel">内容</label>
+                <select id="fMemo1Sel"></select>
+                <input id="fMemo1" type="text" placeholder="例: ⚽フットサル" autocomplete="off" hidden />
+            </div>
             <label class="field">補足（例: ①）<input id="fMemo2" type="text" autocomplete="off" /></label>
-            <label class="field">リンク<input id="fLink" type="url" inputmode="url" placeholder="空なら同じ月のリンクを自動で入れます" /></label>
+            <label class="field">リンク<input id="fLink" type="url" inputmode="url" placeholder="月の共通リンクが自動で入ります" /></label>
             <p id="formError" class="form-error" hidden></p>
             <div class="form-actions">
                 <button id="cancelBtn" class="btn" type="button">キャンセル</button>
@@ -399,8 +648,6 @@
             </div>
         </form>
     </dialog>
-    <datalist id="placeList"></datalist>
-    <datalist id="memoList"></datalist>
 
     <div id="toast" class="toast" hidden></div>
 
@@ -421,6 +668,7 @@
 
         let records = [];
         let editing = null; // 編集中の予定（追加のときは null）
+        let linkTouched = false; // リンク欄を自分で書き換えたら、日付を変えても月の共通リンクで上書きしない
         let toastTimer = null;
 
         // ---------- 通信 ----------
@@ -454,6 +702,7 @@
                 }
 
                 await loadRecords();
+                applyView();
                 show("main");
             } catch (err) {
                 console.error(err);
@@ -491,6 +740,11 @@
         }
 
         function render() {
+            renderList();
+            renderCalendar();
+        }
+
+        function renderList() {
             const today = todayKey();
             const visible = records.filter(r => els.showPast.checked || r.date >= today);
             els.list.replaceChildren();
@@ -509,15 +763,74 @@
                 const month = record.date.slice(0, 7);
                 if (month !== currentMonth) {
                     currentMonth = month;
-                    const label = document.createElement("div");
-                    label.className = "month";
-                    label.textContent = `${record.date.slice(0, 4)}年${Number(record.date.slice(5, 7))}月`;
+                    els.list.append(createMonthHeader(month), createMonthLink(month));
                     group = document.createElement("div");
                     group.className = "list";
-                    els.list.append(label, group);
+                    els.list.appendChild(group);
                 }
                 group.appendChild(createItem(record, today));
             });
+        }
+
+        function monthLabel(month) {
+            return `${month.slice(0, 4)}年${Number(month.slice(5, 7))}月`;
+        }
+
+        /** その月で一番よく使われているリンクを、月の共通リンクとみなす（同数なら後に登録されたもの） */
+        function baseLinkFor(month) {
+            const counts = new Map();
+            records.forEach(record => {
+                if (record.date.slice(0, 7) === month && record.link) {
+                    counts.set(record.link, (counts.get(record.link) || 0) + 1);
+                }
+            });
+            let best = "";
+            let bestCount = 0;
+            counts.forEach((count, link) => {
+                if (count >= bestCount) { best = link; bestCount = count; }
+            });
+            return best;
+        }
+
+        function createMonthHeader(month) {
+            const head = document.createElement("div");
+            head.className = "month";
+            const label = document.createElement("span");
+            label.className = "month-label";
+            label.textContent = monthLabel(month);
+            head.append(label, actionButton("共通リンク", "btn btn-small", () => editMonthLink(month)));
+            return head;
+        }
+
+        function createMonthLink(month) {
+            const base = baseLinkFor(month);
+            const line = document.createElement("div");
+            line.className = `month-link${base ? "" : " unset"}`;
+            line.textContent = base ? `🔗 ${base}` : "共通リンクが未設定です";
+            return line;
+        }
+
+        async function editMonthLink(month) {
+            const current = baseLinkFor(month);
+            const input = prompt(
+                `${monthLabel(month)}の共通リンク\n（別のリンクを入れている予定は、そのままにします）`,
+                current
+            );
+            if (input === null) return;
+
+            const link = input.trim();
+            if (!/^https?:\/\//.test(link)) return showToast("http(s):// から入力してください", true);
+            if (link === current) return;
+
+            try {
+                const result = await callApi("setMonthLink", { month, fromLink: current, link });
+                if (!result.ok) return showToast(result.message || "更新できませんでした", true);
+                applyRecords(result.records);
+                showToast("共通リンクを更新しました");
+            } catch (err) {
+                console.error(err);
+                showToast("通信に失敗しました", true);
+            }
         }
 
         function createItem(record, today) {
@@ -541,9 +854,12 @@
             title.className = "item-title";
             title.textContent = [record.memo1, record.memo2].filter(Boolean).join(" ");
             const time = document.createElement("p");
-            time.className = "item-meta";
-            time.textContent = `${record.start}${record.end ? `-${record.end}` : ""}　${record.place}`;
-            body.append(title, time);
+            time.className = "item-time";
+            time.textContent = `${record.start}${record.end ? ` 〜 ${record.end}` : ""}`;
+            const place = document.createElement("p");
+            place.className = "item-meta";
+            place.textContent = `📍 ${record.place}`;
+            body.append(title, time, place);
             if (record.link) {
                 const link = document.createElement("p");
                 link.className = "item-meta";
@@ -558,6 +874,7 @@
             const actions = document.createElement("div");
             actions.className = "item-actions";
             actions.append(
+                createCalendarLink(record),
                 actionButton("複製", "btn btn-small", () => openEditor(record, true)),
                 actionButton("編集", "btn btn-small", () => openEditor(record, false)),
                 actionButton("削除", "btn btn-small btn-danger", () => removeRecord(record))
@@ -565,6 +882,31 @@
 
             item.append(main, actions);
             return item;
+        }
+
+        /** Googleカレンダーに予定を追加するリンク（送信カードの「カレンダー追加」と同じ内容） */
+        function createCalendarLinkUrl(record) {
+            const compact = (date, time) => `${date.replaceAll("-", "")}T${time.replace(":", "")}00`;
+            const end = record.end || record.start;
+            const params = [
+                "action=TEMPLATE",
+                `text=${encodeURIComponent(record.memo1 || "予定")}`,
+                `dates=${encodeURIComponent(`${compact(record.date, record.start)}/${compact(record.date, end)}`)}`,
+                `location=${encodeURIComponent(record.place || "")}`,
+                `details=${encodeURIComponent(record.memo2 || "")}`,
+                "ctz=Asia%2FTokyo"
+            ];
+            return `https://calendar.google.com/calendar/render?${params.join("&")}`;
+        }
+
+        function createCalendarLink(record) {
+            const link = document.createElement("a");
+            link.className = "btn btn-small btn-calendar";
+            link.href = createCalendarLinkUrl(record);
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = "📅 カレンダー追加";
+            return link;
         }
 
         function actionButton(label, className, handler) {
@@ -576,34 +918,262 @@
             return button;
         }
 
+        const OTHER = "__other__";
+        const FREQUENT_LIMIT = 8;
+        const choices = {
+            place: { sel: $("fPlaceSel"), input: $("fPlace"), values: [] },
+            memo1: { sel: $("fMemo1Sel"), input: $("fMemo1"), values: [] }
+        };
+
+        /** よく使う順（同数なら新しい予定のもの）に、上位だけをプルダウンへ出す */
+        function frequentValues(field) {
+            const counts = new Map();
+            records.forEach(record => {
+                const value = record[field];
+                if (value) counts.set(value, (counts.get(value) || 0) + 1);
+            });
+            return [...counts.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, FREQUENT_LIMIT)
+                .map(([value]) => value);
+        }
+
         function renderSuggestions() {
-            const fill = (id, values) => {
-                const unique = [...new Set(values.filter(Boolean))];
-                $(id).replaceChildren(...unique.map(value => {
-                    const option = document.createElement("option");
-                    option.value = value;
-                    return option;
-                }));
+            Object.entries(choices).forEach(([field, choice]) => {
+                choice.values = frequentValues(field);
+                buildChoiceOptions(choice);
+            });
+        }
+
+        function buildChoiceOptions(choice) {
+            const make = (value, label) => {
+                const option = document.createElement("option");
+                option.value = value;
+                option.textContent = label;
+                return option;
             };
-            fill("placeList", records.map(r => r.place));
-            fill("memoList", records.map(r => r.memo1));
+            choice.sel.replaceChildren(
+                make("", "選んでください"),
+                ...choice.values.map(value => make(value, value)),
+                make(OTHER, "その他（入力する）")
+            );
+        }
+
+        function setChoiceValue(choice, value) {
+            const text = value || "";
+            if (!text) {
+                choice.sel.value = "";
+                choice.input.value = "";
+                choice.input.hidden = true;
+            } else if (choice.values.includes(text)) {
+                choice.sel.value = text;
+                choice.input.value = "";
+                choice.input.hidden = true;
+            } else {
+                choice.sel.value = OTHER;
+                choice.input.value = text;
+                choice.input.hidden = false;
+            }
+        }
+
+        function getChoiceValue(choice) {
+            return (choice.sel.value === OTHER ? choice.input.value : choice.sel.value).trim();
+        }
+
+        Object.values(choices).forEach(choice => {
+            choice.sel.addEventListener("change", () => {
+                const isOther = choice.sel.value === OTHER;
+                choice.input.hidden = !isOther;
+                if (isOther) choice.input.focus();
+            });
+        });
+
+        // ---------- カレンダー表示 ----------
+
+        let view = "list";
+        let calMonth = todayKey().slice(0, 7);
+        let selectedDate = "";
+
+        try { if (localStorage.getItem("admin-view") === "calendar") view = "calendar"; } catch (err) { /* 保存できなくても動く */ }
+
+        /** 内容の1文字目（絵文字は1つの文字として）をアイコンにする */
+        function iconOf(memo) {
+            const text = String(memo || "").trim();
+            if (!text) return "📅";
+            if (window.Intl && Intl.Segmenter) {
+                const first = new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(text)[Symbol.iterator]().next();
+                return first.value.segment;
+            }
+            return Array.from(text)[0];
+        }
+
+        function setView(next) {
+            view = next;
+            try { localStorage.setItem("admin-view", next); } catch (err) { /* 保存できなくても動く */ }
+            applyView();
+        }
+
+        function applyView() {
+            const isCalendar = view === "calendar";
+            els.list.hidden = isCalendar;
+            $("calendar").hidden = !isCalendar;
+            $("pastLabel").hidden = isCalendar;
+            $("tabList").classList.toggle("is-active", !isCalendar);
+            $("tabCal").classList.toggle("is-active", isCalendar);
+            $("tabList").setAttribute("aria-selected", String(!isCalendar));
+            $("tabCal").setAttribute("aria-selected", String(isCalendar));
+        }
+
+        function shiftCalMonth(delta) {
+            const [y, m] = calMonth.split("-").map(Number);
+            const next = new Date(y, m - 1 + delta, 1);
+            calMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+            selectedDate = "";
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const root = $("calendar");
+            const today = todayKey();
+            const [year, month] = calMonth.split("-").map(Number);
+            const byDate = new Map();
+            records.forEach(record => {
+                if (!byDate.has(record.date)) byDate.set(record.date, []);
+                byDate.get(record.date).push(record);
+            });
+
+            const nav = document.createElement("div");
+            nav.className = "cal-nav";
+            const title = document.createElement("span");
+            title.className = "cal-title";
+            title.textContent = monthLabel(calMonth);
+            nav.append(
+                actionButton("◀", "btn", () => shiftCalMonth(-1)),
+                title,
+                actionButton("▶", "btn", () => shiftCalMonth(1))
+            );
+
+            const grid = document.createElement("div");
+            grid.className = "cal-grid";
+            WEEKDAYS.forEach((name, index) => {
+                const dow = document.createElement("div");
+                dow.className = `cal-dow${index === 0 ? " sun" : index === 6 ? " sat" : ""}`;
+                dow.textContent = name;
+                grid.appendChild(dow);
+            });
+
+            const leading = new Date(year, month - 1, 1).getDay();
+            for (let i = 0; i < leading; i++) {
+                const blank = document.createElement("div");
+                blank.className = "cal-cell blank";
+                grid.appendChild(blank);
+            }
+
+            const daysInMonth = new Date(year, month, 0).getDate();
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = `${calMonth}-${String(day).padStart(2, "0")}`;
+                grid.appendChild(createCalendarCell(date, day, byDate.get(date) || [], today));
+            }
+
+            const children = [nav, grid];
+            const dayRecords = byDate.get(selectedDate) || [];
+            if (selectedDate.startsWith(calMonth) && dayRecords.length) {
+                children.push(createDayPanel(selectedDate, dayRecords, today));
+            }
+            root.replaceChildren(...children);
+        }
+
+        function createCalendarCell(date, day, dayRecords, today) {
+            const weekday = new Date(date.replaceAll("-", "/")).getDay();
+            const cell = document.createElement("button");
+            cell.type = "button";
+            cell.className = ["cal-cell",
+                weekday === 0 ? "sun" : weekday === 6 ? "sat" : "",
+                dayRecords.length ? "has-events" : "",
+                date === today ? "today" : "",
+                date < today ? "past" : "",
+                date === selectedDate ? "selected" : ""].filter(Boolean).join(" ");
+            cell.setAttribute("aria-label", `${date}${dayRecords.length ? `（予定${dayRecords.length}件）` : ""}`);
+
+            const number = document.createElement("span");
+            number.className = "cal-day";
+            number.textContent = String(day);
+            cell.appendChild(number);
+
+            if (dayRecords.length) {
+                const icons = document.createElement("span");
+                icons.className = "cal-icons";
+                icons.textContent = dayRecords.slice(0, 2).map(record => iconOf(record.memo1)).join("");
+                cell.appendChild(icons);
+                if (dayRecords.length > 2) {
+                    const more = document.createElement("span");
+                    more.className = "cal-more";
+                    more.textContent = `+${dayRecords.length - 2}`;
+                    cell.appendChild(more);
+                }
+            }
+
+            cell.addEventListener("click", () => onDayTap(date, dayRecords));
+            return cell;
+        }
+
+        /** 予定のない日はそのまま追加フォームへ。予定のある日は、その日の予定と「この日に追加」を出す */
+        function onDayTap(date, dayRecords) {
+            selectedDate = date;
+            renderCalendar();
+            if (!dayRecords.length) openEditor(null, false, date);
+        }
+
+        function createDayPanel(date, dayRecords, today) {
+            const [y, m, d] = date.split("-").map(Number);
+            const panel = document.createElement("section");
+            panel.className = "day-panel";
+
+            const head = document.createElement("div");
+            head.className = "day-head";
+            const label = document.createElement("span");
+            label.textContent = `${m}月${d}日(${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+            head.append(label, actionButton("＋ この日に追加", "btn btn-primary btn-small", () => openEditor(null, false, date)));
+
+            const list = document.createElement("div");
+            list.className = "list";
+            dayRecords.forEach(record => list.appendChild(createItem(record, today)));
+
+            panel.append(head, list);
+            return panel;
         }
 
         // ---------- 追加・編集 ----------
 
-        function openEditor(record, asCopy) {
+        function openEditor(record, asCopy, presetDate) {
             editing = record && !asCopy ? record : null;
             els.formTitle.textContent = editing ? "予定を編集" : asCopy ? "予定を複製して追加" : "予定を追加";
             const source = record || {};
-            $("fDate").value = asCopy ? "" : (source.date || todayKey());
+            $("fDate").value = asCopy ? "" : (source.date || presetDate || todayKey());
             $("fStart").value = source.start || "";
             $("fEnd").value = source.end || "";
-            $("fPlace").value = source.place || "";
-            $("fMemo1").value = source.memo1 || "";
+            setChoiceValue(choices.place, source.place);
+            setChoiceValue(choices.memo1, source.memo1);
             $("fMemo2").value = source.memo2 || "";
             $("fLink").value = source.link || "";
+            if (editing) {
+                linkTouched = true;
+            } else if (asCopy) {
+                // 複製元が月の共通リンクと違う（その予定だけ別リンク）なら、そのまま引き継ぐ
+                linkTouched = !!source.link && source.link !== baseLinkFor(source.date.slice(0, 7));
+            } else {
+                linkTouched = false;
+                applyMonthLink();
+            }
             setFormError("");
             els.editor.showModal();
+        }
+
+        /** 追加のとき、日付の月の共通リンクをリンク欄へ入れる */
+        function applyMonthLink() {
+            if (editing || linkTouched) return;
+            const date = $("fDate").value;
+            $("fLink").value = date ? baseLinkFor(date.slice(0, 7)) : "";
         }
 
         function setFormError(message) {
@@ -616,8 +1186,8 @@
                 date: $("fDate").value,
                 start: $("fStart").value,
                 end: $("fEnd").value,
-                place: $("fPlace").value.trim(),
-                memo1: $("fMemo1").value.trim(),
+                place: getChoiceValue(choices.place),
+                memo1: getChoiceValue(choices.memo1),
                 memo2: $("fMemo2").value.trim(),
                 link: $("fLink").value.trim()
             };
@@ -693,8 +1263,12 @@
         // ---------- イベント ----------
 
         els.form.addEventListener("submit", saveForm);
+        $("fDate").addEventListener("change", applyMonthLink);
+        $("fLink").addEventListener("input", () => { linkTouched = true; });
         $("cancelBtn").addEventListener("click", () => els.editor.close());
-        els.addBtn.addEventListener("click", () => openEditor(null, false));
+        els.addBtn.addEventListener("click", () => openEditor(null, false, view === "calendar" ? selectedDate : ""));
+        $("tabList").addEventListener("click", () => setView("list"));
+        $("tabCal").addEventListener("click", () => setView("calendar"));
         els.showPast.addEventListener("change", render);
         $("retryBtn").addEventListener("click", start);
         $("reloadBtn").addEventListener("click", async () => {
