@@ -30,7 +30,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Verify static site entrypoint
-        run: test -f index.html
+        run: test -f index.html && test -f admin.html
 
       - name: Prepare static site
         env:
@@ -39,6 +39,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/index.html
+          cp admin.html _site/admin.html
           cp .nojekyll _site/.nojekyll
           short_sha="${COMMIT_SHA::7}"
           cat <<EOF > _site/version.json

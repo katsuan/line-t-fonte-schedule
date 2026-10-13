@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>T-FONTE 予定の管理</title>
+    <link rel="icon" href="data:," />
+
+    <style>
+        :root {
+            --bg: #f3f6fb;
+            --card: #ffffff;
+            --line: #d9e2ef;
+            --text: #1c2733;
+            --muted: #627487;
+            --primary: #06c755;
+            --primary-dark: #05a347;
+            --accent: #4284f3;
+            --accent-soft: #e9f1ff;
+            --danger: #d94b45;
+            --danger-soft: #fdecec;
+            --sun: #d94b45;
+            --sat: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 12px 12px 96px;
+            font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+            background: linear-gradient(180deg, #eef5ff 0%, var(--bg) 44%, #eef2f7 100%);
+            color: var(--text);
+        }
+
+        .shell {
+            width: min(640px, 100%);
+            margin: 0 auto;
+        }
+
+        .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .toolbar label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            background: #e8eef6;
+            color: #334155;
+        }
+
+        .btn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #ffffff;
+        }
+
+        .btn-danger {
+            background: var(--danger-soft);
+            color: var(--danger);
+        }
+
+        .btn-small {
+            padding: 6px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .month {
+            margin: 14px 4px 6px;
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .item {
+            display: grid;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 16px;
+            background: var(--card);
+            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+        }
+
+        .item.past {
+            opacity: .55;
+        }
+
+        .item-main {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .item-date {
+            flex: 0 0 auto;
+            min-width: 62px;
+            text-align: center;
+            padding: 6px 4px;
+            border-radius: 12px;
+            background: var(--accent-soft);
+            line-height: 1.25;
+        }
+
+        .item-date strong {
+            display: block;
+            font-size: 16px;
+        }
+
+        .item-date small {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .item-date.sun small {
+            color: var(--sun);
+        }
+
+        .item-date.sat small {
+            color: var(--sat);
+        }
+
+        .item-body {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .item-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .item-meta {
+            margin: 2px 0 0;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--muted);
+            word-break: break-word;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+        }
+
+        .empty,
+        .notice {
+            padding: 24px 12px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .panel {
+            padding: 18px 16px;
+            border-radius: 20px;
+            background: var(--card);
+            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .panel code {
+            display: block;
+            margin: 8px 0;
+            padding: 10px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            vertical-align: -3px;
+            margin-right: 6px;
+            border: 3px solid #d7dfeb;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        dialog {
+            width: min(520px, calc(100% - 24px));
+            max-height: calc(100% - 24px);
+            padding: 0;
+            border: 0;
+            border-radius: 20px;
+            color: var(--text);
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+        }
+
+        dialog::backdrop {
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .form {
+            display: grid;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .form h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .field {
+            display: grid;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .field input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            font: inherit;
+            font-size: 16px;
+            font-weight: 400;
+            color: var(--text);
+            background: #ffffff;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .form-error {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--danger);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .fab {
+            position: fixed;
+            right: 16px;
+            bottom: calc(16px + env(safe-area-inset-bottom));
+            z-index: 10;
+            padding: 14px 18px;
+            border-radius: 999px;
+            box-shadow: 0 10px 24px rgba(5, 163, 71, 0.4);
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: calc(76px + env(safe-area-inset-bottom));
+            z-index: 30;
+            transform: translateX(-50%);
+            max-width: calc(100% - 32px);
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .toast.error {
+            background: rgba(185, 28, 28, 0.95);
+        }
+    </style>
+</head>
+
+<body>
+    <main class="shell">
+        <div class="top">
+            <h1 class="title">予定の管理</h1>
+            <span class="chip">管理者</span>
+        </div>
+
+        <div id="loading" class="notice"><span class="spinner"></span>読み込み中...</div>
+
+        <section id="forbidden" class="panel" hidden>
+            <strong>管理者として登録されていません</strong>
+            <p>管理者に、下のIDを Script Property <b>ADMIN_USER_IDS</b>（複数はカンマ区切り）へ追加してもらってください。</p>
+            <code id="userId"></code>
+            <button id="copyUserId" class="btn" type="button">IDをコピー</button>
+        </section>
+
+        <section id="fatal" class="panel" hidden>
+            <strong id="fatalMessage"></strong>
+            <p><button id="retryBtn" class="btn" type="button">もう一度試す</button></p>
+        </section>
+
+        <section id="main" hidden>
+            <div class="toolbar">
+                <label><input id="showPast" type="checkbox" /> 過去の予定も表示</label>
+                <button id="reloadBtn" class="btn btn-small" type="button">再読み込み</button>
+            </div>
+            <div id="list"></div>
+        </section>
+    </main>
+
+    <button id="addBtn" class="btn btn-primary fab" type="button" hidden>＋ 予定を追加</button>
+
+    <dialog id="editor">
+        <form id="form" class="form" method="dialog" novalidate>
+            <h2 id="formTitle">予定を追加</h2>
+            <label class="field">日付<input id="fDate" type="date" required /></label>
+            <div class="row">
+                <label class="field">開始<input id="fStart" type="time" required /></label>
+                <label class="field">終了<input id="fEnd" type="time" /></label>
+            </div>
+            <label class="field">場所<input id="fPlace" type="text" list="placeList" required autocomplete="off" /></label>
+            <label class="field">内容（例: ⚽フットサル）<input id="fMemo1" type="text" list="memoList" required autocomplete="off" /></label>
+            <label class="field">補足（例: ①）<input id="fMemo2" type="text" autocomplete="off" /></label>
+            <label class="field">リンク<input id="fLink" type="url" inputmode="url" placeholder="空なら同じ月のリンクを自動で入れます" /></label>
+            <p id="formError" class="form-error" hidden></p>
+            <div class="form-actions">
+                <button id="cancelBtn" class="btn" type="button">キャンセル</button>
+                <button id="saveBtn" class="btn btn-primary" type="submit">保存</button>
+            </div>
+        </form>
+    </dialog>
+    <datalist id="placeList"></datalist>
+    <datalist id="memoList"></datalist>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+    <script>
+        const LIFF_ID = "2009927582-9QtOstUK";
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+        const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+        const $ = id => document.getElementById(id);
+        const els = {
+            loading: $("loading"), forbidden: $("forbidden"), fatal: $("fatal"), fatalMessage: $("fatalMessage"),
+            main: $("main"), list: $("list"), showPast: $("showPast"), addBtn: $("addBtn"),
+            editor: $("editor"), form: $("form"), formTitle: $("formTitle"), formError: $("formError"),
+            saveBtn: $("saveBtn"), toast: $("toast")
+        };
+
+        let records = [];
+        let editing = null; // 編集中の予定（追加のときは null）
+        let toastTimer = null;
+
+        // ---------- 通信 ----------
+
+        async function callApi(action, payload = {}) {
+            const response = await fetch(GAS_URL, {
+                method: "POST",
+                // text/plain にして CORS のプリフライトを避ける（GAS は OPTIONS を受けられない）
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                body: JSON.stringify({ action, accessToken: liff.getAccessToken(), ...payload })
+            });
+            return response.json();
+        }
+
+        // ---------- 起動 ----------
+
+        async function start() {
+            show("loading");
+            try {
+                await liff.init({ liffId: LIFF_ID });
+                if (!liff.isLoggedIn()) {
+                    liff.login({ redirectUri: location.href });
+                    return;
+                }
+
+                const who = await callApi("whoami");
+                if (!who.ok) return fail(who.message);
+                if (!who.isAdmin) {
+                    $("userId").textContent = who.userId;
+                    return show("forbidden");
+                }
+
+                await loadRecords();
+                show("main");
+            } catch (err) {
+                console.error(err);
+                fail("読み込みに失敗しました。通信状況を確認してください。");
+            }
+        }
+
+        function show(name) {
+            ["loading", "forbidden", "fatal", "main"].forEach(key => { els[key].hidden = key !== name; });
+            els.addBtn.hidden = name !== "main";
+        }
+
+        function fail(message) {
+            els.fatalMessage.textContent = message || "エラーが発生しました。";
+            show("fatal");
+        }
+
+        async function loadRecords() {
+            const result = await callApi("list");
+            if (!result.ok) throw new Error(result.message);
+            applyRecords(result.records);
+        }
+
+        function applyRecords(next) {
+            records = next.slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+            render();
+            renderSuggestions();
+        }
+
+        // ---------- 描画 ----------
+
+        function todayKey() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+
+        function render() {
+            const today = todayKey();
+            const visible = records.filter(r => els.showPast.checked || r.date >= today);
+            els.list.replaceChildren();
+
+            if (!visible.length) {
+                const empty = document.createElement("div");
+                empty.className = "empty";
+                empty.textContent = "予定はありません。右下の「＋ 予定を追加」から登録できます。";
+                els.list.appendChild(empty);
+                return;
+            }
+
+            let currentMonth = "";
+            let group = null;
+            visible.forEach(record => {
+                const month = record.date.slice(0, 7);
+                if (month !== currentMonth) {
+                    currentMonth = month;
+                    const label = document.createElement("div");
+                    label.className = "month";
+                    label.textContent = `${record.date.slice(0, 4)}年${Number(record.date.slice(5, 7))}月`;
+                    group = document.createElement("div");
+                    group.className = "list";
+                    els.list.append(label, group);
+                }
+                group.appendChild(createItem(record, today));
+            });
+        }
+
+        function createItem(record, today) {
+            const [y, m, d] = record.date.split("-").map(Number);
+            const weekday = new Date(y, m - 1, d).getDay();
+
+            const item = document.createElement("article");
+            item.className = `item${record.date < today ? " past" : ""}`;
+
+            const date = document.createElement("div");
+            date.className = `item-date${weekday === 0 ? " sun" : weekday === 6 ? " sat" : ""}`;
+            const strong = document.createElement("strong");
+            strong.textContent = `${m}/${d}`;
+            const small = document.createElement("small");
+            small.textContent = `(${WEEKDAYS[weekday]})`;
+            date.append(strong, small);
+
+            const body = document.createElement("div");
+            body.className = "item-body";
+            const title = document.createElement("h3");
+            title.className = "item-title";
+            title.textContent = [record.memo1, record.memo2].filter(Boolean).join(" ");
+            const time = document.createElement("p");
+            time.className = "item-meta";
+            time.textContent = `${record.start}${record.end ? `-${record.end}` : ""}　${record.place}`;
+            body.append(title, time);
+            if (record.link) {
+                const link = document.createElement("p");
+                link.className = "item-meta";
+                link.textContent = `🔗 ${record.link}`;
+                body.appendChild(link);
+            }
+
+            const main = document.createElement("div");
+            main.className = "item-main";
+            main.append(date, body);
+
+            const actions = document.createElement("div");
+            actions.className = "item-actions";
+            actions.append(
+                actionButton("複製", "btn btn-small", () => openEditor(record, true)),
+                actionButton("編集", "btn btn-small", () => openEditor(record, false)),
+                actionButton("削除", "btn btn-small btn-danger", () => removeRecord(record))
+            );
+
+            item.append(main, actions);
+            return item;
+        }
+
+        function actionButton(label, className, handler) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = className;
+            button.textContent = label;
+            button.addEventListener("click", handler);
+            return button;
+        }
+
+        function renderSuggestions() {
+            const fill = (id, values) => {
+                const unique = [...new Set(values.filter(Boolean))];
+                $(id).replaceChildren(...unique.map(value => {
+                    const option = document.createElement("option");
+                    option.value = value;
+                    return option;
+                }));
+            };
+            fill("placeList", records.map(r => r.place));
+            fill("memoList", records.map(r => r.memo1));
+        }
+
+        // ---------- 追加・編集 ----------
+
+        function openEditor(record, asCopy) {
+            editing = record && !asCopy ? record : null;
+            els.formTitle.textContent = editing ? "予定を編集" : asCopy ? "予定を複製して追加" : "予定を追加";
+            const source = record || {};
+            $("fDate").value = asCopy ? "" : (source.date || todayKey());
+            $("fStart").value = source.start || "";
+            $("fEnd").value = source.end || "";
+            $("fPlace").value = source.place || "";
+            $("fMemo1").value = source.memo1 || "";
+            $("fMemo2").value = source.memo2 || "";
+            $("fLink").value = source.link || "";
+            setFormError("");
+            els.editor.showModal();
+        }
+
+        function setFormError(message) {
+            els.formError.textContent = message;
+            els.formError.hidden = !message;
+        }
+
+        function readForm() {
+            return {
+                date: $("fDate").value,
+                start: $("fStart").value,
+                end: $("fEnd").value,
+                place: $("fPlace").value.trim(),
+                memo1: $("fMemo1").value.trim(),
+                memo2: $("fMemo2").value.trim(),
+                link: $("fLink").value.trim()
+            };
+        }
+
+        async function saveForm(event) {
+            event.preventDefault();
+            const record = readForm();
+            if (!record.date || !record.start || !record.place || !record.memo1) {
+                return setFormError("日付・開始・場所・内容は必須です。");
+            }
+
+            els.saveBtn.disabled = true;
+            setFormError("");
+            try {
+                const result = editing
+                    ? await callApi("update", { rowNumber: editing.rowNumber, expected: stripRow(editing), record })
+                    : await callApi("add", { record });
+                if (!result.ok) return handleApiFailure(result, true);
+
+                applyRecords(result.records);
+                els.editor.close();
+                showToast(editing ? "更新しました" : "追加しました");
+            } catch (err) {
+                console.error(err);
+                setFormError("通信に失敗しました。もう一度お試しください。");
+            } finally {
+                els.saveBtn.disabled = false;
+            }
+        }
+
+        // ---------- 削除 ----------
+
+        async function removeRecord(record) {
+            const label = `${record.date} ${record.start} ${record.memo1}`;
+            if (!confirm(`この予定を削除しますか？\n${label}`)) return;
+
+            try {
+                const result = await callApi("delete", { rowNumber: record.rowNumber, expected: stripRow(record) });
+                if (!result.ok) return handleApiFailure(result, false);
+                applyRecords(result.records);
+                showToast("削除しました");
+            } catch (err) {
+                console.error(err);
+                showToast("通信に失敗しました", true);
+            }
+        }
+
+        function stripRow(record) {
+            const { rowNumber, ...fields } = record;
+            return fields;
+        }
+
+        async function handleApiFailure(result, inForm) {
+            if (result.code === "stale") {
+                // シートが変わっている。最新を読み直してから、やり直してもらう
+                try { await loadRecords(); } catch (err) { console.error(err); }
+                els.editor.close();
+                return showToast(result.message, true);
+            }
+            if (inForm) return setFormError(result.message || "保存できませんでした。");
+            showToast(result.message || "失敗しました", true);
+        }
+
+        function showToast(message, isError = false) {
+            clearTimeout(toastTimer);
+            els.toast.textContent = message;
+            els.toast.className = `toast${isError ? " error" : ""}`;
+            els.toast.hidden = false;
+            toastTimer = setTimeout(() => { els.toast.hidden = true; }, 2800);
+        }
+
+        // ---------- イベント ----------
+
+        els.form.addEventListener("submit", saveForm);
+        $("cancelBtn").addEventListener("click", () => els.editor.close());
+        els.addBtn.addEventListener("click", () => openEditor(null, false));
+        els.showPast.addEventListener("change", render);
+        $("retryBtn").addEventListener("click", start);
+        $("reloadBtn").addEventListener("click", async () => {
+            try { await loadRecords(); showToast("最新にしました"); } catch (err) { showToast("読み込みに失敗しました", true); }
+        });
+        $("copyUserId").addEventListener("click", async () => {
+            try { await navigator.clipboard.writeText($("userId").textContent); showToast("コピーしました"); } catch (err) { showToast("コピーできませんでした", true); }
+        });
+
+        start();
+    </script>
+</body>
+
+</html>
