@@ -22,7 +22,7 @@ const LIFF_URLS = {
 const GROUP_LINK = "line://ti/g/hwc5nRC7mS"
 
 const WEATHER_CONFIG = {
-  Enabled: true,
+  Enabled: false, // 天気の取得・表示を止めている（戻すときは true）
   TimeZone: "Asia/Tokyo",
   ForecastApiBaseUrl: "https://api.open-meteo.com/v1/forecast",
   GeocodeApiBaseUrl: "https://geocoding-api.open-meteo.com/v1/search",
