@@ -339,11 +339,33 @@
         /* ---- 月ごとのカード（送信されるカードに近い見た目） ---- */
 
         .month-card {
+            display: flex;
+            flex-direction: column;
             margin-bottom: 14px;
             border-radius: 18px;
             overflow: hidden;
             background: #ffffff;
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+        }
+
+        /* リストは月ごとのカードを横に並べ、横スクロールで切り替える（送信されるカルーセルと同じ見せ方） */
+        .month-scroller {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: min(320px, 88%);
+            align-items: stretch;
+            gap: 10px;
+            margin: 0 -12px;
+            padding: 2px 12px 16px;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scroll-padding: 0 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .month-scroller .month-card {
+            margin-bottom: 0;
+            scroll-snap-align: start;
         }
 
         .month-card-head {
@@ -365,6 +387,8 @@
 
         .month-card-body {
             display: grid;
+            flex: 1;
+            align-content: start;
             gap: 4px;
             padding: 6px;
         }
@@ -853,7 +877,10 @@
                 byMonth.get(month).push(record);
             });
 
-            byMonth.forEach((monthRecords, month) => els.list.appendChild(createMonthCard(month, monthRecords, today)));
+            const scroller = document.createElement("div");
+            scroller.className = "month-scroller";
+            byMonth.forEach((monthRecords, month) => scroller.appendChild(createMonthCard(month, monthRecords, today)));
+            els.list.appendChild(scroller);
         }
 
         /** 送信されるカードと同じ、月ごとのカード（見出し・予定の行・リンクのボタン） */
@@ -1199,6 +1226,25 @@
             renderCalendar();
         }
 
+        /** カレンダーを左右にスワイプして月を移動する（縦スクロールと区別するため、横の動きが十分大きいときだけ） */
+        function setupCalendarSwipe(root, onSwipe) {
+            let start = null;
+            root.addEventListener("touchstart", event => {
+                const touch = event.touches[0];
+                start = event.touches.length === 1 ? { x: touch.clientX, y: touch.clientY } : null;
+            }, { passive: true });
+            root.addEventListener("touchcancel", () => { start = null; }, { passive: true });
+            root.addEventListener("touchend", event => {
+                if (!start) return;
+                const touch = event.changedTouches[0];
+                const dx = touch.clientX - start.x;
+                const dy = touch.clientY - start.y;
+                start = null;
+                if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                onSwipe(dx < 0 ? 1 : -1);
+            }, { passive: true });
+        }
+
         function renderCalendar() {
             const root = $("calendar");
             const today = todayKey();
@@ -1458,6 +1504,7 @@
         $("fLink").addEventListener("input", () => { linkTouched = true; });
         $("cancelBtn").addEventListener("click", () => els.editor.close());
         els.addBtn.addEventListener("click", () => openEditor(null, false, view === "calendar" ? selectedDate : ""));
+        setupCalendarSwipe($("calendar"), delta => shiftCalMonth(delta));
         $("tabList").addEventListener("click", () => setView("list"));
         $("tabCal").addEventListener("click", () => setView("calendar"));
         els.showPast.addEventListener("change", render);
