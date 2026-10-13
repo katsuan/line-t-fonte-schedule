@@ -19,6 +19,8 @@
             --accent: #4284f3;
             --accent-soft: #e9f1ff;
             --shadow: 0 18px 40px rgba(42, 72, 120, 0.12);
+            --talk-bg: #8fabd3;
+            --bubble-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
         }
 
         * {
@@ -61,11 +63,11 @@
             letter-spacing: .04em;
         }
 
+        /* 送信プレビュー：LINEのトーク画面に近い背景の枠（line-share と同じ見せ方） */
         .panel {
-            background: var(--card);
-            border-radius: 24px;
-            box-shadow: var(--shadow);
-            padding: 18px;
+            background: var(--talk-bg);
+            border-radius: 20px;
+            padding: 16px 14px;
         }
 
         .panel-head {
@@ -73,13 +75,17 @@
             justify-content: space-between;
             align-items: center;
             gap: 12px;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
 
         .panel-title {
             margin: 0;
-            font-size: 19px;
-            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.18);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 700;
         }
 
         .summary-chip {
@@ -87,12 +93,12 @@
             align-items: center;
             justify-content: center;
             min-width: 68px;
-            padding: 8px 12px;
+            padding: 4px 10px;
             border-radius: 999px;
-            background: var(--accent-soft);
-            color: var(--accent);
+            background: rgba(0, 0, 0, 0.18);
+            color: #ffffff;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 700;
         }
 
         .panel-head-actions {
@@ -102,11 +108,11 @@
         }
 
         .mini-button {
-            border: 1px solid var(--line);
+            border: 0;
             background: #ffffff;
-            color: var(--muted);
+            color: var(--accent);
             border-radius: 999px;
-            padding: 6px 10px;
+            padding: 5px 10px;
             font-size: 12px;
             font-weight: 700;
             cursor: pointer;
@@ -122,7 +128,7 @@
             align-items: center;
             gap: 10px;
             padding: 18px 4px;
-            color: var(--muted);
+            color: #ffffff;
         }
 
         .spinner {
@@ -140,48 +146,52 @@
         }
 
         .message-card {
-            border: 1px solid var(--line);
-            border-radius: 20px;
-            overflow: hidden;
-            background: #fdfefe;
+            display: grid;
+            gap: 8px;
         }
 
+        /* 件名はトークの注釈のように、枠の上に白文字で添える */
         .message-card-head {
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 10px;
-            padding: 14px 16px;
-            background: linear-gradient(180deg, #f9fbff 0%, #eef4ff 100%);
-            border-bottom: 1px solid var(--line);
         }
 
         .message-card-title {
             margin: 0;
-            font-size: 15px;
-            font-weight: 800;
-            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.92);
         }
 
         .message-card-subtitle {
-            margin: 4px 0 0;
-            font-size: 12px;
-            line-height: 1.5;
-            color: var(--muted);
+            display: none;
         }
 
         .message-card-type {
+            flex: 0 0 auto;
             font-size: 11px;
-            font-weight: 800;
-            color: var(--muted);
-            padding: 5px 8px;
+            font-weight: 700;
+            color: #ffffff;
+            padding: 2px 8px;
             border-radius: 999px;
-            background: #ffffff;
-            border: 1px solid var(--line);
+            background: rgba(0, 0, 0, 0.18);
         }
 
         .message-card-body {
-            padding: 16px;
+            min-width: 0;
+        }
+
+        /* テキストメッセージは吹き出し風に */
+        .message-card-body > .preview-lines:only-child .preview-line {
+            width: fit-content;
+            max-width: 90%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow: var(--bubble-shadow);
         }
 
         .preview-lines {
@@ -192,28 +202,68 @@
         .carousel-preview {
             display: grid;
             grid-auto-flow: column;
-            grid-auto-columns: minmax(280px, 1fr);
-            gap: 12px;
+            grid-auto-columns: min(300px, 82%);
+            gap: 8px;
             overflow-x: auto;
-            padding-bottom: 4px;
+            padding: 2px 2px 14px;
             scroll-snap-type: x proximity;
         }
 
-        .carousel-bubble {
+        /* 実際のFlexバブルに近づけた見た目（角丸・影・色付きヘッダー） */
+        .carousel-bubble,
+        .single-bubble {
             min-width: 0;
-            padding: 14px;
             border-radius: 18px;
-            background: #f7faff;
-            border: 1px solid var(--line);
+            overflow: hidden;
+            background: #ffffff;
+            box-shadow: var(--bubble-shadow);
             scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
         }
 
-        .carousel-bubble-title {
-            margin: 0 0 10px;
-            font-size: 12px;
+        .single-bubble {
+            width: min(300px, 82%);
+        }
+
+        .bubble-header {
+            display: grid;
+            gap: 2px;
+            padding: 14px 16px;
+            background: var(--accent);
+            color: #ffffff;
+        }
+
+        .bubble-header-title {
+            font-size: 17px;
             font-weight: 800;
-            color: var(--accent);
-            letter-spacing: .03em;
+            line-height: 1.4;
+        }
+
+        .bubble-header-sub {
+            font-size: 12px;
+            line-height: 1.5;
+            opacity: .9;
+        }
+
+        /* 実際のFlexと同じく、予定の行は左右いっぱいに並べる */
+        .bubble-body {
+            flex: 1;
+            padding: 0;
+            gap: 0;
+            align-content: start;
+        }
+
+        .bubble-body .schedule-list {
+            gap: 2px;
+        }
+
+        .bubble-body .schedule-item {
+            border-radius: 12px;
+        }
+
+        .bubble-body .preview-note {
+            padding: 8px 0 12px;
         }
 
         .preview-line {
@@ -225,6 +275,7 @@
         .preview-note {
             font-size: 12px;
             color: #93a1b4;
+            text-align: center;
         }
 
         .schedule-list {
@@ -252,7 +303,8 @@
         .schedule-icon {
             width: 52px;
             min-width: 52px;
-            min-height: 52px;
+            height: 52px;
+            align-self: flex-start;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -321,14 +373,17 @@
             color: #3b82f6;
         }
 
+        /* 送信されるカードと同じ、バブル下端の緑のボタン */
         .footer-link {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 6px;
-            margin-top: 12px;
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--accent);
+            justify-content: center;
+            margin: 8px 16px 16px;
+            padding: 14px 12px;
+            border-radius: 6px;
+            background: #17c950;
+            color: #ffffff;
+            font-size: 15px;
             text-decoration: none;
         }
 
@@ -785,7 +840,7 @@
             }
 
             if (message?.contents?.type === "bubble") {
-                return createBubblePreview(message.contents);
+                return createBubblePreview(message.contents, "single-bubble");
             }
 
             const wrapper = document.createElement("div");
@@ -803,24 +858,19 @@
             const wrapper = document.createElement("div");
             wrapper.className = "carousel-preview";
 
-            bubbles.forEach((bubble, index) => {
-                const bubbleCard = document.createElement("section");
-                bubbleCard.className = "carousel-bubble";
-
-                const bubbleTitle = document.createElement("h4");
-                bubbleTitle.className = "carousel-bubble-title";
-                bubbleTitle.textContent = `${index + 1}枚目`;
-
-                bubbleCard.append(bubbleTitle, createBubblePreview(bubble));
-                wrapper.appendChild(bubbleCard);
+            bubbles.forEach(bubble => {
+                wrapper.appendChild(createBubblePreview(bubble, "carousel-bubble"));
             });
 
             return wrapper;
         }
 
-        function createBubblePreview(bubble) {
+        function createBubblePreview(bubble, className) {
+            const card = document.createElement("section");
+            card.className = className;
+
             const wrapper = document.createElement("div");
-            wrapper.className = "preview-lines";
+            wrapper.className = "preview-lines bubble-body";
 
             const headerTexts = extractTexts(bubble?.header);
             const headerTitle = headerTexts[0] || "";
@@ -828,19 +878,32 @@
             const scheduleItems = extractScheduleItems(bubble);
             const summaryNote = extractSummaryNote(bubble);
             const footerLink = extractFooterLink(bubble);
+            let footerNode = null;
 
-            if (headerTitle) {
-                const title = document.createElement("div");
-                title.className = "preview-line";
-                title.textContent = headerTitle;
-                wrapper.appendChild(title);
-            }
+            if (headerTitle || introText) {
+                const header = document.createElement("div");
+                header.className = "bubble-header";
 
-            if (introText) {
-                const intro = document.createElement("div");
-                intro.className = "preview-line";
-                intro.textContent = introText;
-                wrapper.appendChild(intro);
+                const headerColor = bubble?.header?.backgroundColor;
+                if (typeof headerColor === "string" && /^#[0-9a-fA-F]{3,8}$/.test(headerColor)) {
+                    header.style.background = headerColor;
+                }
+
+                if (headerTitle) {
+                    const title = document.createElement("div");
+                    title.className = "bubble-header-title";
+                    title.textContent = headerTitle;
+                    header.appendChild(title);
+                }
+
+                if (introText) {
+                    const intro = document.createElement("div");
+                    intro.className = "bubble-header-sub";
+                    intro.textContent = introText;
+                    header.appendChild(intro);
+                }
+
+                card.appendChild(header);
             }
 
             if (scheduleItems.length) {
@@ -868,7 +931,7 @@
                 link.target = "_blank";
                 link.rel = "noopener noreferrer";
                 link.textContent = footerLink.label;
-                wrapper.appendChild(link);
+                footerNode = link;
             }
 
             if (!wrapper.childNodes.length) {
@@ -878,7 +941,11 @@
                 wrapper.appendChild(fallback);
             }
 
-            return wrapper;
+            card.appendChild(wrapper);
+            if (footerNode) {
+                card.appendChild(footerNode);
+            }
+            return card;
         }
 
         function getFlexBubbles(message) {
