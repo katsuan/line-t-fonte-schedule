@@ -127,7 +127,7 @@ function runAdminAction_(request) {
 
     SpreadsheetApp.flush();
     extractUpcomingRecordsWithDateObjects(true);
-    clearPublicCalendarCache_();
+    bumpPlanVersion_();
   } finally {
     lock.releaseLock();
   }
