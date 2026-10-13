@@ -336,6 +336,23 @@
             color: var(--sat);
         }
 
+        .item-until {
+            display: block;
+            margin-top: 2px;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--accent);
+            white-space: nowrap;
+        }
+
+        .item-until.today {
+            color: #c2410c;
+        }
+
+        .item-until.done {
+            color: var(--muted);
+        }
+
         .item-body {
             min-width: 0;
             flex: 1;
@@ -625,6 +642,16 @@
             });
         }
 
+        /** 今日からの残り日数の表示（過ぎた予定は「終了」） */
+        function untilLabel(dateKey) {
+            const [y, m, d] = dateKey.split("-").map(Number);
+            const now = new Date();
+            const days = Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+            if (days < 0) return { text: "終了", className: "done" };
+            if (days === 0) return { text: "今日", className: "today" };
+            return { text: `あと${days}日`, className: "" };
+        }
+
         function createItem(record, today) {
             const [y, m, d] = record.date.split("-").map(Number);
             const weekday = new Date(y, m - 1, d).getDay();
@@ -638,7 +665,11 @@
             strong.textContent = `${m}/${d}`;
             const small = document.createElement("small");
             small.textContent = `(${WEEKDAYS[weekday]})`;
-            date.append(strong, small);
+            const until = untilLabel(record.date);
+            const untilEl = document.createElement("span");
+            untilEl.className = `item-until${until.className ? ` ${until.className}` : ""}`;
+            untilEl.textContent = until.text;
+            date.append(strong, small, untilEl);
 
             const body = document.createElement("div");
             body.className = "item-body";
