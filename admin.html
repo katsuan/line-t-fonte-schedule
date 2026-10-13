@@ -270,15 +270,40 @@
             line-height: 22px;
         }
 
-        .cal-icons {
+        .cal-events {
+            display: grid;
+            gap: 2px;
+            justify-items: center;
+            width: 100%;
+        }
+
+        /* 予定ごとに「アイコン＋場所の1文字目」と「開始時刻」を2行で出す */
+        .cal-ev {
             display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 0 1px;
-            font-size: 15px;
-            line-height: 1.25;
+            flex-direction: column;
+            align-items: center;
             max-width: 100%;
-            overflow: hidden;
+            line-height: 1.1;
+        }
+
+        .cal-ev-top {
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .cal-ev-place {
+            margin-left: 1px;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .cal-ev-time {
+            font-size: 9px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: var(--muted);
+            white-space: nowrap;
         }
 
         .cal-more {
@@ -1130,6 +1155,14 @@
 
         try { if (localStorage.getItem("admin-view") === "calendar") view = "calendar"; } catch (err) { /* 保存できなくても動く */ }
 
+        /** 先頭の1文字（絵文字なども1つの文字として数える） */
+        function firstGrapheme(text) {
+            if (window.Intl && Intl.Segmenter) {
+                return new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(text)[Symbol.iterator]().next().value.segment;
+            }
+            return Array.from(text)[0];
+        }
+
         /** 内容の1文字目（絵文字は1つの文字として）をアイコンにする */
         function iconOf(memo) {
             const text = String(memo || "").trim();
@@ -1217,6 +1250,30 @@
             root.replaceChildren(...children);
         }
 
+        /** マス目に出す予定1件分: 「アイコン＋場所の1文字目」と「開始時刻」 */
+        function createCellEvent(record) {
+            const item = document.createElement("span");
+            item.className = "cal-ev";
+
+            const top = document.createElement("span");
+            top.className = "cal-ev-top";
+            top.append(document.createTextNode(iconOf(record.memo1)));
+            const place = String(record.place || "").trim();
+            if (place) {
+                const placeChar = document.createElement("span");
+                placeChar.className = "cal-ev-place";
+                placeChar.textContent = firstGrapheme(place);
+                top.appendChild(placeChar);
+            }
+
+            const time = document.createElement("span");
+            time.className = "cal-ev-time";
+            time.textContent = record.start;
+
+            item.append(top, time);
+            return item;
+        }
+
         function createCalendarCell(date, day, dayRecords, today) {
             const weekday = new Date(date.replaceAll("-", "/")).getDay();
             const cell = document.createElement("button");
@@ -1235,10 +1292,10 @@
             cell.appendChild(number);
 
             if (dayRecords.length) {
-                const icons = document.createElement("span");
-                icons.className = "cal-icons";
-                icons.textContent = dayRecords.slice(0, 2).map(record => iconOf(record.memo1)).join("");
-                cell.appendChild(icons);
+                const events = document.createElement("span");
+                events.className = "cal-events";
+                dayRecords.slice(0, 2).forEach(record => events.appendChild(createCellEvent(record)));
+                cell.appendChild(events);
                 if (dayRecords.length > 2) {
                     const more = document.createElement("span");
                     more.className = "cal-more";
