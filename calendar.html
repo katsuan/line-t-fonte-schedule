@@ -258,6 +258,35 @@
             color: var(--accent);
         }
 
+        .answer-bar {
+            margin-top: 10px;
+        }
+
+        .btn-answer {
+            background: #06c755;
+            color: #ffffff;
+        }
+
+        .answer-bar .btn-answer {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 15px;
+        }
+
+        .month-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 14px 4px 6px;
+        }
+
+        .month-head .month {
+            margin: 0;
+        }
+
         .day-panel {
             margin-top: 12px;
         }
@@ -384,6 +413,8 @@
 
         .item-actions {
             display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
             justify-content: flex-end;
         }
     </style>
@@ -468,6 +499,32 @@
             return Array.from(text)[0];
         }
 
+        /** その月で一番よく使われているリンクを、月の共通（回答）リンクとみなす（同数なら後に登録されたもの） */
+        function baseLinkFor(month) {
+            const counts = new Map();
+            records.forEach(record => {
+                if (record.date.slice(0, 7) === month && record.link) {
+                    counts.set(record.link, (counts.get(record.link) || 0) + 1);
+                }
+            });
+            let best = "";
+            let bestCount = 0;
+            counts.forEach((count, link) => {
+                if (count >= bestCount) { best = link; bestCount = count; }
+            });
+            return best;
+        }
+
+        function createAnswerLink(label, href, className = "btn btn-small btn-answer") {
+            const link = document.createElement("a");
+            link.className = className;
+            link.href = href;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = label;
+            return link;
+        }
+
         function button(label, className, handler, disabled = false) {
             const el = document.createElement("button");
             el.type = "button";
@@ -542,6 +599,13 @@
             }
 
             const children = [nav, grid];
+            const monthLink = baseLinkFor(calMonth);
+            if (monthLink) {
+                const bar = document.createElement("div");
+                bar.className = "answer-bar";
+                bar.appendChild(createAnswerLink(`📝 ${month}月の回答リンクを開く`, monthLink, "btn btn-answer"));
+                children.push(bar);
+            }
             const dayRecords = byDate.get(selectedDate) || [];
             if (selectedDate.startsWith(calMonth) && dayRecords.length) {
                 children.push(createDayPanel(selectedDate, dayRecords, today));
@@ -634,9 +698,14 @@
                     const label = document.createElement("div");
                     label.className = "month";
                     label.textContent = monthLabel(month);
+                    const head = document.createElement("div");
+                    head.className = "month-head";
+                    head.appendChild(label);
+                    const monthLink = baseLinkFor(month);
+                    if (monthLink) head.appendChild(createAnswerLink("📝 回答リンク", monthLink));
                     group = document.createElement("div");
                     group.className = "list";
-                    root.append(label, group);
+                    root.append(head, group);
                 }
                 group.appendChild(createItem(record, today));
             });
@@ -690,6 +759,9 @@
 
             const actions = document.createElement("div");
             actions.className = "item-actions";
+            if (record.link && record.link !== baseLinkFor(record.date.slice(0, 7))) {
+                actions.appendChild(createAnswerLink("📝 回答リンク", record.link));
+            }
             actions.appendChild(createCalendarLink(record));
 
             item.append(main, actions);

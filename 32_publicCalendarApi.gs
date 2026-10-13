@@ -1,7 +1,7 @@
 // ==========[ 公開カレンダー用 API: 今月以降の予定の読み取り専用 JSON ]==========
 //
 // calendar.html（ログイン不要・リンクを知っている人だけが見る想定）から GET ?action=plans で呼ばれる。
-// 参加リンク（月の共通リンク）などは返さず、日時・場所・内容・補足だけを返す。
+// 日時・場所・内容・補足と、回答リンク（月の共通リンク／予定ごとのリンク）を返す。
 
 const PUBLIC_CALENDAR_CONFIG = {
   cacheKey: "PUBLIC_CALENDAR_PLANS_V1",
@@ -35,7 +35,8 @@ function listPublicPlanRecords_() {
         end: record.end,
         place: record.place,
         memo1: record.memo1,
-        memo2: record.memo2
+        memo2: record.memo2,
+        link: record.link
       };
     })
     .sort(function (a, b) {
