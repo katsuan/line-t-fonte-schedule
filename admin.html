@@ -94,7 +94,9 @@
             color: var(--muted);
         }
 
-        .toolbar #reloadBtn {
+        .toolbar-actions {
+            display: flex;
+            gap: 6px;
             margin-left: auto;
         }
 
@@ -761,7 +763,10 @@
             </div>
             <div class="toolbar">
                 <label id="pastLabel"><input id="showPast" type="checkbox" /> 過去の予定も表示</label>
-                <button id="reloadBtn" class="btn btn-small" type="button">再読み込み</button>
+                <div class="toolbar-actions">
+                    <button id="syncBtn" class="btn btn-small" type="button">📅 カレンダー同期</button>
+                    <button id="reloadBtn" class="btn btn-small" type="button">再読み込み</button>
+                </div>
             </div>
             <div id="list"></div>
             <div id="calendar" hidden></div>
@@ -1089,7 +1094,7 @@
                 const result = await callApi("setMonthLink", { month, fromLink: current, link });
                 if (!result.ok) return showToast(result.message || "更新できませんでした", true);
                 applyRecords(result.records);
-                showToast("共通リンクを更新しました");
+                showSaved("共通リンクを更新しました", result);
             } catch (err) {
                 console.error(err);
                 showToast("通信に失敗しました", true);
@@ -1531,7 +1536,7 @@
 
                 applyRecords(result.records);
                 els.editor.close();
-                showToast(editing ? "更新しました" : "追加しました");
+                showSaved(editing ? "更新しました" : "追加しました", result);
             } catch (err) {
                 console.error(err);
                 setFormError("通信に失敗しました。もう一度お試しください。");
@@ -1550,7 +1555,7 @@
                 const result = await callApi("delete", { rowNumber: record.rowNumber, expected: stripRow(record) });
                 if (!result.ok) return handleApiFailure(result, false);
                 applyRecords(result.records);
-                showToast("削除しました");
+                showSaved("削除しました", result);
             } catch (err) {
                 console.error(err);
                 showToast("通信に失敗しました", true);
@@ -1571,6 +1576,34 @@
             }
             if (inForm) return setFormError(result.message || "保存できませんでした。");
             showToast(result.message || "失敗しました", true);
+        }
+
+        /** 保存の完了を知らせる。Googleカレンダーの同期に失敗していたら、保存は成功したうえで、そのことも伝える */
+        function showSaved(message, result) {
+            const calendar = result && result.calendar;
+            if (calendar && !calendar.ok && !calendar.skipped) {
+                console.warn("calendar sync failed:", calendar.message);
+                return showToast(`${message}（カレンダー同期は失敗しました）`, true);
+            }
+            showToast(message);
+        }
+
+        /** 今すぐ、シートの今日以降の予定をGoogleカレンダーに合わせる */
+        async function syncCalendarNow() {
+            const button = $("syncBtn");
+            button.disabled = true;
+            try {
+                const result = await callApi("syncCalendar");
+                if (!result.ok) return showToast(result.message || "同期できませんでした", true);
+                const calendar = result.calendar || {};
+                if (calendar.skipped && !calendar.ok) return showToast("カレンダー同期は未設定です（CALENDAR_ID）", true);
+                showToast(calendar.ok ? `カレンダーに同期しました（${calendar.message}）` : (calendar.message || "同期に失敗しました"), !calendar.ok);
+            } catch (err) {
+                console.error(err);
+                showToast("通信に失敗しました", true);
+            } finally {
+                button.disabled = false;
+            }
         }
 
         function showToast(message, isError = false) {
@@ -1600,6 +1633,7 @@
         $("tabCal").addEventListener("click", () => setView("calendar"));
         els.showPast.addEventListener("change", render);
         $("retryBtn").addEventListener("click", start);
+        $("syncBtn").addEventListener("click", syncCalendarNow);
         $("reloadBtn").addEventListener("click", async () => {
             try { await loadRecords(); showToast("最新にしました"); } catch (err) { showToast("読み込みに失敗しました", true); }
         });
