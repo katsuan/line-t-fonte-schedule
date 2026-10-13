@@ -49,6 +49,10 @@ const AUTO_REMINDER_GUIDE_CONFIG = {
 
 function doGet(e) {
   try {
+    if (e && e.parameter && e.parameter.action === "plans") {
+      return createPublicCalendarResponse_();
+    }
+
     const forceRefresh = !!(e && e.parameter && e.parameter.refresh === "1");
     const payload = createLiffPayload_(forceRefresh);
 
