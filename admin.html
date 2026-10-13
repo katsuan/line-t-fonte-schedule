@@ -61,6 +61,14 @@
             font-weight: 800;
         }
 
+        .nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
         a.chip {
             text-decoration: none;
         }
@@ -590,9 +598,12 @@
 
 <body>
     <main class="shell">
+        <nav class="nav">
+            <a class="chip" href="./index.html">‹ ホーム</a>
+            <a class="chip" href="./calendar.html" target="_blank" rel="noopener">公開カレンダー ›</a>
+        </nav>
         <div class="top">
             <h1 class="title">予定の管理</h1>
-            <a class="chip" href="./calendar.html" target="_blank" rel="noopener">公開カレンダー ›</a>
         </div>
 
         <div id="loading" class="notice"><span class="spinner"></span>読み込み中...</div>
