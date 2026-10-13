@@ -61,6 +61,10 @@
             font-weight: 800;
         }
 
+        a.chip {
+            text-decoration: none;
+        }
+
         .chip {
             display: inline-flex;
             align-items: center;
@@ -588,7 +592,7 @@
     <main class="shell">
         <div class="top">
             <h1 class="title">予定の管理</h1>
-            <span class="chip">管理者</span>
+            <a class="chip" href="./calendar.html" target="_blank" rel="noopener">公開カレンダー ›</a>
         </div>
 
         <div id="loading" class="notice"><span class="spinner"></span>読み込み中...</div>
@@ -852,18 +856,22 @@
             body.className = "item-body";
             const title = document.createElement("h3");
             title.className = "item-title";
-            title.textContent = [record.memo1, record.memo2].filter(Boolean).join(" ");
+            title.textContent = record.memo1;
             const time = document.createElement("p");
             time.className = "item-time";
             time.textContent = `${record.start}${record.end ? ` 〜 ${record.end}` : ""}`;
             const place = document.createElement("p");
             place.className = "item-meta";
-            place.textContent = `📍 ${record.place}`;
+            place.textContent = `📍 ${[record.place, record.memo2].filter(Boolean).join(" ")}`;
             body.append(title, time, place);
             if (record.link) {
                 const link = document.createElement("p");
                 link.className = "item-meta";
-                link.textContent = `🔗 ${record.link}`;
+                // 月の共通リンクと同じなら省略し、予定だけ別のリンクのときはURLを出す
+                const month = record.date.slice(0, 7);
+                link.textContent = record.link === baseLinkFor(month)
+                    ? `🔗 ${Number(month.slice(5, 7))}月共通リンク`
+                    : `🔗 ${record.link}`;
                 body.appendChild(link);
             }
 

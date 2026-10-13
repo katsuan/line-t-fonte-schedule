@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>T-FONTE 活動予定カレンダー</title>
+    <link rel="icon" href="data:," />
+
+    <style>
+        :root {
+            --bg: #f3f6fb;
+            --card: #ffffff;
+            --line: #d9e2ef;
+            --text: #1c2733;
+            --muted: #627487;
+            --accent: #4284f3;
+            --accent-soft: #e9f1ff;
+            --sun: #d94b45;
+            --sat: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 12px 12px 32px;
+            font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+            background: linear-gradient(180deg, #eef5ff 0%, var(--bg) 44%, #eef2f7 100%);
+            color: var(--text);
+        }
+
+        .shell {
+            width: min(640px, 100%);
+            margin: 0 auto;
+        }
+
+        .top {
+            margin-bottom: 10px;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .sub {
+            margin: 2px 0 0;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            background: #e8eef6;
+            color: #334155;
+        }
+
+        .btn:disabled {
+            opacity: .35;
+            cursor: not-allowed;
+        }
+
+        .btn-small {
+            padding: 6px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        a.btn {
+            display: inline-flex;
+            align-items: center;
+            text-decoration: none;
+        }
+
+        .btn-calendar {
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            margin-bottom: 10px;
+            padding: 4px;
+            border-radius: 14px;
+            background: #e1e9f4;
+        }
+
+        .tab {
+            padding: 9px 6px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .tab.is-active {
+            background: #ffffff;
+            color: var(--accent);
+            box-shadow: 0 2px 8px rgba(42, 72, 120, 0.12);
+        }
+
+        .notice {
+            padding: 28px 12px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            vertical-align: -3px;
+            margin-right: 6px;
+            border: 3px solid #d7dfeb;
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ---- カレンダー ---- */
+
+        .cal-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .cal-title {
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .cal-nav .btn {
+            min-width: 44px;
+        }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 3px;
+            padding: 8px 6px;
+            border-radius: 16px;
+            background: var(--card);
+            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+        }
+
+        .cal-dow {
+            padding: 2px 0 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--muted);
+        }
+
+        .cal-dow.sun,
+        .cal-cell.sun .cal-day {
+            color: var(--sun);
+        }
+
+        .cal-dow.sat,
+        .cal-cell.sat .cal-day {
+            color: var(--sat);
+        }
+
+        .cal-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 1px;
+            min-width: 0;
+            min-height: 58px;
+            padding: 4px 1px 3px;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            background: transparent;
+            font: inherit;
+            color: var(--text);
+            cursor: default;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .cal-cell.blank {
+            visibility: hidden;
+        }
+
+        .cal-cell.has-events {
+            background: var(--accent-soft);
+            cursor: pointer;
+        }
+
+        .cal-cell.past {
+            opacity: .5;
+        }
+
+        .cal-cell.today .cal-day {
+            display: inline-grid;
+            place-items: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #ffffff;
+        }
+
+        .cal-cell.selected {
+            border-color: var(--accent);
+        }
+
+        .cal-day {
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 22px;
+        }
+
+        .cal-icons {
+            display: flex;
+            justify-content: center;
+            font-size: 15px;
+            line-height: 1.25;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        .cal-more {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .day-panel {
+            margin-top: 12px;
+        }
+
+        .day-head {
+            margin: 0 4px 8px;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .hint {
+            margin: 8px 4px 0;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        /* ---- 予定カード ---- */
+
+        .month {
+            margin: 14px 4px 6px;
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .item {
+            display: grid;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 16px;
+            background: var(--card);
+            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+        }
+
+        .item.past {
+            opacity: .55;
+        }
+
+        .item-main {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .item-date {
+            flex: 0 0 auto;
+            min-width: 62px;
+            text-align: center;
+            padding: 6px 4px;
+            border-radius: 12px;
+            background: var(--accent-soft);
+            line-height: 1.25;
+        }
+
+        .item-date strong {
+            display: block;
+            font-size: 16px;
+        }
+
+        .item-date small {
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .item-date.sun small {
+            color: var(--sun);
+        }
+
+        .item-date.sat small {
+            color: var(--sat);
+        }
+
+        .item-body {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .item-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .item-time {
+            margin: 3px 0 0;
+            font-size: 13px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .item-meta {
+            margin: 2px 0 0;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--muted);
+            word-break: break-word;
+        }
+
+        .item-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="shell">
+        <div class="top">
+            <h1 class="title">T-FONTE 活動予定</h1>
+            <p class="sub">今月からの予定です。各予定からGoogleカレンダーに追加できます。</p>
+        </div>
+
+        <div id="loading" class="notice"><span class="spinner"></span>読み込み中...</div>
+
+        <section id="error" class="notice" hidden>
+            <strong id="errorMessage"></strong>
+            <p><button id="retryBtn" class="btn" type="button">もう一度試す</button></p>
+        </section>
+
+        <section id="main" hidden>
+            <div class="tabs" role="tablist">
+                <button id="tabCal" class="tab is-active" type="button" role="tab" aria-selected="true">🗓️ カレンダー</button>
+                <button id="tabList" class="tab" type="button" role="tab" aria-selected="false">📋 リスト</button>
+            </div>
+            <div id="calendar"></div>
+            <div id="list" hidden></div>
+        </section>
+    </main>
+
+    <script>
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+        const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+        const $ = id => document.getElementById(id);
+
+        let records = [];
+        let view = "calendar";
+        let calMonth = "";
+        let selectedDate = "";
+
+        // ---------- 読み込み ----------
+
+        async function load() {
+            $("loading").hidden = false;
+            $("error").hidden = true;
+            $("main").hidden = true;
+            try {
+                const response = await fetch(`${GAS_URL}?action=plans`);
+                const data = await response.json();
+                if (!data.ok) throw new Error(data.message || "取得できませんでした");
+
+                records = data.records;
+                calMonth = todayKey().slice(0, 7);
+                selectedDate = "";
+                $("loading").hidden = true;
+                $("main").hidden = false;
+                render();
+            } catch (err) {
+                console.error(err);
+                $("loading").hidden = true;
+                $("errorMessage").textContent = "予定を読み込めませんでした。";
+                $("error").hidden = false;
+            }
+        }
+
+        function todayKey() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+
+        function monthLabel(month) {
+            return `${month.slice(0, 4)}年${Number(month.slice(5, 7))}月`;
+        }
+
+        /** 内容の1文字目（絵文字は1つの文字として）をアイコンにする */
+        function iconOf(memo) {
+            const text = String(memo || "").trim();
+            if (!text) return "📅";
+            if (window.Intl && Intl.Segmenter) {
+                return new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(text)[Symbol.iterator]().next().value.segment;
+            }
+            return Array.from(text)[0];
+        }
+
+        function button(label, className, handler, disabled = false) {
+            const el = document.createElement("button");
+            el.type = "button";
+            el.className = className;
+            el.textContent = label;
+            el.disabled = disabled;
+            el.addEventListener("click", handler);
+            return el;
+        }
+
+        // ---------- 描画 ----------
+
+        function render() {
+            $("calendar").hidden = view !== "calendar";
+            $("list").hidden = view !== "list";
+            $("tabCal").classList.toggle("is-active", view === "calendar");
+            $("tabList").classList.toggle("is-active", view === "list");
+            $("tabCal").setAttribute("aria-selected", String(view === "calendar"));
+            $("tabList").setAttribute("aria-selected", String(view === "list"));
+            renderCalendar();
+            renderList();
+        }
+
+        function shiftMonth(delta) {
+            const [y, m] = calMonth.split("-").map(Number);
+            const next = new Date(y, m - 1 + delta, 1);
+            calMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+            selectedDate = "";
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const today = todayKey();
+            const thisMonth = today.slice(0, 7);
+            const lastMonth = records.reduce((max, r) => (r.date.slice(0, 7) > max ? r.date.slice(0, 7) : max), thisMonth);
+            const [year, month] = calMonth.split("-").map(Number);
+
+            const byDate = new Map();
+            records.forEach(record => {
+                if (!byDate.has(record.date)) byDate.set(record.date, []);
+                byDate.get(record.date).push(record);
+            });
+
+            const title = document.createElement("span");
+            title.className = "cal-title";
+            title.textContent = monthLabel(calMonth);
+            const nav = document.createElement("div");
+            nav.className = "cal-nav";
+            nav.append(
+                button("◀", "btn", () => shiftMonth(-1), calMonth <= thisMonth),
+                title,
+                button("▶", "btn", () => shiftMonth(1), calMonth >= lastMonth)
+            );
+
+            const grid = document.createElement("div");
+            grid.className = "cal-grid";
+            WEEKDAYS.forEach((name, index) => {
+                const dow = document.createElement("div");
+                dow.className = `cal-dow${index === 0 ? " sun" : index === 6 ? " sat" : ""}`;
+                dow.textContent = name;
+                grid.appendChild(dow);
+            });
+
+            for (let i = 0; i < new Date(year, month - 1, 1).getDay(); i++) {
+                const blank = document.createElement("div");
+                blank.className = "cal-cell blank";
+                grid.appendChild(blank);
+            }
+            for (let day = 1; day <= new Date(year, month, 0).getDate(); day++) {
+                const date = `${calMonth}-${String(day).padStart(2, "0")}`;
+                grid.appendChild(createCell(date, day, byDate.get(date) || [], today));
+            }
+
+            const children = [nav, grid];
+            const dayRecords = byDate.get(selectedDate) || [];
+            if (selectedDate.startsWith(calMonth) && dayRecords.length) {
+                children.push(createDayPanel(selectedDate, dayRecords, today));
+            } else if (![...byDate.keys()].some(date => date.startsWith(calMonth))) {
+                const hint = document.createElement("p");
+                hint.className = "hint";
+                hint.textContent = "この月の予定はまだありません。";
+                children.push(hint);
+            } else {
+                const hint = document.createElement("p");
+                hint.className = "hint";
+                hint.textContent = "色のついた日をタップすると、予定が表示されます。";
+                children.push(hint);
+            }
+            $("calendar").replaceChildren(...children);
+        }
+
+        function createCell(date, day, dayRecords, today) {
+            const weekday = new Date(date.replaceAll("-", "/")).getDay();
+            const cell = document.createElement("button");
+            cell.type = "button";
+            cell.className = ["cal-cell",
+                weekday === 0 ? "sun" : weekday === 6 ? "sat" : "",
+                dayRecords.length ? "has-events" : "",
+                date === today ? "today" : "",
+                date < today ? "past" : "",
+                date === selectedDate ? "selected" : ""].filter(Boolean).join(" ");
+
+            const number = document.createElement("span");
+            number.className = "cal-day";
+            number.textContent = String(day);
+            cell.appendChild(number);
+
+            if (dayRecords.length) {
+                const icons = document.createElement("span");
+                icons.className = "cal-icons";
+                icons.textContent = dayRecords.slice(0, 2).map(record => iconOf(record.memo1)).join("");
+                cell.appendChild(icons);
+                if (dayRecords.length > 2) {
+                    const more = document.createElement("span");
+                    more.className = "cal-more";
+                    more.textContent = `+${dayRecords.length - 2}`;
+                    cell.appendChild(more);
+                }
+                cell.setAttribute("aria-label", `${date} 予定${dayRecords.length}件`);
+                cell.addEventListener("click", () => {
+                    selectedDate = date;
+                    renderCalendar();
+                });
+            }
+            return cell;
+        }
+
+        function createDayPanel(date, dayRecords, today) {
+            const [y, m, d] = date.split("-").map(Number);
+            const panel = document.createElement("section");
+            panel.className = "day-panel";
+
+            const head = document.createElement("div");
+            head.className = "day-head";
+            head.textContent = `${m}月${d}日(${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+
+            const list = document.createElement("div");
+            list.className = "list";
+            dayRecords.forEach(record => list.appendChild(createItem(record, today)));
+
+            panel.append(head, list);
+            return panel;
+        }
+
+        function renderList() {
+            const today = todayKey();
+            const root = $("list");
+            root.replaceChildren();
+
+            if (!records.length) {
+                const empty = document.createElement("div");
+                empty.className = "notice";
+                empty.textContent = "予定はまだありません。";
+                root.appendChild(empty);
+                return;
+            }
+
+            let currentMonth = "";
+            let group = null;
+            records.forEach(record => {
+                const month = record.date.slice(0, 7);
+                if (month !== currentMonth) {
+                    currentMonth = month;
+                    const label = document.createElement("div");
+                    label.className = "month";
+                    label.textContent = monthLabel(month);
+                    group = document.createElement("div");
+                    group.className = "list";
+                    root.append(label, group);
+                }
+                group.appendChild(createItem(record, today));
+            });
+        }
+
+        function createItem(record, today) {
+            const [y, m, d] = record.date.split("-").map(Number);
+            const weekday = new Date(y, m - 1, d).getDay();
+
+            const item = document.createElement("article");
+            item.className = `item${record.date < today ? " past" : ""}`;
+
+            const date = document.createElement("div");
+            date.className = `item-date${weekday === 0 ? " sun" : weekday === 6 ? " sat" : ""}`;
+            const strong = document.createElement("strong");
+            strong.textContent = `${m}/${d}`;
+            const small = document.createElement("small");
+            small.textContent = `(${WEEKDAYS[weekday]})`;
+            date.append(strong, small);
+
+            const body = document.createElement("div");
+            body.className = "item-body";
+            const title = document.createElement("h3");
+            title.className = "item-title";
+            title.textContent = record.memo1;
+            const time = document.createElement("p");
+            time.className = "item-time";
+            time.textContent = `${record.start}${record.end ? ` 〜 ${record.end}` : ""}`;
+            const place = document.createElement("p");
+            place.className = "item-meta";
+            place.textContent = `📍 ${[record.place, record.memo2].filter(Boolean).join(" ")}`;
+            body.append(title, time, place);
+
+            const main = document.createElement("div");
+            main.className = "item-main";
+            main.append(date, body);
+
+            const actions = document.createElement("div");
+            actions.className = "item-actions";
+            actions.appendChild(createCalendarLink(record));
+
+            item.append(main, actions);
+            return item;
+        }
+
+        /** Googleカレンダーに予定を追加するリンク（送信カードの「カレンダー追加」と同じ内容） */
+        function createCalendarLink(record) {
+            const compact = (date, time) => `${date.replaceAll("-", "")}T${time.replace(":", "")}00`;
+            const end = record.end || record.start;
+            const params = [
+                "action=TEMPLATE",
+                `text=${encodeURIComponent(record.memo1 || "予定")}`,
+                `dates=${encodeURIComponent(`${compact(record.date, record.start)}/${compact(record.date, end)}`)}`,
+                `location=${encodeURIComponent(record.place || "")}`,
+                `details=${encodeURIComponent(record.memo2 || "")}`,
+                "ctz=Asia%2FTokyo"
+            ];
+
+            const link = document.createElement("a");
+            link.className = "btn btn-small btn-calendar";
+            link.href = `https://calendar.google.com/calendar/render?${params.join("&")}`;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = "📅 Googleカレンダーに追加";
+            return link;
+        }
+
+        // ---------- イベント ----------
+
+        $("tabCal").addEventListener("click", () => { view = "calendar"; render(); });
+        $("tabList").addEventListener("click", () => { view = "list"; render(); });
+        $("retryBtn").addEventListener("click", load);
+
+        load();
+    </script>
+</body>
+
+</html>
