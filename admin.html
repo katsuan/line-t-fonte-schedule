@@ -601,6 +601,11 @@
             padding: 16px;
         }
 
+        /* 開いた直後のフォーカスはタイトルに置く（日付欄に当たると、ピッカーやキーボードが出てしまう） */
+        #formTitle:focus {
+            outline: none;
+        }
+
         .form h2 {
             margin: 0;
             font-size: 16px;
@@ -767,21 +772,21 @@
 
     <dialog id="editor">
         <form id="form" class="form" method="dialog" novalidate>
-            <h2 id="formTitle">予定を追加</h2>
+            <h2 id="formTitle" tabindex="-1">予定を追加</h2>
             <label class="field">日付<input id="fDate" type="date" required /></label>
             <div class="row">
                 <label class="field">開始<input id="fStart" type="time" required /></label>
                 <label class="field">終了<input id="fEnd" type="time" /></label>
             </div>
             <div class="field">
-                <label for="fPlaceSel">場所</label>
-                <select id="fPlaceSel"></select>
-                <input id="fPlace" type="text" placeholder="場所を入力" autocomplete="off" hidden />
-            </div>
-            <div class="field">
                 <label for="fMemo1Sel">内容</label>
                 <select id="fMemo1Sel"></select>
                 <input id="fMemo1" type="text" placeholder="例: ⚽フットサル" autocomplete="off" hidden />
+            </div>
+            <div class="field">
+                <label for="fPlaceSel">場所</label>
+                <select id="fPlaceSel"></select>
+                <input id="fPlace" type="text" placeholder="場所を入力" autocomplete="off" hidden />
             </div>
             <label class="field">補足（例: ①）<input id="fMemo2" type="text" autocomplete="off" /></label>
             <div class="field">
@@ -1438,6 +1443,7 @@
             syncLinkField();
             setFormError("");
             els.editor.showModal();
+            els.formTitle.focus({ preventScroll: true });
         }
 
         /** 日付の月に合わせて、「共通リンクを使う」のトグルとリンク欄の表示を整える */
