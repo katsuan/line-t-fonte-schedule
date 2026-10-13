@@ -756,8 +756,8 @@
 
         <section id="main" hidden>
             <div class="tabs" role="tablist">
-                <button id="tabList" class="tab is-active" type="button" role="tab" aria-selected="true">📋 リスト</button>
-                <button id="tabCal" class="tab" type="button" role="tab" aria-selected="false">🗓️ カレンダー</button>
+                <button id="tabCal" class="tab is-active" type="button" role="tab" aria-selected="true">🗓️ カレンダー</button>
+                <button id="tabList" class="tab" type="button" role="tab" aria-selected="false">📋 リスト</button>
             </div>
             <div class="toolbar">
                 <label id="pastLabel"><input id="showPast" type="checkbox" /> 過去の予定も表示</label>
@@ -1222,11 +1222,11 @@
 
         // ---------- カレンダー表示 ----------
 
-        let view = "list";
+        let view = "calendar"; // 公開ページと同じく、カレンダー → リストの順で、カレンダーが初期表示
         let calMonth = todayKey().slice(0, 7);
         let selectedDate = "";
 
-        try { if (localStorage.getItem("admin-view") === "calendar") view = "calendar"; } catch (err) { /* 保存できなくても動く */ }
+        try { if (localStorage.getItem("admin-view") === "list") view = "list"; } catch (err) { /* 保存できなくても動く */ }
 
         /** 先頭の1文字（絵文字なども1つの文字として数える） */
         function firstGrapheme(text) {
