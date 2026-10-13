@@ -120,6 +120,17 @@
             cursor: not-allowed;
         }
 
+        /* 月の共通リンクは薄めに。その予定だけ別のリンクのときは、濃い緑で目立たせる */
+        .btn-answer-soft {
+            background: #e3f6ea;
+            color: #0b8a3b;
+        }
+
+        .btn-answer {
+            background: var(--primary);
+            color: #ffffff;
+        }
+
         .btn-primary {
             background: var(--primary);
             color: #ffffff;
@@ -280,16 +291,6 @@
             margin-top: 12px;
         }
 
-        .day-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            margin: 0 4px 8px;
-            font-size: 14px;
-            font-weight: 800;
-        }
-
         .field select {
             display: block;
             width: 100%;
@@ -310,107 +311,102 @@
             color: var(--muted);
         }
 
-        .month {
+        /* ---- 月ごとのカード（送信されるカードに近い見た目） ---- */
+
+        .month-card {
+            margin-bottom: 14px;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #ffffff;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+        }
+
+        .month-card-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 8px;
-            margin: 14px 4px 6px;
-        }
-
-        .month-label {
-            font-size: 13px;
-            font-weight: 800;
-            color: var(--accent);
-        }
-
-        .month-link {
-            margin: -2px 4px 6px;
-            font-size: 11px;
-            line-height: 1.5;
-            color: var(--muted);
-            word-break: break-all;
-        }
-
-        .month-link.unset {
-            color: var(--danger);
-        }
-
-        .list {
-            display: grid;
-            gap: 8px;
-        }
-
-        .item {
-            display: grid;
-            gap: 8px;
-            padding: 10px 12px;
-            border-radius: 16px;
-            background: var(--card);
-            box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
-        }
-
-        .item.past {
-            opacity: .55;
-        }
-
-        .item-main {
-            display: flex;
-            gap: 12px;
-            align-items: flex-start;
-        }
-
-        .item-date {
-            flex: 0 0 auto;
-            min-width: 62px;
-            text-align: center;
-            padding: 6px 4px;
-            border-radius: 12px;
-            background: var(--accent-soft);
-            line-height: 1.25;
-        }
-
-        .item-date strong {
-            display: block;
+            padding: 10px 14px;
+            background: var(--accent);
+            color: #ffffff;
             font-size: 16px;
-        }
-
-        .item-date small {
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        .item-date.sun small {
-            color: var(--sun);
-        }
-
-        .item-date.sat small {
-            color: var(--sat);
-        }
-
-        .item-until {
-            display: block;
-            margin-top: 2px;
-            font-size: 10px;
             font-weight: 800;
-            color: var(--accent);
-            white-space: nowrap;
         }
 
-        .item-until.today {
-            color: #c2410c;
+        .month-card-head .btn {
+            background: rgba(255, 255, 255, 0.22);
+            color: #ffffff;
         }
 
-        .item-until.done {
+        .month-card-body {
+            display: grid;
+            gap: 4px;
+            padding: 6px;
+        }
+
+        .month-card-foot {
+            padding: 4px 14px 14px;
+        }
+
+        .month-card-foot .btn-answer {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .month-card-note {
+            margin: 0;
+            padding: 4px 14px 12px;
+            font-size: 12px;
+            text-align: center;
             color: var(--muted);
         }
 
-        .item-body {
+        .month-card-note.unset {
+            color: var(--danger, #d94b45);
+        }
+
+        .row-item {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            padding: 8px 10px;
+            border-radius: 14px;
+            background: #f5f8fd;
+        }
+
+        .row-item.past {
+            opacity: .5;
+        }
+
+        .row-icon {
+            flex: 0 0 40px;
+            display: grid;
+            place-items: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e6eef9;
+            font-size: 19px;
+            line-height: 1;
+        }
+
+        .row-body {
             min-width: 0;
             flex: 1;
         }
 
-        .item-title {
+        .row-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .row-title {
             margin: 0;
             font-size: 14px;
             font-weight: 800;
@@ -418,26 +414,62 @@
             word-break: break-word;
         }
 
-        .item-time {
-            margin: 3px 0 0;
-            font-size: 13px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
+        .row-until {
+            flex: 0 0 auto;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #e6eef9;
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 800;
             white-space: nowrap;
-            color: var(--text);
         }
 
-        .item-meta {
-            margin: 2px 0 0;
+        .row-until.today {
+            background: #ffe2bf;
+            color: #a54b00;
+        }
+
+        .row-until.done {
+            color: var(--muted);
+        }
+
+        .row-meta {
+            margin: 1px 0 0;
             font-size: 12px;
-            line-height: 1.5;
+            line-height: 1.55;
             color: var(--muted);
             word-break: break-word;
         }
 
-        .item-actions {
+        .row-meta .sun {
+            color: var(--sun);
+        }
+
+        .row-meta .sat {
+            color: var(--sat);
+        }
+
+        .row-actions {
+            display: grid;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        /* 回答リンクとカレンダー追加は横並びで、幅を等分する */
+        .row-links {
             display: flex;
-            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .row-links .btn {
+            flex: 1 1 0;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        .row-ops {
+            display: flex;
             gap: 6px;
             justify-content: flex-end;
         }
@@ -789,19 +821,138 @@
                 return;
             }
 
-            let currentMonth = "";
-            let group = null;
+            const byMonth = new Map();
             visible.forEach(record => {
                 const month = record.date.slice(0, 7);
-                if (month !== currentMonth) {
-                    currentMonth = month;
-                    els.list.append(createMonthHeader(month), createMonthLink(month));
-                    group = document.createElement("div");
-                    group.className = "list";
-                    els.list.appendChild(group);
-                }
-                group.appendChild(createItem(record, today));
+                if (!byMonth.has(month)) byMonth.set(month, []);
+                byMonth.get(month).push(record);
             });
+
+            byMonth.forEach((monthRecords, month) => els.list.appendChild(createMonthCard(month, monthRecords, today)));
+        }
+
+        /** 送信されるカードと同じ、月ごとのカード（見出し・予定の行・リンクのボタン） */
+        function createMonthCard(month, monthRecords, today) {
+            const card = document.createElement("section");
+            card.className = "month-card";
+
+            const head = document.createElement("div");
+            head.className = "month-card-head";
+            const label = document.createElement("span");
+            label.textContent = `${Number(month.slice(5, 7))}月の予定`;
+            head.append(label, actionButton("共通リンク", "btn btn-small", () => editMonthLink(month)));
+
+            const body = document.createElement("div");
+            body.className = "month-card-body";
+            monthRecords.forEach(record => body.appendChild(createRowItem(record, today)));
+            card.append(head, body);
+
+            const monthLink = baseLinkFor(month);
+            if (monthLink) {
+                const foot = document.createElement("div");
+                foot.className = "month-card-foot";
+                const open = document.createElement("a");
+                open.className = "btn btn-answer";
+                open.href = monthLink;
+                open.target = "_blank";
+                open.rel = "noopener noreferrer";
+                open.textContent = `${Number(month.slice(5, 7))}月のリンクを開く`;
+                foot.appendChild(open);
+                card.appendChild(foot);
+            } else {
+                const note = document.createElement("p");
+                note.className = "month-card-note unset";
+                note.textContent = "共通リンクが未設定です";
+                card.appendChild(note);
+            }
+            return card;
+        }
+
+        /** 管理用の操作（カレンダー追加・複製・編集・削除）。月の共通リンクと違うリンクはここで示す */
+        function createRowActions(record) {
+            const links = document.createElement("div");
+            links.className = "row-links";
+            // その予定だけ別のリンクならそれを、なければ月の共通リンクを開く
+            const baseLink = baseLinkFor(record.date.slice(0, 7));
+            const answerLink = record.link || baseLink;
+            if (answerLink) {
+                const isCommon = answerLink === baseLink;
+                links.appendChild(createAnswerLink(
+                    "📝 回答リンク",
+                    answerLink,
+                    isCommon ? "btn btn-small btn-answer-soft" : "btn btn-small btn-answer"
+                ));
+            }
+            links.appendChild(createCalendarLink(record));
+
+            const ops = document.createElement("div");
+            ops.className = "row-ops";
+            ops.append(
+                actionButton("複製", "btn btn-small", () => openEditor(record, true)),
+                actionButton("編集", "btn btn-small", () => openEditor(record, false)),
+                actionButton("削除", "btn btn-small btn-danger", () => removeRecord(record))
+            );
+
+            const actions = document.createElement("div");
+            actions.className = "row-actions";
+            actions.append(links, ops);
+            return actions;
+        }
+
+        /** 内容の先頭が絵文字なら、アイコン欄に出す分を題名から外す（送信されるカードと同じ見せ方） */
+        function splitMemoIcon(memo) {
+            const text = String(memo || "").trim();
+            const match = /^(\p{Extended_Pictographic}\uFE0F?)\s*/u.exec(text);
+            return match ? { icon: match[1], title: text.slice(match[0].length) || text } : { icon: iconOf(text), title: text };
+        }
+
+        function createRowItem(record, today) {
+            const [y, m, d] = record.date.split("-").map(Number);
+            const weekday = new Date(y, m - 1, d).getDay();
+            const { icon: iconText, title: titleText } = splitMemoIcon(record.memo1);
+
+            const row = document.createElement("article");
+            row.className = `row-item${record.date < today ? " past" : ""}`;
+
+            const icon = document.createElement("div");
+            icon.className = "row-icon";
+            icon.textContent = iconText;
+
+            const body = document.createElement("div");
+            body.className = "row-body";
+
+            const head = document.createElement("div");
+            head.className = "row-head";
+            const title = document.createElement("h3");
+            title.className = "row-title";
+            title.textContent = titleText;
+            const until = untilLabel(record.date);
+            const badge = document.createElement("span");
+            badge.className = `row-until${until.className ? ` ${until.className}` : ""}`;
+            badge.textContent = until.text;
+            head.append(title, badge);
+
+            const dateLine = document.createElement("p");
+            dateLine.className = "row-meta";
+            const dow = document.createElement("span");
+            dow.className = weekday === 0 ? "sun" : weekday === 6 ? "sat" : "";
+            dow.textContent = `(${WEEKDAYS[weekday]})`;
+            dateLine.append(
+                document.createTextNode(`${m}月${d}日`),
+                dow,
+                document.createTextNode(` ${record.start}${record.end ? `-${record.end}` : ""}`)
+            );
+
+            const placeLine = document.createElement("p");
+            placeLine.className = "row-meta";
+            placeLine.textContent = [record.place, record.memo2].filter(Boolean).join(" ");
+
+            body.append(head, dateLine, placeLine);
+            const actions = createRowActions(record);
+            if (actions) body.appendChild(actions);
+
+            row.append(icon, body);
+            return row;
         }
 
         function monthLabel(month) {
@@ -822,24 +973,6 @@
                 if (count >= bestCount) { best = link; bestCount = count; }
             });
             return best;
-        }
-
-        function createMonthHeader(month) {
-            const head = document.createElement("div");
-            head.className = "month";
-            const label = document.createElement("span");
-            label.className = "month-label";
-            label.textContent = monthLabel(month);
-            head.append(label, actionButton("共通リンク", "btn btn-small", () => editMonthLink(month)));
-            return head;
-        }
-
-        function createMonthLink(month) {
-            const base = baseLinkFor(month);
-            const line = document.createElement("div");
-            line.className = `month-link${base ? "" : " unset"}`;
-            line.textContent = base ? `🔗 ${base}` : "共通リンクが未設定です";
-            return line;
         }
 
         async function editMonthLink(month) {
@@ -875,65 +1008,6 @@
             return { text: `あと${days}日`, className: "" };
         }
 
-        function createItem(record, today) {
-            const [y, m, d] = record.date.split("-").map(Number);
-            const weekday = new Date(y, m - 1, d).getDay();
-
-            const item = document.createElement("article");
-            item.className = `item${record.date < today ? " past" : ""}`;
-
-            const date = document.createElement("div");
-            date.className = `item-date${weekday === 0 ? " sun" : weekday === 6 ? " sat" : ""}`;
-            const strong = document.createElement("strong");
-            strong.textContent = `${m}/${d}`;
-            const small = document.createElement("small");
-            small.textContent = `(${WEEKDAYS[weekday]})`;
-            const until = untilLabel(record.date);
-            const untilEl = document.createElement("span");
-            untilEl.className = `item-until${until.className ? ` ${until.className}` : ""}`;
-            untilEl.textContent = until.text;
-            date.append(strong, small, untilEl);
-
-            const body = document.createElement("div");
-            body.className = "item-body";
-            const title = document.createElement("h3");
-            title.className = "item-title";
-            title.textContent = record.memo1;
-            const time = document.createElement("p");
-            time.className = "item-time";
-            time.textContent = `${record.start}${record.end ? ` 〜 ${record.end}` : ""}`;
-            const place = document.createElement("p");
-            place.className = "item-meta";
-            place.textContent = `📍 ${[record.place, record.memo2].filter(Boolean).join(" ")}`;
-            body.append(title, time, place);
-            if (record.link) {
-                const link = document.createElement("p");
-                link.className = "item-meta";
-                // 月の共通リンクと同じなら省略し、予定だけ別のリンクのときはURLを出す
-                const month = record.date.slice(0, 7);
-                link.textContent = record.link === baseLinkFor(month)
-                    ? `🔗 ${Number(month.slice(5, 7))}月共通リンク`
-                    : `🔗 ${record.link}`;
-                body.appendChild(link);
-            }
-
-            const main = document.createElement("div");
-            main.className = "item-main";
-            main.append(date, body);
-
-            const actions = document.createElement("div");
-            actions.className = "item-actions";
-            actions.append(
-                createCalendarLink(record),
-                actionButton("複製", "btn btn-small", () => openEditor(record, true)),
-                actionButton("編集", "btn btn-small", () => openEditor(record, false)),
-                actionButton("削除", "btn btn-small btn-danger", () => removeRecord(record))
-            );
-
-            item.append(main, actions);
-            return item;
-        }
-
         /** Googleカレンダーに予定を追加するリンク（送信カードの「カレンダー追加」と同じ内容） */
         function createCalendarLinkUrl(record) {
             const compact = (date, time) => `${date.replaceAll("-", "")}T${time.replace(":", "")}00`;
@@ -947,6 +1021,16 @@
                 "ctz=Asia%2FTokyo"
             ];
             return `https://calendar.google.com/calendar/render?${params.join("&")}`;
+        }
+
+        function createAnswerLink(label, href, className = "btn btn-small btn-answer") {
+            const link = document.createElement("a");
+            link.className = className;
+            link.href = href;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = label;
+            return link;
         }
 
         function createCalendarLink(record) {
@@ -1176,21 +1260,21 @@
 
         function createDayPanel(date, dayRecords, today) {
             const [y, m, d] = date.split("-").map(Number);
-            const panel = document.createElement("section");
-            panel.className = "day-panel";
+            const card = document.createElement("section");
+            card.className = "month-card day-panel";
 
             const head = document.createElement("div");
-            head.className = "day-head";
+            head.className = "month-card-head";
             const label = document.createElement("span");
             label.textContent = `${m}月${d}日(${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
-            head.append(label, actionButton("＋ この日に追加", "btn btn-primary btn-small", () => openEditor(null, false, date)));
+            head.append(label, actionButton("＋ この日に追加", "btn btn-small", () => openEditor(null, false, date)));
 
-            const list = document.createElement("div");
-            list.className = "list";
-            dayRecords.forEach(record => list.appendChild(createItem(record, today)));
+            const body = document.createElement("div");
+            body.className = "month-card-body";
+            dayRecords.forEach(record => body.appendChild(createRowItem(record, today)));
 
-            panel.append(head, list);
-            return panel;
+            card.append(head, body);
+            return card;
         }
 
         // ---------- 追加・編集 ----------
