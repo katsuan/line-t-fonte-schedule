@@ -107,18 +107,62 @@
             color: var(--muted);
         }
 
-        .sub-option {
+        .sub-options {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 8px;
-            padding: 13px 12px;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .sub-option {
+            display: grid;
+            gap: 2px;
+            padding: 12px 14px;
             border-radius: 12px;
             background: var(--accent-soft);
             color: var(--accent);
-            font-size: 14px;
-            font-weight: 800;
             text-decoration: none;
+        }
+
+        .sub-option[hidden] {
+            display: none;
+        }
+
+        .sub-option-title {
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        .sub-option-sub {
+            font-size: 11px;
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--muted);
+        }
+
+        .sub-warn {
+            margin: 0 0 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: #fff3e0;
+            color: #a54b00;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .sub-copy {
+            display: block;
+            width: 100%;
+            margin-bottom: 8px;
+            padding: 10px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #ffffff;
+            color: var(--accent);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
         }
 
         .sub-close {
@@ -694,11 +738,25 @@
 
     <dialog id="subscribeDialog">
         <h2 id="subTitle" class="sub-title" tabindex="-1">カレンダーに登録</h2>
-        <p class="sub-lead">活動予定を、ご自分のカレンダーに表示できます。</p>
-        <a id="subGoogle" class="sub-option" href="#" target="_blank" rel="noopener noreferrer">📅 Googleカレンダーに追加</a>
-        <a id="subApple" class="sub-option" href="#" hidden>🍎 iPhoneのカレンダーに追加</a>
-        <p class="sub-note">スマホで追加できないときは、パソコンのブラウザでこのページを開いて、「Googleカレンダーに追加」を押してください。</p>
-        <p id="subAppleNote" class="sub-note" hidden>iPhoneのカレンダーは、予定の更新が反映されるまで、時間がかかることがあります。</p>
+        <p class="sub-lead">活動予定を、ご自分のカレンダーに表示できます。予定が変わると、カレンダーにも反映されます。</p>
+
+        <div id="subLineWarn" class="sub-warn" hidden>
+            LINEの中のブラウザでは、追加が完了しないことがあります。画面の「…」メニューから、SafariやChromeなどのブラウザで開き直してください。
+        </div>
+
+        <div id="subOptions" class="sub-options">
+            <a id="subGoogle" class="sub-option" href="#" target="_blank" rel="noopener noreferrer">
+                <span class="sub-option-title">📅 Googleカレンダー</span>
+                <span class="sub-option-sub">Googleカレンダーを使っている方（Android・パソコン）</span>
+            </a>
+            <a id="subApple" class="sub-option" href="#" hidden>
+                <span class="sub-option-title">🍎 iPhoneのカレンダー</span>
+                <span class="sub-option-sub">iPhone標準の「カレンダー」アプリを使っている方<br>※ 予定の反映に、時間がかかることがあります</span>
+            </a>
+        </div>
+
+        <p class="sub-note">スマホで追加できないときは、パソコンのブラウザでこのページを開いて、「Googleカレンダー」を押してください。</p>
+        <button id="subCopy" class="sub-copy" type="button">🔗 URLをコピー（パソコンで開く）</button>
         <button id="subClose" class="sub-close" type="button">閉じる</button>
     </dialog>
 
@@ -756,8 +814,10 @@
             const webcalUrl = buildWebcalUrl(url);
             const isApple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
             $("subApple").hidden = !(webcalUrl && isApple);
-            $("subAppleNote").hidden = $("subApple").hidden;
             if (webcalUrl) $("subApple").href = webcalUrl;
+
+            // 端末に合うほうを先頭に（iPhone・Mac は標準カレンダー、それ以外は Google カレンダー）
+            if (!$("subApple").hidden) $("subOptions").prepend($("subApple"));
         }
 
         function buildWebcalUrl(subscribeUrl) {
@@ -771,7 +831,35 @@
             }
         }
 
+        /** LINEのアプリ内ブラウザ（UAに「Line/」が入る）では、Googleのログインが引き継がれず、追加が完了しにくい */
+        function isLineInAppBrowser() {
+            return /\bLine\//i.test(navigator.userAgent);
+        }
+
+        /** このページのURLをコピーする（パソコンなどで開き直すため）。コピーが使えない環境では、選択して手動コピーできるよう案内する */
+        async function copyPageUrl() {
+            const url = location.origin + location.pathname;
+            const button = $("subCopy");
+            const original = button.textContent;
+            let copied = false;
+            try {
+                await navigator.clipboard.writeText(url);
+                copied = true;
+            } catch (err) {
+                const input = document.createElement("textarea");
+                input.value = url;
+                input.style.cssText = "position:fixed;opacity:0";
+                document.body.appendChild(input);
+                input.select();
+                try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
+                input.remove();
+            }
+            button.textContent = copied ? "✔ コピーしました" : url;
+            setTimeout(() => { button.textContent = original; }, 2500);
+        }
+
         function openSubscribeSheet() {
+            $("subLineWarn").hidden = !isLineInAppBrowser();
             $("subscribeDialog").showModal();
             $("subTitle").focus({ preventScroll: true });
         }
@@ -1268,6 +1356,7 @@
         $("retryBtn").addEventListener("click", load);
         $("subscribeLink").addEventListener("click", openSubscribeSheet);
         $("subClose").addEventListener("click", () => $("subscribeDialog").close());
+        $("subCopy").addEventListener("click", copyPageUrl);
         $("nextBar").addEventListener("click", selectNextRecord);
         setInterval(updateNextBar, 1000);
         document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNextBar(); });
