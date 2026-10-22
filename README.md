@@ -49,10 +49,6 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   管理者ページ（別ページ）。LIFF 経由で `https://liff.line.me/<LIFF_ID>/admin.html` から開く。管理者未登録のときは自分の userId を表示するので、それを `ADMIN_USER_IDS` に追加する
 - `appsscript.json`
   Apps Script マニフェスト
-- `rules/project_rules.md`
-  このプロジェクト専用のローカル RULES
-- `docs/backups/`
-  大きな送信仕様変更や LIFF 切り分け前の退避ファイル置き場
 
 ## 版情報
 
@@ -62,7 +58,7 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
 
 ## Rules
 
-共通ルールは、開発者がローカルで管理する共通 RULES（プロジェクト外の内部資産、非公開）を参照し、このプロジェクトでは [rules/project_rules.md](rules/project_rules.md) を追加ルールとして扱います。
+開発のルールは、開発者の手元で管理しています（非公開）。
 
 特に次を固定方針にします。
 
