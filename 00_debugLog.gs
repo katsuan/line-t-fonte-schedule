@@ -7,17 +7,20 @@ const DEBUG_LOG_CONFIG = {
   maxRows: 500
 };
 
+/** 1回の呼び出しで何度ログを書いても、シートを探すのは1回だけにする */
 function getDebugLogSheet_() {
-  try {
-    let sheet = ss.getSheetByName(DEBUG_LOG_CONFIG.sheetName);
-    if (!sheet) {
-      sheet = ss.insertSheet(DEBUG_LOG_CONFIG.sheetName);
-      sheet.appendRow(['timestamp', 'label', 'detail']);
+  return memo_('debugLogSheet', function () {
+    try {
+      let sheet = ss.getSheetByName(DEBUG_LOG_CONFIG.sheetName);
+      if (!sheet) {
+        sheet = ss.insertSheet(DEBUG_LOG_CONFIG.sheetName);
+        sheet.appendRow(['timestamp', 'label', 'detail']);
+      }
+      return sheet;
+    } catch (err) {
+      return null;
     }
-    return sheet;
-  } catch (err) {
-    return null;
-  }
+  });
 }
 
 function logScheduleDebug_(label, detail) {

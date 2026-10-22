@@ -50,7 +50,7 @@ function isDedicatedCalendarId_(calendarId) {
  * 専用カレンダーでないとき（メールアドレスが読み取れてしまうとき）や、未設定のときは空文字を返す。
  */
 function buildCalendarSubscribeUrl_() {
-  const calendarId = (PropertiesService.getScriptProperties().getProperty(CALENDAR_SYNC_CONFIG.idProperty) || "").trim();
+  const calendarId = getCalendarSyncId_();
   if (!isDedicatedCalendarId_(calendarId)) return "";
 
   const cid = Utilities.base64Encode(calendarId, Utilities.Charset.UTF_8).replace(/=+$/, "");
@@ -68,7 +68,7 @@ function buildPublicCalendarCacheKey_() {
 function listPublicPlanRecords_() {
   const monthStart = `${_formatDate_(new Date(), "yyyy-MM")}-01`;
 
-  return listAdminPlanRows_()
+  return listPlanRecords_()
     .filter(function (record) { return record.date >= monthStart; })
     .map(function (record) {
       return {
@@ -95,14 +95,17 @@ function findPlanVersionMetadata_() {
     .find();
 }
 
+/** 同じ呼び出しの中では1回だけ読む（bumpPlanVersion_ で進めたら読み直す） */
 function getPlanVersion_() {
-  try {
-    const found = findPlanVersionMetadata_();
-    return found.length ? found[0].getValue() : "0";
-  } catch (err) {
-    Log.debug(`⚠️ plan version read failed: ${err.message}`);
-    return "0";
-  }
+  return memo_("planVersion", function () {
+    try {
+      const found = findPlanVersionMetadata_();
+      return found.length ? found[0].getValue() : "0";
+    } catch (err) {
+      Log.debug(`⚠️ plan version read failed: ${err.message}`);
+      return "0";
+    }
+  });
 }
 
 /**
@@ -110,6 +113,7 @@ function getPlanVersion_() {
  * 親プロジェクトから呼ばれても読めるよう、公開範囲は DOCUMENT にする（既定の PROJECT だと呼び出し元ごとに見えない）。
  */
 function bumpPlanVersion_() {
+  forgetMemo_("planVersion");
   try {
     const value = String(Date.now());
     const found = findPlanVersionMetadata_();
@@ -140,9 +144,7 @@ function onPlanSheetChanged() {
 
 /** 一度だけ GAS エディタで実行する。手編集を検知するトリガーを作る（何度実行しても1つだけになる） */
 function installPlanChangeTrigger() {
-  ScriptApp.getProjectTriggers()
-    .filter(function (trigger) { return trigger.getHandlerFunction() === "onPlanSheetChanged"; })
-    .forEach(function (trigger) { ScriptApp.deleteTrigger(trigger); });
-
-  ScriptApp.newTrigger("onPlanSheetChanged").forSpreadsheet(SHEET_ID).onChange().create();
+  replaceProjectTrigger_("onPlanSheetChanged", function (builder) {
+    return builder.forSpreadsheet(SHEET_ID).onChange();
+  });
 }

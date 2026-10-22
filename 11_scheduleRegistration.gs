@@ -286,50 +286,6 @@ function clearSchedulePendingRecords_(sourceId) {
   CacheService.getScriptCache().remove(buildSchedulePendingCacheKey_(sourceId));
 }
 
-// ---------- 既存シートからのリンク自動補完 ----------
-
-/**
- * リンク未指定の予定を、Plan シート上の同月（yyyy-MM）の既存リンクで補完する。
- * 優先順位: 行自体のリンク > メッセージ末尾のURL > 同月の既存シートのリンク
- * 同月内で最も下（＝最後に登録された）行のリンクを採用する。
- */
-function applyExistingMonthlyLinkFallback_(records) {
-  const linkByYearMonth = {};
-  let autoFilledCount = 0;
-
-  records.forEach(function (record) {
-    if (record.link) return;
-
-    const yearMonthKey = buildYearMonthKey_(record.date);
-    if (!(yearMonthKey in linkByYearMonth)) {
-      linkByYearMonth[yearMonthKey] = findExistingLinkForYearMonth_(yearMonthKey);
-    }
-
-    if (linkByYearMonth[yearMonthKey]) {
-      record.link = linkByYearMonth[yearMonthKey];
-      autoFilledCount += 1;
-    }
-  });
-
-  return autoFilledCount;
-}
-
-function findExistingLinkForYearMonth_(yearMonthKey) {
-  const values = SHEETS.Plan.getDataRange().getValues();
-  const dataRows = values.slice(1);
-
-  for (let i = dataRows.length - 1; i >= 0; i--) {
-    const dateObj = dataRows[i][0];
-    const link = dataRows[i][6];
-    if (!isValidDate(dateObj) || !link) continue;
-    if (buildYearMonthKey_(dateObj) === yearMonthKey) {
-      return String(link).trim();
-    }
-  }
-
-  return '';
-}
-
 // ---------- メッセージ生成 ----------
 
 function createScheduleRegistrationMessages_(text, event) {
@@ -421,10 +377,8 @@ function createScheduleCancelMessages_(event) {
 }
 
 /**
+ * Plan シートの列（date/start/end/place/memo1/memo2/link）と1:1で見せる。
  * LINEはmarkdownを描画しないため罫線としては揃わないが、区切り文字としてこの書式を使う
- */
-/**
- * Plan シートの列（date/start/end/place/memo1/memo2/link）と1:1で見せる
  */
 function buildScheduleTableLines_(records) {
   const header = '|#|date|start|end|place|memo1|memo2|link|';
@@ -448,29 +402,4 @@ function formatScheduleErrors_(errors) {
   return errors.map(function (error) {
     return `　${error.lineNumber}行目: 「${error.raw.trim()}」`;
   }).join('\n');
-}
-
-// ---------- シート書き込み ----------
-
-function appendScheduleRecordsToSheet_(records) {
-  const lastRow = SHEETS.Plan.getLastRow();
-  const rows = records.map(function (record) {
-    return [record.date, record.start, record.end || '', record.place, record.memo1, record.memo2 || '', record.link || ''];
-  });
-
-  const destRange = SHEETS.Plan.getRange(lastRow + 1, 1, rows.length, 7);
-  copyExistingRowFormatToRange_(lastRow, destRange);
-  destRange.setValues(rows);
-  bumpPlanVersion_();
-}
-
-/**
- * 新規行は既定の表示形式（yyyy/MM/dd 等）で書き込まれ、既存行の M/d・H:mm 表記と揃わないため、
- * 直前の既存データ行の書式を新規範囲へコピーしてから setValues する
- */
-function copyExistingRowFormatToRange_(lastRow, destRange) {
-  if (lastRow < 2) return;
-
-  const templateRange = SHEETS.Plan.getRange(lastRow, 1, 1, destRange.getNumColumns());
-  templateRange.copyTo(destRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
 }

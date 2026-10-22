@@ -9,7 +9,7 @@
 
 const ADMIN_BULK_CONFIG = {
   maxRecords: 50,
-  defaultDurationHours: 2
+  defaultDurationHours: DEFAULT_PLAN_DURATION_HOURS
 };
 
 /**
@@ -27,7 +27,7 @@ function previewAdminBulkText_(text) {
   const autoFilledCount = applyExistingMonthlyLinkFallback_(parsed.records);
 
   const existingKeys = {};
-  listAdminPlanRows_().forEach(function (row) { existingKeys[buildAdminBulkKey_(row)] = true; });
+  listPlanRecords_().forEach(function (row) { existingKeys[buildAdminBulkKey_(row)] = true; });
 
   const limited = parsed.records.slice(0, ADMIN_BULK_CONFIG.maxRecords);
   return {
@@ -63,7 +63,7 @@ function toAdminBulkPreviewRecord_(record, existingKeys) {
 /** 開始の2時間後（日をまたがないよう、23:59までに収める） */
 function defaultAdminEndTime_(startDate) {
   const limit = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59);
-  const end = new Date(startDate.getTime() + ADMIN_BULK_CONFIG.defaultDurationHours * 60 * 60 * 1000);
+  const end = new Date(startDate.getTime() + ADMIN_BULK_CONFIG.defaultDurationHours * MS_PER_HOUR_);
   return _formatDate_(end > limit ? limit : end, FORMAT.Time);
 }
 

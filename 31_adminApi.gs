@@ -13,8 +13,6 @@ const ADMIN_API_CONFIG = {
   lockWaitMs: 10000
 };
 
-const ADMIN_PLAN_COLUMNS_ = 7;
-
 function doPost(e) {
   try {
     const request = parseAdminRequest_(e);
@@ -111,10 +109,10 @@ function isAdminUserId_(userId) {
 // ---------- アクション ----------
 
 function runAdminAction_(request) {
-  if (request.action === "list") return { ok: true, records: listAdminPlanRows_() };
+  if (request.action === "list") return { ok: true, records: listPlanRecords_() };
   if (request.action === "parseSchedule") return Object.assign({ ok: true }, previewAdminBulkText_(request.text));
   if (request.action === "syncCalendar") {
-    return { ok: true, records: listAdminPlanRows_(), calendar: syncPlansToCalendarSafely_(true) };
+    return { ok: true, records: listPlanRecords_(), calendar: syncPlansToCalendarSafely_(true) };
   }
 
   const lock = LockService.getScriptLock();
@@ -138,35 +136,7 @@ function runAdminAction_(request) {
   }
 
   // 書き込みのロックを手放してから同期する（同期も同じロックを使うため）。同期に失敗しても、保存は成功のまま返す
-  return { ok: true, records: listAdminPlanRows_(), calendar: syncPlansToCalendarSafely_(true) };
-}
-
-function listAdminPlanRows_() {
-  const values = SHEETS.Plan.getDataRange().getValues();
-  const records = [];
-
-  values.forEach(function (row, index) {
-    if (index === 0) return;
-    const record = mapAdminRowToRecord_(row, index + 1);
-    if (record) records.push(record);
-  });
-
-  return records;
-}
-
-function mapAdminRowToRecord_(row, rowNumber) {
-  if (!isValidDate(row[0])) return null;
-
-  return {
-    rowNumber: rowNumber,
-    date: _formatDate_(row[0], "yyyy-MM-dd"),
-    start: isValidDate(row[1]) ? _formatDate_(row[1], FORMAT.Time) : "",
-    end: isValidDate(row[2]) ? _formatDate_(row[2], FORMAT.Time) : "",
-    place: String(row[3] || ""),
-    memo1: String(row[4] || ""),
-    memo2: String(row[5] || ""),
-    link: String(row[6] || "")
-  };
+  return { ok: true, records: listPlanRecords_(), calendar: syncPlansToCalendarSafely_(true) };
 }
 
 function addAdminPlanRow_(input) {
@@ -178,14 +148,14 @@ function addAdminPlanRow_(input) {
 function updateAdminPlanRow_(rowNumber, expected, input) {
   const row = assertAdminRowUnchanged_(rowNumber, expected);
   const record = buildAdminRecordFromInput_(input);
-  const range = SHEETS.Plan.getRange(row, 1, 1, ADMIN_PLAN_COLUMNS_);
-
-  range.setValues([[record.date, record.start, record.end || "", record.place, record.memo1, record.memo2, record.link]]);
+  SHEETS.Plan.getRange(row, 1, 1, PLAN_COLUMN_COUNT_).setValues([toPlanRow_(record)]);
+  forgetPlanValues_();
 }
 
 function deleteAdminPlanRow_(rowNumber, expected) {
   const row = assertAdminRowUnchanged_(rowNumber, expected);
   SHEETS.Plan.deleteRow(row);
+  forgetPlanValues_();
 }
 
 /**
@@ -204,17 +174,16 @@ function setAdminMonthLink_(month, fromLink, link) {
   }
 
   const previousLink = String(fromLink || "").trim();
-  const values = SHEETS.Plan.getDataRange().getValues();
-
-  values.forEach(function (row, index) {
+  readPlanValues_().forEach(function (row, index) {
     if (index === 0 || !isValidDate(row[0])) return;
     if (_formatDate_(row[0], "yyyy-MM") !== month) return;
 
     const currentLink = String(row[6] || "").trim();
     if (currentLink && currentLink !== previousLink) return;
 
-    SHEETS.Plan.getRange(index + 1, 7).setValue(nextLink);
+    SHEETS.Plan.getRange(index + 1, PLAN_LINK_COLUMN_).setValue(nextLink);
   });
+  forgetPlanValues_();
 }
 
 /**
@@ -227,8 +196,9 @@ function assertAdminRowUnchanged_(rowNumber, expected) {
     throw createAdminError_("stale", "シートが更新されています。再読み込みしてください。");
   }
 
-  const current = mapAdminRowToRecord_(
-    SHEETS.Plan.getRange(row, 1, 1, ADMIN_PLAN_COLUMNS_).getValues()[0],
+  // 使い回しの読み取りではなく、いまのシートの行を読む
+  const current = mapPlanRowToRecord_(
+    SHEETS.Plan.getRange(row, 1, 1, PLAN_COLUMN_COUNT_).getValues()[0],
     row
   );
   const fields = ["date", "start", "end", "place", "memo1", "memo2", "link"];

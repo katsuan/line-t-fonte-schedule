@@ -21,6 +21,9 @@ const LIFF_URLS = {
 
 const GROUP_LINK = "line://ti/g/hwc5nRC7mS"
 
+// 終了時刻が無い予定は、開始の何時間後までとみなすか（管理ページ・まとめて追加・カレンダー同期で共通）
+const DEFAULT_PLAN_DURATION_HOURS = 2;
+
 const WEATHER_CONFIG = {
   Enabled: false, // 天気の取得・表示を止めている（戻すときは true）
   TimeZone: "Asia/Tokyo",

@@ -1,7 +1,14 @@
+// ==========[ 今後の予定の読み取り・リマインド判定・テキスト文面 ]==========
+//
+// 予定の取得（12_upcomingRecordsCache.gs のキャッシュ → なければ Plan シート）と、
+// 自動リマインドの送信判定・送信済みの記録、テキストの文面づくりを持つ。
+
 // ==========[ Error message ]==========
+const SHEET_ERROR_TEXT = `🚨エラーが発生しました。\n⚠️シートを確認してね。\n${SETTING.SheetLink}`;
+
 const errorMessage = [{
   type: 'text',
-  text: `🚨エラーが発生しました。\n⚠️シートを確認してね。\n${SETTING.SheetLink}`,
+  text: SHEET_ERROR_TEXT,
   sender: SENDERS.Error,
   quickReply: { items: [ACTIONS.SS, ACTIONS.Plan] }
 }];
@@ -26,21 +33,13 @@ const RANDOM_TEXTS = {
   ]
 };
 
-const UPCOMING_RECORDS_CACHE_CONFIG = {
-  dateKey: "UPCOMING_RECORDS_CACHE_DATE_V1",
-  monthIndexKey: "UPCOMING_RECORDS_CACHE_MONTH_INDEX_V1",
-  monthPayloadPrefix: "UPCOMING_RECORDS_CACHE_MONTH_V1_",
-  maxPayloadBytesPerMonth: 40 * 1024,
-  maxMonthCaches: 12
-};
-
 const AUTO_REMINDER_SENT_CACHE_CONFIG = {
   propertyKey: "AUTO_REMINDER_NEAR_SENT_V1",
   retentionDays: 60
 };
 
-let upcomingRecordsMemoryCache_ = null;
-let upcomingRecordsMemoryCacheDate_ = "";
+const MS_PER_HOUR_ = 60 * 60 * 1000;
+const MS_PER_DAY_ = 24 * MS_PER_HOUR_;
 
 // ==========[ Utility ]==========
 
@@ -57,12 +56,17 @@ function startOfDay_(date) {
 }
 
 function diffDaysFromToday_(targetDate, baseDate) {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return Math.floor((startOfDay_(targetDate).getTime() - startOfDay_(baseDate).getTime()) / msPerDay);
+  return Math.floor((startOfDay_(targetDate).getTime() - startOfDay_(baseDate).getTime()) / MS_PER_DAY_);
 }
 
-function isSameYearMonth_(date, targetYear, targetMonthIndex) {
-  return date.getFullYear() === targetYear && date.getMonth() === targetMonthIndex;
+/** 今日から nearTermDays 日後までの予定か（「もうすぐ」の判定） */
+function isNearTermDate_(date, now, nearTermDays) {
+  const diffDays = diffDaysFromToday_(date, now);
+  return diffDays >= 0 && diffDays <= nearTermDays;
+}
+
+function scriptTimeZone_() {
+  return Session.getScriptTimeZone ? Session.getScriptTimeZone() : "Asia/Tokyo";
 }
 
 function buildMonthLabel_(date) {
@@ -75,8 +79,7 @@ function findFirstLink_(records) {
 }
 
 function formatGoogleCalendarDateTime_(date) {
-  const timezone = Session.getScriptTimeZone ? Session.getScriptTimeZone() : "Asia/Tokyo";
-  return Utilities.formatDate(date, timezone, "yyyyMMdd'T'HHmmss");
+  return Utilities.formatDate(date, scriptTimeZone_(), "yyyyMMdd'T'HHmmss");
 }
 
 function createGoogleCalendarUrl_(record) {
@@ -88,7 +91,7 @@ function createGoogleCalendarUrl_(record) {
     `dates=${encodeURIComponent(`${formatGoogleCalendarDateTime_(record.date)}/${formatGoogleCalendarDateTime_(record.endDate)}`)}`,
     `location=${encodeURIComponent(record.place || "")}`,
     `details=${encodeURIComponent(record.memo2 || "")}`,
-    `ctz=${encodeURIComponent(Session.getScriptTimeZone ? Session.getScriptTimeZone() : "Asia/Tokyo")}`
+    `ctz=${encodeURIComponent(scriptTimeZone_())}`
   ];
 
   return `https://calendar.google.com/calendar/render?${params.join("&")}`;
@@ -109,430 +112,8 @@ function buildReminderRecordKey_(record) {
   ].join("__");
 }
 
-function buildWeatherDateKey_(date) {
-  const timezone = Session.getScriptTimeZone ? Session.getScriptTimeZone() : WEATHER_CONFIG.TimeZone;
-  return Utilities.formatDate(date, timezone, "yyyy-MM-dd");
-}
-
-function normalizeWeatherPlace_(place) {
-  return String(place || "").trim().replace(/\s+/g, " ");
-}
-
-function buildWeatherRecordKey_(record) {
-  return buildWeatherKeyFromPlaceAndDate_(record.place, record.date);
-}
-
-function buildWeatherKeyFromPlaceAndDate_(place, date) {
-  return `${normalizeWeatherPlace_(place)}__${buildWeatherDateKey_(date)}`;
-}
-
-function buildWeatherGeocodePropertyKey_(placeKey) {
-  return `${WEATHER_CONFIG.GeocodeCachePrefix}${createCacheHash_(placeKey)}`;
-}
-
-function buildWeatherForecastPropertyKey_(placeKey, startDateKey, endDateKey, todayKey) {
-  return `${WEATHER_CONFIG.ForecastCachePrefix}${todayKey}_${createCacheHash_(`${placeKey}__${startDateKey}__${endDateKey}`)}`;
-}
-
-function createCacheHash_(text) {
-  return Utilities
-    .computeDigest(Utilities.DigestAlgorithm.MD5, String(text || ""))
-    .map(byte => {
-      const value = byte < 0 ? byte + 256 : byte;
-      return value.toString(16).padStart(2, "0");
-    })
-    .join("");
-}
-
-function buildWeatherSearchQuery_(place) {
-  const normalized = normalizeWeatherPlace_(place);
-  if (!normalized) return "";
-
-  if (WEATHER_CONFIG.QueryAliases[normalized]) {
-    return WEATHER_CONFIG.QueryAliases[normalized];
-  }
-
-  if (normalized.includes(WEATHER_CONFIG.AreaHint)) {
-    return normalized;
-  }
-
-  return `${normalized} ${WEATHER_CONFIG.AreaHint}`.trim();
-}
-
-function loadCachedWeatherCoordinates_(placeKey) {
-  const payload = PropertiesService.getScriptProperties().getProperty(buildWeatherGeocodePropertyKey_(placeKey));
-  if (!payload) return null;
-
-  try {
-    const parsed = JSON.parse(payload);
-    if (typeof parsed.latitude !== "number" || typeof parsed.longitude !== "number") {
-      return null;
-    }
-
-    return parsed;
-  } catch (err) {
-    Log.debug(`⚠️ weather geocode cache parse failed: ${placeKey}`);
-    return null;
-  }
-}
-
-function saveCachedWeatherCoordinates_(placeKey, coordinates) {
-  PropertiesService.getScriptProperties().setProperty(
-    buildWeatherGeocodePropertyKey_(placeKey),
-    JSON.stringify({
-      placeKey,
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude,
-      name: coordinates.name || ""
-    })
-  );
-}
-
-function ensureWeatherForecastCacheIndex_(props, todayKey) {
-  const cachedDate = props.getProperty(WEATHER_CONFIG.ForecastCacheDateKey);
-  const indexPayload = props.getProperty(WEATHER_CONFIG.ForecastCacheIndexKey);
-  const index = indexPayload ? JSON.parse(indexPayload) : [];
-
-  if (cachedDate === todayKey) {
-    return Array.isArray(index) ? index : [];
-  }
-
-  if (Array.isArray(index)) {
-    index.forEach(propertyKey => props.deleteProperty(propertyKey));
-  }
-
-  props.setProperty(WEATHER_CONFIG.ForecastCacheDateKey, todayKey);
-  props.setProperty(WEATHER_CONFIG.ForecastCacheIndexKey, JSON.stringify([]));
-  return [];
-}
-
-function loadCachedWeatherForecast_(placeKey, startDateKey, endDateKey, forceRefresh) {
-  if (forceRefresh) {
-    return null;
-  }
-
-  const props = PropertiesService.getScriptProperties();
-  const todayKey = getTodayCacheKey_();
-  ensureWeatherForecastCacheIndex_(props, todayKey);
-  const payload = props.getProperty(buildWeatherForecastPropertyKey_(placeKey, startDateKey, endDateKey, todayKey));
-
-  if (!payload) return null;
-
-  try {
-    return JSON.parse(payload);
-  } catch (err) {
-    Log.debug(`⚠️ weather forecast cache parse failed: ${placeKey}`);
-    return null;
-  }
-}
-
-function saveCachedWeatherForecast_(placeKey, startDateKey, endDateKey, forecastByDate) {
-  const props = PropertiesService.getScriptProperties();
-  const todayKey = getTodayCacheKey_();
-  const index = ensureWeatherForecastCacheIndex_(props, todayKey);
-  const propertyKey = buildWeatherForecastPropertyKey_(placeKey, startDateKey, endDateKey, todayKey);
-
-  props.setProperty(propertyKey, JSON.stringify(forecastByDate));
-
-  if (!index.includes(propertyKey)) {
-    index.push(propertyKey);
-    props.setProperty(WEATHER_CONFIG.ForecastCacheIndexKey, JSON.stringify(index));
-  }
-}
-
-function fetchWeatherCoordinates_(place) {
-  const placeKey = normalizeWeatherPlace_(place);
-  if (!placeKey || !WEATHER_CONFIG.Enabled) return null;
-
-  const cached = loadCachedWeatherCoordinates_(placeKey);
-  if (cached) {
-    return cached;
-  }
-
-  const query = buildWeatherSearchQuery_(placeKey);
-  const url = `${WEATHER_CONFIG.GeocodeApiBaseUrl}?name=${encodeURIComponent(query)}&count=${WEATHER_CONFIG.GeocodeCount}&language=${encodeURIComponent(WEATHER_CONFIG.GeocodeLanguage)}&countryCode=${encodeURIComponent(WEATHER_CONFIG.GeocodeCountryCode)}&format=json`;
-
-  try {
-    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (response.getResponseCode() !== 200) {
-      Log.debug(`⚠️ geocode fetch failed: ${response.getResponseCode()} ${placeKey}`);
-      return null;
-    }
-
-    const payload = JSON.parse(response.getContentText());
-    const result = payload && Array.isArray(payload.results) ? payload.results[0] : null;
-
-    if (!result || typeof result.latitude !== "number" || typeof result.longitude !== "number") {
-      Log.debug(`⚠️ geocode result not found: ${placeKey}`);
-      return null;
-    }
-
-    const coordinates = {
-      latitude: result.latitude,
-      longitude: result.longitude,
-      name: result.name || placeKey
-    };
-
-    saveCachedWeatherCoordinates_(placeKey, coordinates);
-    return coordinates;
-  } catch (err) {
-    Log.debug(`⚠️ geocode error: ${placeKey} ${err.message}`);
-    return null;
-  }
-}
-
-function fetchDailyWeatherForecast_(place, startDateKey, endDateKey, forceRefresh) {
-  const placeKey = normalizeWeatherPlace_(place);
-  if (!placeKey || !WEATHER_CONFIG.Enabled) return {};
-
-  const cached = loadCachedWeatherForecast_(placeKey, startDateKey, endDateKey, forceRefresh);
-  if (cached) {
-    return cached;
-  }
-
-  const coordinates = fetchWeatherCoordinates_(placeKey);
-  if (!coordinates) {
-    return {};
-  }
-
-  const url = `${WEATHER_CONFIG.ForecastApiBaseUrl}?latitude=${encodeURIComponent(coordinates.latitude)}&longitude=${encodeURIComponent(coordinates.longitude)}&models=${encodeURIComponent(WEATHER_CONFIG.ForecastModels)}&daily=weather_code&timezone=${encodeURIComponent(WEATHER_CONFIG.TimeZone)}&start_date=${encodeURIComponent(startDateKey)}&end_date=${encodeURIComponent(endDateKey)}`;
-
-  try {
-    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    if (response.getResponseCode() !== 200) {
-      Log.debug(`⚠️ weather fetch failed: ${response.getResponseCode()} ${placeKey}`);
-      return {};
-    }
-
-    const payload = JSON.parse(response.getContentText());
-    const daily = payload && payload.daily ? payload.daily : null;
-    if (!daily || !Array.isArray(daily.time) || !Array.isArray(daily.weather_code)) {
-      Log.debug(`⚠️ weather payload invalid: ${placeKey}`);
-      return {};
-    }
-
-    const forecastByDate = {};
-    daily.time.forEach((dateKey, index) => {
-      forecastByDate[dateKey] = {
-        weatherCode: Number(daily.weather_code[index])
-      };
-    });
-
-    saveCachedWeatherForecast_(placeKey, startDateKey, endDateKey, forecastByDate);
-    return forecastByDate;
-  } catch (err) {
-    Log.debug(`⚠️ weather error: ${placeKey} ${err.message}`);
-    return {};
-  }
-}
-
-function getNearTermWeatherSummaryMap_(records, now, nearTermDays, forceRefresh) {
-  if (!WEATHER_CONFIG.Enabled) {
-    return {};
-  }
-
-  const nearRecords = records.filter(record => {
-    if (!record.place) return false;
-    const diffDays = diffDaysFromToday_(record.date, now);
-    return diffDays >= 0 && diffDays <= nearTermDays;
-  });
-
-  if (!nearRecords.length) {
-    return {};
-  }
-
-  const recordsByPlace = new Map();
-  nearRecords.forEach(record => {
-    const placeKey = normalizeWeatherPlace_(record.place);
-    if (!placeKey) return;
-
-    if (!recordsByPlace.has(placeKey)) {
-      recordsByPlace.set(placeKey, {
-        place: record.place,
-        dateKeys: new Set()
-      });
-    }
-
-    recordsByPlace.get(placeKey).dateKeys.add(buildWeatherDateKey_(record.date));
-  });
-
-  const weatherSummaryMap = {};
-
-  recordsByPlace.forEach(({ place, dateKeys }, placeKey) => {
-    const sortedDateKeys = Array.from(dateKeys).sort();
-    if (!sortedDateKeys.length) return;
-
-    const forecastByDate = fetchDailyWeatherForecast_(
-      place,
-      sortedDateKeys[0],
-      sortedDateKeys[sortedDateKeys.length - 1],
-      forceRefresh
-    );
-
-    sortedDateKeys.forEach(dateKey => {
-      const forecast = forecastByDate[dateKey];
-      if (!forecast) return;
-
-      const summaryText = formatWeatherSummaryText_(forecast.weatherCode);
-      if (!summaryText) return;
-
-      weatherSummaryMap[`${placeKey}__${dateKey}`] = summaryText;
-    });
-  });
-
-  return weatherSummaryMap;
-}
-
-function formatWeatherSummaryText_(weatherCode) {
-  if (!isFinite(weatherCode)) {
-    return "";
-  }
-
-  if (weatherCode === 0) return "☀晴れ";
-  if (weatherCode === 1 || weatherCode === 2) return "⛅晴れ";
-  if (weatherCode === 3) return "☁くもり";
-  if (weatherCode === 45 || weatherCode === 48) return "🌫霧";
-  if ((weatherCode >= 51 && weatherCode <= 67) || (weatherCode >= 80 && weatherCode <= 82)) return "☔雨";
-  if ((weatherCode >= 71 && weatherCode <= 77) || weatherCode === 85 || weatherCode === 86) return "❄雪";
-  if (weatherCode >= 95 && weatherCode <= 99) return "⛈雷";
-  return "🌤予報";
-}
-
-function getTodayCacheKey_() {
-  const timezone = Session.getScriptTimeZone ? Session.getScriptTimeZone() : "Asia/Tokyo";
-  return Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd");
-}
-
-function serializeUpcomingRecords_(records) {
-  return JSON.stringify(records.map(record => ({
-    dateMs: record.date.getTime(),
-    endDateMs: record.endDate.getTime(),
-    startMs: record.start.getTime(),
-    endMs: record.end.getTime(),
-    formatted: record.formatted,
-    place: record.place || "",
-    memo1: record.memo1 || "",
-    memo2: record.memo2 || "",
-    link: record.link || ""
-  })));
-}
-
-function deserializeUpcomingRecords_(payload) {
-  const parsed = JSON.parse(payload);
-  if (!Array.isArray(parsed)) return [];
-
-  return parsed.map(item => ({
-    date: new Date(item.dateMs),
-    endDate: new Date(item.endDateMs),
-    start: new Date(item.startMs),
-    end: new Date(item.endMs),
-    formatted: item.formatted || {},
-    place: item.place || "",
-    memo1: item.memo1 || "",
-    memo2: item.memo2 || "",
-    link: item.link || ""
-  }));
-}
-
-function buildMonthPayloadPropertyKey_(monthKey) {
-  return `${UPCOMING_RECORDS_CACHE_CONFIG.monthPayloadPrefix}${monthKey}`;
-}
-
-function groupUpcomingRecordsByMonth_(records) {
-  const grouped = new Map();
-
-  records.forEach(record => {
-    const monthKey = buildYearMonthKey_(record.date);
-    if (!grouped.has(monthKey)) {
-      grouped.set(monthKey, []);
-    }
-    grouped.get(monthKey).push(record);
-  });
-
-  return Array.from(grouped.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(0, UPCOMING_RECORDS_CACHE_CONFIG.maxMonthCaches);
-}
-
-function loadCachedUpcomingRecords_(forceRefresh) {
-  if (forceRefresh) {
-    return null;
-  }
-
-  const todayKey = getTodayCacheKey_();
-
-  if (upcomingRecordsMemoryCache_ && upcomingRecordsMemoryCacheDate_ === todayKey) {
-    Log.debug("📦 memory cache hit");
-    return upcomingRecordsMemoryCache_;
-  }
-
-  const props = PropertiesService.getScriptProperties();
-  const cachedDate = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.dateKey);
-  const monthIndexPayload = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.monthIndexKey);
-
-  if (cachedDate !== todayKey || !monthIndexPayload) {
-    return null;
-  }
-
-  try {
-    const monthKeys = JSON.parse(monthIndexPayload);
-    if (!Array.isArray(monthKeys) || !monthKeys.length) {
-      return [];
-    }
-
-    const records = monthKeys.flatMap(monthKey => {
-      const monthPayload = props.getProperty(buildMonthPayloadPropertyKey_(monthKey));
-      return monthPayload ? deserializeUpcomingRecords_(monthPayload) : [];
-    });
-
-    upcomingRecordsMemoryCache_ = records;
-    upcomingRecordsMemoryCacheDate_ = todayKey;
-    Log.debug("📦 script properties cache hit");
-    return records;
-  } catch (err) {
-    Log.debug("⚠️ cache parse failed. refresh from sheet.");
-    return null;
-  }
-}
-
-function saveCachedUpcomingRecords_(records) {
-  const todayKey = getTodayCacheKey_();
-  const props = PropertiesService.getScriptProperties();
-  const previousMonthIndexPayload = props.getProperty(UPCOMING_RECORDS_CACHE_CONFIG.monthIndexKey);
-  const previousMonthKeys = previousMonthIndexPayload ? JSON.parse(previousMonthIndexPayload) : [];
-  const groupedEntries = groupUpcomingRecordsByMonth_(records);
-  const nextMonthKeys = [];
-  const propertiesToSave = {
-    [UPCOMING_RECORDS_CACHE_CONFIG.dateKey]: todayKey
-  };
-
-  groupedEntries.forEach(([monthKey, monthRecords]) => {
-    const payload = serializeUpcomingRecords_(monthRecords);
-    const payloadBytes = Utilities.newBlob(payload).getBytes().length;
-
-    if (payloadBytes > UPCOMING_RECORDS_CACHE_CONFIG.maxPayloadBytesPerMonth) {
-      Log.debug(`⚠️ skip oversized month cache ${monthKey}: ${payloadBytes} bytes`);
-      return;
-    }
-
-    nextMonthKeys.push(monthKey);
-    propertiesToSave[buildMonthPayloadPropertyKey_(monthKey)] = payload;
-  });
-
-  propertiesToSave[UPCOMING_RECORDS_CACHE_CONFIG.monthIndexKey] = JSON.stringify(nextMonthKeys);
-  props.setProperties(propertiesToSave);
-
-  previousMonthKeys
-    .filter(monthKey => !nextMonthKeys.includes(monthKey))
-    .forEach(monthKey => props.deleteProperty(buildMonthPayloadPropertyKey_(monthKey)));
-
-  upcomingRecordsMemoryCache_ = records;
-  upcomingRecordsMemoryCacheDate_ = todayKey;
-}
-
 function readUpcomingRecordsFromSheet_() {
-  const values = SHEETS.Plan.getDataRange().getValues();
-  const dataRows = values.slice(1);
+  const dataRows = readPlanValues_().slice(1);
   const now = new Date();
   const result = dataRows
     .map(function (row) {
@@ -648,8 +229,7 @@ function mergeRecordsWithinReminderWindow_(records) {
 
   for (let i = 1; i < records.length; i++) {
     const next = records[i];
-    const diffMs = next.date.getTime() - first.date.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    const diffDays = (next.date.getTime() - first.date.getTime()) / MS_PER_DAY_;
 
     if (diffDays <= SETTING.RemindNum) {
       merged.push(next);
@@ -678,7 +258,7 @@ function extractUpcomingRecordsWithDateObjects(forceRefresh) {
 }
 
 function getAutoReminderNearTermDays_() {
-  return (typeof FLEX_CONFIG !== "undefined" && Number(FLEX_CONFIG.nearTermDays)) || 5;
+  return Number(FLEX_CONFIG.nearTermDays) || 5;
 }
 
 function getReminderTargetRecords_(records, now) {
@@ -756,7 +336,7 @@ function loadAutoReminderSentKeyMap_() {
 
 function cleanupAutoReminderSentKeyMap_(sentKeyMap, shouldPersist) {
   const today = startOfDay_(new Date());
-  const retentionMs = AUTO_REMINDER_SENT_CACHE_CONFIG.retentionDays * 24 * 60 * 60 * 1000;
+  const retentionMs = AUTO_REMINDER_SENT_CACHE_CONFIG.retentionDays * MS_PER_DAY_;
   const cleaned = {};
 
   Object.keys(sentKeyMap || {}).forEach(key => {
@@ -782,12 +362,11 @@ function cleanupAutoReminderSentKeyMap_(sentKeyMap, shouldPersist) {
 
 function markNearTermReminderRecordsAsSent_(records, now) {
   const nearTermDays = getAutoReminderNearTermDays_();
-  const sentKeyMap = cleanupAutoReminderSentKeyMap_(loadAutoReminderSentKeyMap_(), false);
+  const sentKeyMap = loadAutoReminderSentKeyMap_(); // 読み込み時に古い記録は消してある
   const notifiedAt = new Date().toISOString();
 
   records.forEach(record => {
-    const diffDays = diffDaysFromToday_(record.date, now);
-    if (diffDays < 0 || diffDays > nearTermDays) {
+    if (!isNearTermDate_(record.date, now, nearTermDays)) {
       return;
     }
 

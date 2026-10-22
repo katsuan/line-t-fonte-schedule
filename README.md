@@ -20,10 +20,18 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   Logger 初期化
 - `00_debugLog.gs`
   親プロジェクトの実行ログを確認できない場合向けの、スプレッドシート(`DebugLog`シート)への簡易ログ出力
+- `00_memo.gs`
+  1回の呼び出しの中で、同じシートや設定の読み取りを使い回す（`memo_` / `forgetMemo_`）
 - `10_reminderCore.gs`
-  予定取得、キャッシュ、リマインド判定、テキスト文面生成
+  今後の予定の読み取り、リマインド判定・送信済みの記録、テキスト文面生成
 - `11_scheduleRegistration.gs`
-  `#予定登録` からのテキスト予定一括登録（パース・確認保留・確定書き込み）
+  `#予定登録` からのテキスト予定一括登録（パース・確認保留・確定）
+- `12_upcomingRecordsCache.gs`
+  今後の予定のキャッシュ（Script Properties に月ごとに保存し、日付が変わったら作り直す）
+- `13_planSheet.gs`
+  Plan シートの読み書きの共通部分。読み取りは1回の呼び出しで1回だけにして使い回し、書いたら `forgetPlanValues_` で捨てる。行の追加・同月リンクの補完もここ
+- `14_weather.gs`
+  天気（Open-Meteo）の取得とキャッシュ。いまは `WEATHER_CONFIG.Enabled = false` で止めている
 - `20_handleTextMessage.gs`
   テキストトリガーのルーティング
 - `30_webappFlexEndpoint.gs`
@@ -86,4 +94,4 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
 
 - 大きな 1 ファイル構成のままでも、入口・取得・判定・表示の境界は守る
 - 新しい機能追加時は、まず既存の責務へ乗るか確認する
-- `10_reminderCore.gs` の weather / cache、`30_webappFlexEndpoint.gs` の renderer 群は今後の分割候補
+- `30_webappFlexEndpoint.gs` の renderer 群は今後の分割候補

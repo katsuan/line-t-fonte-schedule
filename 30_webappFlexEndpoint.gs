@@ -34,6 +34,8 @@ const ALT_TEXT_CONFIG = {
   maxChars: 1500
 };
 
+const CLIPBOARD_TEXT_MAX_CHARS = 1000;
+
 const AUTO_REMINDER_GUIDE_CONFIG = {
   headerTitle: "リマインド送信ガイド",
   bodyLabel: "これまでのテキスト文面",
@@ -137,7 +139,7 @@ function buildReminderFlexViewModel_(records, options) {
     return {
       errorMessage: {
         type: "text",
-        text: `🚨エラーが発生しました。\n⚠️シートを確認してね。\n${SETTING.SheetLink}`
+        text: SHEET_ERROR_TEXT
       }
     };
   }
@@ -175,16 +177,13 @@ function buildReminderFlexViewModel_(records, options) {
   };
 }
 
+/** 送信ガイド（先頭のカード）を除いたカード。カードが1枚だけなら、そのまま使う */
 function getShareablePreviewBubbleEntries_(bubbleEntries) {
-  if (!Array.isArray(bubbleEntries) || !bubbleEntries.length) {
+  if (!Array.isArray(bubbleEntries)) {
     return [];
   }
 
-  if (bubbleEntries.length <= 1) {
-    return bubbleEntries.slice();
-  }
-
-  return bubbleEntries.slice(1);
+  return bubbleEntries.length <= 1 ? bubbleEntries.slice() : bubbleEntries.slice(1);
 }
 
 function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
@@ -243,19 +242,12 @@ function buildCarouselAltText_(bubbleEntries) {
 }
 
 function getRandomAltTextTitle_() {
-  if (typeof RANDOM_TEXTS !== "undefined" && RANDOM_TEXTS.title && RANDOM_TEXTS.title.length) {
-    return _pickRandom_(RANDOM_TEXTS.title);
-  }
-
-  return ALT_TEXT_CONFIG.defaultTitle;
+  return _pickRandom_(RANDOM_TEXTS.title) || ALT_TEXT_CONFIG.defaultTitle;
 }
 
 function collectNearTermDates_(records, now) {
   return records
-    .filter(record => {
-      const diffDays = diffDaysFromToday_(record.date, now);
-      return diffDays >= 0 && diffDays <= FLEX_CONFIG.nearTermDays;
-    })
+    .filter(record => isNearTermDate_(record.date, now, FLEX_CONFIG.nearTermDays))
     .map(record => formatNearTermDateLabel_(record.date));
 }
 
@@ -268,35 +260,43 @@ function formatNearTermDateLabel_(date) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function trimAltText_(text) {
-  const normalized = String(text || "");
-  if (normalized.length <= ALT_TEXT_CONFIG.maxChars) {
-    return normalized;
-  }
+function truncateText_(text, maxChars) {
+  return String(text || "").slice(0, maxChars);
+}
 
-  return normalized.slice(0, ALT_TEXT_CONFIG.maxChars);
+function trimAltText_(text) {
+  return truncateText_(text, ALT_TEXT_CONFIG.maxChars);
+}
+
+function trimClipboardText_(text) {
+  return truncateText_(text, CLIPBOARD_TEXT_MAX_CHARS);
+}
+
+/** カードの見出し（青い帯に白い文字） */
+function createFlexHeader_(title) {
+  return {
+    type: "box",
+    layout: "vertical",
+    backgroundColor: FLEX_CONFIG.headerBackgroundColor,
+    paddingAll: FLEX_CONFIG.headerPadding,
+    contents: [
+      {
+        type: "text",
+        text: title,
+        color: "#ffffff",
+        weight: "bold",
+        size: "lg",
+        wrap: true
+      }
+    ]
+  };
 }
 
 function createAutoReminderGuideBubble_(reminderText, altText) {
   return {
     type: "bubble",
     size: "mega",
-    header: {
-      type: "box",
-      layout: "vertical",
-      backgroundColor: FLEX_CONFIG.headerBackgroundColor,
-      paddingAll: FLEX_CONFIG.headerPadding,
-      contents: [
-        {
-          type: "text",
-          text: AUTO_REMINDER_GUIDE_CONFIG.headerTitle,
-          color: "#ffffff",
-          weight: "bold",
-          size: "lg",
-          wrap: true
-        }
-      ]
-    },
+    header: createFlexHeader_(AUTO_REMINDER_GUIDE_CONFIG.headerTitle),
     hero: {
       type: "box",
       layout: "vertical",
@@ -415,15 +415,6 @@ function buildBubbleEntriesFromGroups_(groups) {
   }));
 }
 
-function trimClipboardText_(text) {
-  const normalized = String(text || "");
-  if (normalized.length <= 1000) {
-    return normalized;
-  }
-
-  return normalized.slice(0, 1000);
-}
-
 function attachReminderQuickReply_(messages) {
   if (!Array.isArray(messages) || !messages.length) {
     return messages;
@@ -448,22 +439,7 @@ function createMonthlyFlexBubble_(group) {
   return {
     type: "bubble",
     size: "mega",
-    header: {
-      type: "box",
-      layout: "vertical",
-      backgroundColor: FLEX_CONFIG.headerBackgroundColor,
-      paddingAll: FLEX_CONFIG.headerPadding,
-      contents: [
-        {
-          type: "text",
-          text: title,
-          color: "#ffffff",
-          weight: "bold",
-          size: "lg",
-          wrap: true
-        }
-      ]
-    },
+    header: createFlexHeader_(title),
     hero: {
       type: "box",
       layout: "vertical",
@@ -487,12 +463,13 @@ function createMonthlyFlexBubble_(group) {
         }
       ]
     },
-    footer: {
-      type: "box",
-      layout: "vertical",
-      spacing: "sm",
-      contents: link
-        ? [
+    // リンクが無いときは footer ごと出さない（LINE は中身が空の箱を受けつけない）
+    footer: link
+      ? {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
           {
             type: "button",
             style: "primary",
@@ -503,8 +480,8 @@ function createMonthlyFlexBubble_(group) {
             }
           }
         ]
-        : []
-    }
+      }
+      : undefined
   };
 }
 
@@ -523,10 +500,6 @@ function buildMonthlySummaryText_(records) {
   }
 
   const hiddenRecords = records.slice(FLEX_CONFIG.maxVisibleRecordsPerMonth);
-  if (!hiddenRecords.length) {
-    return `他${hiddenCount}件`;
-  }
-
   const previewText = hiddenRecords
     .map(record => {
       const dateLabel = formatCompactDateLabel_(record.date);
@@ -540,8 +513,7 @@ function buildMonthlySummaryText_(records) {
 
 function createRecordBox_(record, options) {
   const { now, nearTermWeatherSummaryMap } = options;
-  const diffDays = diffDaysFromToday_(record.date, now);
-  const isNearTerm = diffDays >= 0 && diffDays <= FLEX_CONFIG.nearTermDays;
+  const isNearTerm = isNearTermDate_(record.date, now, FLEX_CONFIG.nearTermDays);
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   const calendarUrl = createGoogleCalendarUrl_(record);
   const iconText = getCalendarIconText_(record.memo1);
@@ -669,15 +641,17 @@ function createRecordBox_(record, options) {
   };
 }
 
+/** 内容の1文字目（絵文字も1文字として数える）。空なら undefined */
+function firstCharOf_(memo1) {
+  return Array.from(String(memo1 || "").trim())[0];
+}
+
 function getCalendarIconText_(memo1) {
-  const normalized = String(memo1 || "").trim();
-  const firstChar = Array.from(normalized)[0];
-  return firstChar || "予";
+  return firstCharOf_(memo1) || "予";
 }
 
 function getSummaryIconText_(memo1) {
-  const normalized = String(memo1 || "").trim();
-  const firstChar = Array.from(normalized)[0];
+  const firstChar = firstCharOf_(memo1);
   return isEmojiLikeChar_(firstChar) ? firstChar : "";
 }
 

@@ -17,7 +17,7 @@ const CALENDAR_SYNC_CONFIG = {
   syncedVersionProperty: "CALENDAR_SYNCED_VERSION",
   statusProperty: "CALENDAR_SYNC_STATUS",
   tagKey: "tfonte_plan",
-  defaultDurationHours: 2,
+  defaultDurationHours: DEFAULT_PLAN_DURATION_HOURS,
   horizonDays: 400,
   lockWaitMs: 20000,
   triggerHour: 3
@@ -30,7 +30,7 @@ const CALENDAR_SYNC_CONFIG = {
  */
 function syncPlansToCalendar_(force) {
   const props = PropertiesService.getScriptProperties();
-  const calendarId = (props.getProperty(CALENDAR_SYNC_CONFIG.idProperty) || "").trim();
+  const calendarId = getCalendarSyncId_();
   if (!calendarId) {
     return { ok: false, skipped: true, message: "CALENDAR_ID が未設定です。" };
   }
@@ -53,7 +53,7 @@ function syncPlansToCalendar_(force) {
 
     const now = new Date();
     const rangeStart = startOfDay_(now);
-    const rangeEnd = new Date(rangeStart.getTime() + CALENDAR_SYNC_CONFIG.horizonDays * 24 * 60 * 60 * 1000);
+    const rangeEnd = new Date(rangeStart.getTime() + CALENDAR_SYNC_CONFIG.horizonDays * MS_PER_DAY_);
 
     const desired = buildDesiredCalendarEvents_(_formatDate_(now, "yyyy-MM-dd"));
     const existing = groupSyncedEventsByHash_(listSyncedCalendarEvents_(calendar, rangeStart, rangeEnd));
@@ -67,6 +67,13 @@ function syncPlansToCalendar_(force) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** 同期先のカレンダーID（Script Property `CALENDAR_ID`）。未設定なら空文字。同じ呼び出しの中では1回だけ読む */
+function getCalendarSyncId_() {
+  return memo_("calendarSyncId", function () {
+    return (PropertiesService.getScriptProperties().getProperty(CALENDAR_SYNC_CONFIG.idProperty) || "").trim();
+  });
 }
 
 /** 同期の失敗で、予定の保存そのものを失敗させないための包み。失敗は結果として返す */
@@ -86,13 +93,13 @@ function syncPlansToCalendarSafely_(force) {
  * 終了時刻が空、または開始以前のときは、開始の2時間後にする（管理ページの初期値と同じ）。
  */
 function buildDesiredCalendarEvents_(todayDateKey) {
-  return listAdminPlanRows_()
+  return listPlanRecords_()
     .filter(function (row) { return row.date >= todayDateKey && row.start; })
     .map(function (row) {
       const start = parseCalendarDateTime_(row.date, row.start);
       let end = row.end ? parseCalendarDateTime_(row.date, row.end) : null;
       if (!end || end.getTime() <= start.getTime()) {
-        end = new Date(start.getTime() + CALENDAR_SYNC_CONFIG.defaultDurationHours * 60 * 60 * 1000);
+        end = new Date(start.getTime() + CALENDAR_SYNC_CONFIG.defaultDurationHours * MS_PER_HOUR_);
       }
 
       // タイトルは内容だけ。補足は説明欄に書き、改行してリンクを続ける（どちらも無ければ説明欄は空）
@@ -192,7 +199,7 @@ function syncPlansToCalendarJob() {
  * 実行ログに、カレンダー名が出れば OK。
  */
 function authorizeCalendarSync() {
-  const calendarId = (PropertiesService.getScriptProperties().getProperty(CALENDAR_SYNC_CONFIG.idProperty) || "").trim();
+  const calendarId = getCalendarSyncId_();
   if (!calendarId) throw new Error("先に Script Property CALENDAR_ID にカレンダーIDを入れてください。");
 
   const calendar = CalendarApp.getCalendarById(calendarId);
@@ -202,13 +209,16 @@ function authorizeCalendarSync() {
 
 /** 一度だけ GAS エディタで実行する。1日1回の定期トリガーを作る（何度実行しても1つだけになる） */
 function installCalendarSyncTrigger() {
+  replaceProjectTrigger_("syncPlansToCalendarJob", function (builder) {
+    return builder.timeBased().everyDays(1).atHour(CALENDAR_SYNC_CONFIG.triggerHour);
+  });
+}
+
+/** 同じ関数を呼ぶトリガーを消してから、1つだけ作り直す（何度実行しても1つだけになる） */
+function replaceProjectTrigger_(handlerFunction, configure) {
   ScriptApp.getProjectTriggers()
-    .filter(function (trigger) { return trigger.getHandlerFunction() === "syncPlansToCalendarJob"; })
+    .filter(function (trigger) { return trigger.getHandlerFunction() === handlerFunction; })
     .forEach(function (trigger) { ScriptApp.deleteTrigger(trigger); });
 
-  ScriptApp.newTrigger("syncPlansToCalendarJob")
-    .timeBased()
-    .everyDays(1)
-    .atHour(CALENDAR_SYNC_CONFIG.triggerHour)
-    .create();
+  configure(ScriptApp.newTrigger(handlerFunction)).create();
 }
