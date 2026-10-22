@@ -64,6 +64,42 @@
 
         /* 上部の「次回」（タップでその予定のカードを選択状態にする）。1行目に日時と内容、2行目にカウントダウン */
         /* 同期先のGoogleカレンダーを、自分のカレンダーに登録するリンク（画面右上。登録リンクがあるときだけ出す） */
+        /* ページ下部の「最終更新」と更新ボタン（前回の内容を先に出すので、いまの状態を伝える） */
+        .status-line {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 4px 10px;
+            margin: 14px 4px 4px;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .status-line.warn {
+            color: #a54b00;
+        }
+
+        .status-btn {
+            min-height: 36px;
+            padding: 6px 14px;
+            border: 0;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(42, 72, 120, 0.12);
+            color: var(--accent);
+            font: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .status-btn:disabled {
+            opacity: .5;
+            cursor: default;
+        }
+
         .subscribe-link {
             flex: 0 0 auto;
             padding: 5px 9px;
@@ -501,6 +537,7 @@
 
         .day-panel {
             margin-top: 12px;
+            scroll-margin-bottom: 16px; /* タップして動かしたとき、画面の下端にぴったり付かないように */
         }
 
         .hint {
@@ -696,6 +733,7 @@
             flex: 1 1 0;
             justify-content: center;
             white-space: nowrap;
+            min-height: 40px; /* 指で押しやすい高さ（30pxだと小さい） */
         }
 
         .row-ops {
@@ -737,6 +775,10 @@
             </div>
             <div id="calendar"></div>
             <div id="list" hidden></div>
+            <p id="statusLine" class="status-line">
+                <span id="statusText"></span>
+                <button id="refreshBtn" class="status-btn" type="button">🔄 更新</button>
+            </p>
         </section>
     </main>
 
@@ -778,29 +820,100 @@
 
         // ---------- 読み込み ----------
 
-        async function load() {
-            $("loading").hidden = false;
+        // 前回の内容を端末に残しておき、次に開いたときは、それを先に出す（GASの応答が数秒かかるため）。
+        // 裏で最新を取って、変わっていたときだけ差し替える。取れなかったときも、前回の内容を見せる。
+        const CACHE_KEY = "t_fonte_public_calendar_v1";
+        const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 古すぎる内容は、先に出さない
+        const AUTO_REFRESH_AFTER_MS = 5 * 60 * 1000;      // 開いたままのページに戻ったとき、これ以上古ければ更新する
+        let loadingNow = false;
+        let lastUpdatedAt = 0;
+        let lastSubscribeUrl = "";
+
+        function readCache() {
+            try {
+                const data = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+                if (!data || !Array.isArray(data.records) || typeof data.savedAt !== "number") return null;
+                return Date.now() - data.savedAt > CACHE_MAX_AGE_MS ? null : data;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        function writeCache(data) {
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch (err) { /* 保存できなくても動く */ }
+        }
+
+        /** 今日なら「12:34」、それ以前なら「10/21 12:34」 */
+        function formatClock(ms) {
+            const d = new Date(ms);
+            const two = n => String(n).padStart(2, "0");
+            const clock = `${two(d.getHours())}:${two(d.getMinutes())}`;
+            return d.toDateString() === new Date().toDateString() ? clock : `${d.getMonth() + 1}/${d.getDate()} ${clock}`;
+        }
+
+        function setStatus(text, isWarn = false) {
+            $("statusText").textContent = text;
+            $("statusLine").classList.toggle("warn", isWarn);
+        }
+
+        /** 予定を反映して描画する。keepView なら、いま見ている月・日・タブはそのまま */
+        function applyData(data, keepView) {
+            records = data.records;
+            lastSubscribeUrl = data.subscribeUrl || "";
+            setSubscribeLink(lastSubscribeUrl);
+            if (!keepView) {
+                calMonth = todayKey().slice(0, 7);
+                selectedDate = "";
+                selectedKey = "";
+            }
+            $("loading").hidden = true;
             $("error").hidden = true;
-            $("main").hidden = true;
+            $("main").hidden = false;
+            render();
+            updateNextBar();
+        }
+
+        async function load() {
+            if (loadingNow) return;
+            loadingNow = true;
+            $("refreshBtn").disabled = true;
+
+            const alreadyShowing = !$("main").hidden;
+            const cached = alreadyShowing ? null : readCache();
+            if (cached) {
+                lastUpdatedAt = cached.savedAt;
+                applyData(cached, false);
+            } else if (!alreadyShowing) {
+                $("loading").hidden = false;
+                $("error").hidden = true;
+                $("main").hidden = true;
+            }
+            const hasData = alreadyShowing || !!cached;
+            if (hasData) setStatus("更新しています…");
+
             try {
                 const response = await fetch(`${GAS_URL}?action=plans`);
                 const data = await response.json();
                 if (!data.ok) throw new Error(data.message || "取得できませんでした");
 
-                records = data.records;
-                setSubscribeLink(data.subscribeUrl);
-                calMonth = todayKey().slice(0, 7);
-                selectedDate = "";
-                selectedKey = "";
-                $("loading").hidden = true;
-                $("main").hidden = false;
-                render();
-                updateNextBar();
+                const subscribeUrl = data.subscribeUrl || "";
+                const changed = !hasData || JSON.stringify(records) !== JSON.stringify(data.records) || lastSubscribeUrl !== subscribeUrl;
+                lastUpdatedAt = Date.now();
+                writeCache({ records: data.records, subscribeUrl, savedAt: lastUpdatedAt });
+                if (changed) applyData(data, hasData);
+                setStatus(`最終更新 ${formatClock(lastUpdatedAt)}`);
             } catch (err) {
                 console.error(err);
-                $("loading").hidden = true;
-                $("errorMessage").textContent = "予定を読み込めませんでした。";
-                $("error").hidden = false;
+                if (hasData) {
+                    setStatus(`最新を取得できませんでした（${formatClock(lastUpdatedAt)} 時点の内容です）`, true);
+                } else {
+                    $("loading").hidden = true;
+                    $("errorMessage").textContent = "予定を読み込めませんでした。";
+                    $("error").hidden = false;
+                }
+            } finally {
+                loadingNow = false;
+                $("refreshBtn").disabled = false;
             }
         }
 
@@ -1049,6 +1162,12 @@
             $("calendar").replaceChildren(...children);
         }
 
+        /** 日付をタップしたとき、その日のカードが画面の外（カレンダーの下）に出るので、見える位置まで動かす */
+        function revealDayPanel() {
+            const panel = document.querySelector(".day-panel");
+            if (panel) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
         /** マス目に出す予定1件分: 「アイコン＋場所の1文字目」と「開始時刻」 */
         function createCellEvent(record) {
             const item = document.createElement("span");
@@ -1105,6 +1224,7 @@
                     selectedDate = date;
                     selectedKey = "";
                     renderCalendar();
+                    revealDayPanel();
                 });
             }
             return cell;
@@ -1359,12 +1479,18 @@
         $("tabCal").addEventListener("click", () => { view = "calendar"; render(); });
         $("tabList").addEventListener("click", () => { view = "list"; render(); });
         $("retryBtn").addEventListener("click", load);
+        $("refreshBtn").addEventListener("click", load);
         $("subscribeLink").addEventListener("click", openSubscribeSheet);
         $("subClose").addEventListener("click", () => $("subscribeDialog").close());
         $("subCopy").addEventListener("click", copyPageUrl);
         $("nextBar").addEventListener("click", selectNextRecord);
         setInterval(updateNextBar, 1000);
-        document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNextBar(); });
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) return;
+            updateNextBar();
+            // 開いたままのページに戻ってきたとき、しばらく前の内容なら、裏で更新する
+            if (lastUpdatedAt && Date.now() - lastUpdatedAt > AUTO_REFRESH_AFTER_MS) load();
+        });
 
         load();
     </script>

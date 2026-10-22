@@ -321,6 +321,7 @@
 
         .day-panel {
             margin-top: 12px;
+            scroll-margin-bottom: 92px; /* タップして動かしたとき、右下の「＋ 予定を追加」ボタンに隠れないように */
         }
 
         .field select {
@@ -442,6 +443,22 @@
             opacity: .5;
         }
 
+        /* 保存・登録した予定を、見える位置に出して、少しのあいだ目立たせる */
+        .row-item.is-flash {
+            animation: rowFlash 2.2s ease-out;
+        }
+
+        @keyframes rowFlash {
+            0%, 40% {
+                background: #e4eeff;
+                box-shadow: 0 0 0 2px var(--accent);
+            }
+            100% {
+                background: #f5f8fd;
+                box-shadow: 0 0 0 0 transparent;
+            }
+        }
+
         .row-icon {
             flex: 0 0 40px;
             display: grid;
@@ -526,12 +543,19 @@
             flex: 1 1 0;
             justify-content: center;
             white-space: nowrap;
+            min-height: 40px; /* 指で押しやすい高さ（30pxだと小さい） */
         }
 
         .row-ops {
             display: flex;
-            gap: 6px;
+            gap: 8px;
             justify-content: flex-end;
+        }
+
+        /* 複製・編集・削除は隣り合うので、押し間違えにくい大きさ・間隔にする */
+        .row-ops .btn {
+            min-height: 38px;
+            padding: 6px 16px;
         }
 
         a.btn {
@@ -1153,13 +1177,18 @@
             return match ? { icon: match[1], title: text.slice(match[0].length) || text } : { icon: iconOf(text), title: text };
         }
 
+        function recordKey(record) {
+            return `${record.date} ${record.start} ${record.place} ${record.memo1}`;
+        }
+
         function createRowItem(record, today) {
             const [y, m, d] = record.date.split("-").map(Number);
             const weekday = new Date(y, m - 1, d).getDay();
             const { icon: iconText, title: titleText } = splitMemoIcon(record.memo1);
 
             const row = document.createElement("article");
-            row.className = `row-item${record.date < today ? " past" : ""}`;
+            row.className = `row-item${record.date < today ? " past" : ""}${recordKey(record) === flashKey ? " is-flash" : ""}`;
+            row.dataset.key = recordKey(record);
 
             const icon = document.createElement("div");
             icon.className = "row-icon";
@@ -1374,6 +1403,7 @@
         let view = "calendar"; // 公開ページと同じく、カレンダー → リストの順で、カレンダーが初期表示
         let calMonth = todayKey().slice(0, 7);
         let selectedDate = "";
+        let flashKey = ""; // 保存・登録した直後の予定（見える位置に出して、目立たせる）
 
         try { if (localStorage.getItem("admin-view") === "list") view = "list"; } catch (err) { /* 保存できなくても動く */ }
 
@@ -1554,6 +1584,39 @@
             selectedDate = date;
             renderCalendar();
             if (!dayRecords.length) openEditor(null, false, date);
+            else revealDayPanel();
+        }
+
+        /** 日付をタップしたとき、その日のカードが画面の外（カレンダーの下）に出るので、見える位置まで動かす */
+        function revealDayPanel() {
+            const panel = document.querySelector(".day-panel");
+            if (panel) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
+        /**
+         * 保存・登録した予定を見せる。いまの画面の外（別の月・画面の下）に追加されても、結果が見えないと不安なので、
+         * その月・その日に移して、見える位置まで動かし、少しのあいだ目立たせる。
+         * @param {Object[]} saved 保存した予定（まとめて登録したときは、いちばん早い日の予定を見せる）
+         */
+        function revealSaved(saved) {
+            const target = saved.slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))[0];
+            if (!target) return;
+
+            const match = records.find(record => recordKey(record) === recordKey(target));
+            if (!match) return; // 見つからなければ、何もしない（同期の都合で並びが変わったときなど）
+
+            if (match.date < todayKey()) els.showPast.checked = true; // 過去の日付は、リストでは初期状態だと隠れている
+            calMonth = match.date.slice(0, 7);
+            selectedDate = match.date;
+            flashKey = recordKey(match);
+            render();
+
+            const row = [...document.querySelectorAll(".row-item.is-flash")].find(el => el.offsetParent !== null);
+            if (row) (row.closest(".month-card") || row).scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+            setTimeout(() => {
+                flashKey = "";
+                document.querySelectorAll(".row-item.is-flash").forEach(el => el.classList.remove("is-flash"));
+            }, 2500);
         }
 
         function createDayPanel(date, dayRecords, today) {
@@ -1680,6 +1743,7 @@
 
                 applyRecords(result.records);
                 els.editor.close();
+                revealSaved([record]);
                 showSaved(editing ? "更新しました" : "追加しました", result);
             } catch (err) {
                 console.error(err);
@@ -1860,6 +1924,7 @@
                 applyRecords(result.records);
                 $("bulkText").value = "";
                 $("bulkDialog").close();
+                revealSaved(records);
                 showSaved(`${records.length}件を登録しました`, result);
             } catch (err) {
                 console.error(err);
