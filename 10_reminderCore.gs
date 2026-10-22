@@ -221,6 +221,10 @@ function buildReminderTextMessageTextFromRecords_(records) {
   return messageLines.join('\n');
 }
 
+/**
+ * 通知の文面に入れる予定: 直近の予定（先頭）から、RemindNum 日以内（日付で数える）の予定。
+ * 通知の対象（getReminderTargetRecords_）は、今日から RemindNum 日後までなので、必ずこの範囲に入る。
+ */
 function mergeRecordsWithinReminderWindow_(records) {
   if (!records.length) return [];
 
@@ -229,7 +233,7 @@ function mergeRecordsWithinReminderWindow_(records) {
 
   for (let i = 1; i < records.length; i++) {
     const next = records[i];
-    const diffDays = (next.date.getTime() - first.date.getTime()) / MS_PER_DAY_;
+    const diffDays = diffDaysFromToday_(next.date, first.date);
 
     if (diffDays <= SETTING.RemindNum) {
       merged.push(next);
@@ -257,24 +261,29 @@ function extractUpcomingRecordsWithDateObjects(forceRefresh) {
   return result;
 }
 
-function getAutoReminderNearTermDays_() {
-  return Number(FLEX_CONFIG.nearTermDays) || 5;
-}
-
+/**
+ * 通知する予定: 今日から RemindNum 日後までの予定のうち、まだ通知していないもの。
+ *
+ * 「ちょうど RemindNum 日後」だけを対象にすると、定期実行が1日動かなかったときや、
+ * 直前に追加した予定が、一度も通知されない。そのため、期間（今日〜RemindNum 日後）で拾い直す。
+ * 同じ予定を何度も通知しないよう、通知済みの予定は送信済みの記録（completeAutoReminderSend）で除く。
+ */
 function getReminderTargetRecords_(records, now) {
   const baseNow = now || new Date();
-  const targetDate = new Date(baseNow.getFullYear(), baseNow.getMonth(), baseNow.getDate() + SETTING.RemindNum);
-  const targetYMD = _formatDate_(targetDate, "yyyy-MM-dd");
+  // 設定の日数が数字でないとき（シートの設定が空など）は、全件を通知してしまわないよう、何も通知しない
+  if (!(SETTING.RemindNum >= 0)) {
+    return [];
+  }
+
   const sentRecordKeyMap = loadAutoReminderSentKeyMap_();
 
   return records.filter(record => {
-    const recordYMD = _formatDate_(record.date, "yyyy-MM-dd");
-    if (recordYMD !== targetYMD) {
+    const diffDays = diffDaysFromToday_(record.date, baseNow);
+    if (diffDays < 0 || diffDays > SETTING.RemindNum) {
       return false;
     }
 
-    const recordKey = buildReminderRecordKey_(record);
-    return !sentRecordKeyMap[recordKey];
+    return !sentRecordKeyMap[buildReminderRecordKey_(record)];
   });
 }
 
@@ -311,7 +320,7 @@ function createAutoReminderMessages() {
 
 function completeAutoReminderSend() {
   const records = extractUpcomingRecordsWithDateObjects();
-  markNearTermReminderRecordsAsSent_(records, new Date());
+  markAutoReminderRecordsAsSent_(records);
 }
 
 function loadAutoReminderSentKeyMap_() {
@@ -360,16 +369,16 @@ function cleanupAutoReminderSentKeyMap_(sentKeyMap, shouldPersist) {
   return cleaned;
 }
 
-function markNearTermReminderRecordsAsSent_(records, now) {
-  const nearTermDays = getAutoReminderNearTermDays_();
+/**
+ * 通知した予定を、送信済みにする。対象は、通知の文面に入れた予定（mergeRecordsWithinReminderWindow_）。
+ * 文面に入れた予定は、次の実行で、もう一度通知されないようにする。
+ * （以前は「今日から5日以内」を一律に送信済みにしていて、文面の範囲とずれ、近い日の予定が2回通知されていた）
+ */
+function markAutoReminderRecordsAsSent_(records) {
   const sentKeyMap = loadAutoReminderSentKeyMap_(); // 読み込み時に古い記録は消してある
   const notifiedAt = new Date().toISOString();
 
-  records.forEach(record => {
-    if (!isNearTermDate_(record.date, now, nearTermDays)) {
-      return;
-    }
-
+  mergeRecordsWithinReminderWindow_(records).forEach(record => {
     sentKeyMap[buildReminderRecordKey_(record)] = notifiedAt;
   });
 

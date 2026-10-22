@@ -41,6 +41,7 @@ const AUTO_REMINDER_GUIDE_CONFIG = {
   bodyLabel: "これまでのテキスト文面",
   copyButtonLabel: "文章をコピー",
   sheetButtonLabel: "シート",
+  adminButtonLabel: "予定を管理",
   groupButtonLabel: "グループへ",
   richButtonLabel: "リッチに送る",
   cardBackgroundColor: "#FFF9EC",
@@ -386,13 +387,31 @@ function createAutoReminderGuideBubble_(reminderText, altText) {
           ]
         },
         {
-          type: "button",
-          style: "secondary",
-          action: {
-            type: "uri",
-            label: AUTO_REMINDER_GUIDE_CONFIG.groupButtonLabel,
-            uri: GROUP_LINK
-          }
+          type: "box",
+          layout: "horizontal",
+          spacing: "sm",
+          contents: [
+            {
+              type: "button",
+              style: "secondary",
+              flex: 1,
+              action: {
+                type: "uri",
+                label: AUTO_REMINDER_GUIDE_CONFIG.adminButtonLabel,
+                uri: LIFF_URLS.Admin
+              }
+            },
+            {
+              type: "button",
+              style: "secondary",
+              flex: 1,
+              action: {
+                type: "uri",
+                label: AUTO_REMINDER_GUIDE_CONFIG.groupButtonLabel,
+                uri: GROUP_LINK
+              }
+            }
+          ]
         },
         {
           type: "button",
@@ -425,7 +444,7 @@ function attachReminderQuickReply_(messages) {
 
   decorated[lastIndex].sender = SENDERS.Auto;
   decorated[lastIndex].quickReply = {
-    items: [ACTIONS.FlexSender, ACTIONS.SS, ACTIONS.Plan]
+    items: [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.SS, ACTIONS.Plan]
   };
 
   return decorated;
