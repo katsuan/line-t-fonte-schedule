@@ -118,7 +118,7 @@ function bumpPlanVersion_() {
     const value = String(Date.now());
     const found = findPlanVersionMetadata_();
     if (found.length) {
-      found[0].setValue(value);
+      found[0].setValue(value); // qcheck-ok: G1 シートではなく版の印（数字）
     } else {
       ss.addDeveloperMetadata(
         PUBLIC_CALENDAR_CONFIG.versionMetadataKey,

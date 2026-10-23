@@ -10,9 +10,11 @@ const ADMIN_API_CONFIG = {
   liffChannelId: "2009927582",
   verifyUrl: "https://api.line.me/oauth2/v2.1/verify",
   profileUrl: "https://api.line.me/v2/profile",
-  lockWaitMs: 10000
+  lockWaitMs: 10000,
+  unexpectedErrorMessage: "うまくいきませんでした。少し待ってから、やり直してください。"
 };
 
+// qcheck-ok: G3 管理ページだけの入口。LIFF のアクセストークンを LINE に確かめ、ADMIN_USER_IDS の人だけ（LINE の Webhook は親プロジェクトが受ける）
 function doPost(e) {
   try {
     const request = parseAdminRequest_(e);
@@ -29,8 +31,12 @@ function doPost(e) {
 
     return createAdminResponse_(runAdminAction_(request));
   } catch (err) {
-    Log.debug(`⚠️ admin api failed: ${err.message}`);
-    return createAdminResponse_({ ok: false, code: err.code || "error", message: err.message });
+    Log.debug(`⚠️ admin api failed: ${err.message}`); // qcheck-ok: G2 実行ログだけ
+    // 自分で決めた言葉（createAdminError_）だけを返す。思わぬエラーの中身は、実行ログにだけ残す
+    // qcheck-ok: G2 code のあるものは createAdminError_ で自分で決めた言葉
+    if (err.code) return createAdminResponse_({ ok: false, code: err.code, message: err.message });
+    console.error(err);
+    return createAdminResponse_({ ok: false, code: "error", message: ADMIN_API_CONFIG.unexpectedErrorMessage });
   }
 }
 
@@ -148,7 +154,7 @@ function addAdminPlanRow_(input) {
 function updateAdminPlanRow_(rowNumber, expected, input) {
   const row = assertAdminRowUnchanged_(rowNumber, expected);
   const record = buildAdminRecordFromInput_(input);
-  SHEETS.Plan.getRange(row, 1, 1, PLAN_COLUMN_COUNT_).setValues([toPlanRow_(record)]);
+  SHEETS.Plan.getRange(row, 1, 1, PLAN_COLUMN_COUNT_).setValues([toPlanRow_(record)]); // qcheck-ok: G1 toPlanRow_ が safeCell_ を通す
   forgetPlanValues_();
 }
 
@@ -169,9 +175,7 @@ function setAdminMonthLink_(month, fromLink, link) {
   }
 
   const nextLink = String(link || "").trim();
-  if (!/^https?:\/\//.test(nextLink)) {
-    throw createAdminError_("invalid", "リンクは http(s):// から入力してください。");
-  }
+  assertAdminLink_(nextLink, true);
 
   const previousLink = String(fromLink || "").trim();
   readPlanValues_().forEach(function (row, index) {
@@ -181,7 +185,7 @@ function setAdminMonthLink_(month, fromLink, link) {
     const currentLink = String(row[6] || "").trim();
     if (currentLink && currentLink !== previousLink) return;
 
-    SHEETS.Plan.getRange(index + 1, PLAN_LINK_COLUMN_).setValue(nextLink);
+    SHEETS.Plan.getRange(index + 1, PLAN_LINK_COLUMN_).setValue(nextLink); // qcheck-ok: G1 http(s):// で始まる文字だけ
   });
   forgetPlanValues_();
 }
@@ -234,10 +238,14 @@ function buildAdminRecordFromInput_(input) {
 
   const place = String(source.place || "").trim();
   const memo1 = String(source.memo1 || "").trim();
+  const memo2 = String(source.memo2 || "").trim();
   if (!place || !memo1) throw createAdminError_("invalid", "場所と内容を入力してください。");
+  if ([place, memo1, memo2].some(function (text) { return text.length > ADMIN_INPUT_LIMITS_.text; })) {
+    throw createAdminError_("invalid", `場所・内容・補足は${ADMIN_INPUT_LIMITS_.text}文字までにしてください。`);
+  }
 
   const link = String(source.link || "").trim();
-  if (link && !/^https?:\/\//.test(link)) throw createAdminError_("invalid", "リンクは http(s):// から入力してください。");
+  assertAdminLink_(link, false);
 
   return {
     date: date,
@@ -245,7 +253,19 @@ function buildAdminRecordFromInput_(input) {
     end: endParts ? new Date(year, month - 1, day, endParts.hour, endParts.minute) : null,
     place: place,
     memo1: memo1,
-    memo2: String(source.memo2 || "").trim(),
+    memo2: memo2,
     link: link
   };
+}
+
+// 入力の長さの上限。リンクは LINE のカードのボタンに使うので、LINE の上限（1000字）まで
+const ADMIN_INPUT_LIMITS_ = { text: 200, link: 1000 };
+
+/** リンクの形と長さを確かめる。required でなければ空はよい */
+function assertAdminLink_(link, required) {
+  if (!link && !required) return;
+  if (!/^https?:\/\//.test(link)) throw createAdminError_("invalid", "リンクは http(s):// から入力してください。");
+  if (link.length > ADMIN_INPUT_LIMITS_.link) {
+    throw createAdminError_("invalid", `リンクは${ADMIN_INPUT_LIMITS_.link}文字までにしてください。`);
+  }
 }

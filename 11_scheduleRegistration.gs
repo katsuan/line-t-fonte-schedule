@@ -8,7 +8,8 @@
 
 const SCHEDULE_PENDING_CACHE_CONFIG = {
   keyPrefix: "SCHEDULE_PENDING_V1_",
-  ttlSeconds: 600
+  ttlSeconds: 600,
+  confirmLockWaitMs: 10000
 };
 
 /**
@@ -144,18 +145,12 @@ function parseScheduleTsvLine_(rawLine) {
   const startParts = parseScheduleTimeToken_(columns[1]);
   if (!startParts) return null;
 
-  const endParts = parseScheduleTimeToken_(columns[2]);
-  const year = resolveScheduleYear_(dateParts.month, dateParts.day);
-
-  return {
-    date: new Date(year, dateParts.month - 1, dateParts.day),
-    start: new Date(year, dateParts.month - 1, dateParts.day, startParts.hour, startParts.minute),
-    end: endParts ? new Date(year, dateParts.month - 1, dateParts.day, endParts.hour, endParts.minute) : null,
+  return buildScheduleRecord_(dateParts, startParts, parseScheduleTimeToken_(columns[2]), {
     place: columns[3] || '',
     memo1: applyScheduleMemoEmoji_(columns[4] || ''),
     memo2: columns[5] || '',
     link: columns[6] || ''
-  };
+  });
 }
 
 function parseScheduleFreeformLine_(line) {
@@ -170,18 +165,31 @@ function parseScheduleFreeformLine_(line) {
 
   const hasEnd = match[4] !== undefined && match[5] !== undefined;
   const endParts = hasEnd ? parseScheduleTimeToken_(`${match[4]}:${match[5]}`) : null;
-  const year = resolveScheduleYear_(dateParts.month, dateParts.day);
   const memoParts = splitScheduleFreeformMemo_(match[7]);
 
-  return {
-    date: new Date(year, dateParts.month - 1, dateParts.day),
-    start: new Date(year, dateParts.month - 1, dateParts.day, startParts.hour, startParts.minute),
-    end: endParts ? new Date(year, dateParts.month - 1, dateParts.day, endParts.hour, endParts.minute) : null,
+  return buildScheduleRecord_(dateParts, startParts, endParts, {
     place: match[6],
     memo1: applyScheduleMemoEmoji_(memoParts.memo1),
     memo2: memoParts.memo2,
     link: ''
-  };
+  });
+}
+
+/**
+ * 日付と時刻から予定を作る。ない日付（2/30・13/1 など）は null（翌月にずらさない）
+ */
+function buildScheduleRecord_(dateParts, startParts, endParts, fields) {
+  const month = dateParts.month;
+  const day = dateParts.day;
+  const year = resolveScheduleYear_(month, day);
+  const date = new Date(year, month - 1, day);
+  if (date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+
+  return Object.assign({
+    date: date,
+    start: new Date(year, month - 1, day, startParts.hour, startParts.minute),
+    end: endParts ? new Date(year, month - 1, day, endParts.hour, endParts.minute) : null
+  }, fields);
 }
 
 /**
@@ -340,9 +348,31 @@ function createScheduleRegistrationMessages_(text, event) {
   }];
 }
 
+/**
+ * 登録待ちをシートに書く。「登録する」を続けて押して2つ同時に動いても、
+ * 同じ予定を2回書かないよう、ロックの中で「読む → 書く → 消す」をする
+ */
 function createScheduleConfirmMessages_(event) {
   const sourceId = resolveScheduleSourceId_(event);
-  const records = loadSchedulePendingRecords_(sourceId);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(SCHEDULE_PENDING_CACHE_CONFIG.confirmLockWaitMs)) {
+    return [{
+      type: 'text',
+      text: '⚠️ ほかの登録の途中です。少し待ってから「#予定確定」を送ってください。',
+      sender: SENDERS.Error
+    }];
+  }
+
+  let records;
+  try {
+    records = loadSchedulePendingRecords_(sourceId);
+    if (records && records.length) {
+      appendScheduleRecordsToSheet_(records);
+      clearSchedulePendingRecords_(sourceId);
+    }
+  } finally {
+    lock.releaseLock();
+  }
 
   if (!records || !records.length) {
     return [{
@@ -352,8 +382,6 @@ function createScheduleConfirmMessages_(event) {
     }];
   }
 
-  appendScheduleRecordsToSheet_(records);
-  clearSchedulePendingRecords_(sourceId);
   extractUpcomingRecordsWithDateObjects(true);
 
   const confirmMessage = {

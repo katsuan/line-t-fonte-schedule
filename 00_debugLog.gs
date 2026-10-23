@@ -14,7 +14,7 @@ function getDebugLogSheet_() {
       let sheet = ss.getSheetByName(DEBUG_LOG_CONFIG.sheetName);
       if (!sheet) {
         sheet = ss.insertSheet(DEBUG_LOG_CONFIG.sheetName);
-        sheet.appendRow(['timestamp', 'label', 'detail']);
+        sheet.appendRow(['timestamp', 'label', 'detail']); // qcheck-ok: G1 決まった文字だけ
       }
       return sheet;
     } catch (err) {
@@ -28,10 +28,23 @@ function logScheduleDebug_(label, detail) {
     const sheet = getDebugLogSheet_();
     if (!sheet) return;
 
+    // qcheck-ok: G1 label は決まった文字、detail は JSON（{ か " で始まる）
     sheet.appendRow([new Date(), label, safeStringifyForLog_(detail)]);
     trimDebugLogSheet_(sheet);
   } catch (err) {
     // ログ出力自体の失敗で本処理を止めない
+  }
+}
+
+/** LINE の ID などを、そのままログに残さないための短い印（SHA-256 の先頭12桁）。同じ ID は同じ印になる */
+function hashForLog_(value) {
+  try {
+    return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value), Utilities.Charset.UTF_8)
+      .map(function (byte) { return ("0" + (byte & 0xff).toString(16)).slice(-2); })
+      .join("")
+      .slice(0, 12);
+  } catch (err) {
+    return "";
   }
 }
 

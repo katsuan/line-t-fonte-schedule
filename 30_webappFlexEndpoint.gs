@@ -69,10 +69,12 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
+    // エラーの中身は画面に出さず、実行ログにだけ残す
+    console.error(err);
     return ContentService
       .createTextOutput(JSON.stringify({
         ok: false,
-        message: err.message
+        message: "予定を読み込めませんでした。少し待ってから、やり直してください。"
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }
@@ -206,10 +208,16 @@ function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
   return Array.from(groupsByMonth.values()).map(group => ({
     monthLabel: buildMonthLabel_(group.monthDate),
     records: group.records,
-    link: findFirstLink_(group.records) || SETTING.SheetLink,
+    link: usableCardLink_(findFirstLink_(group.records)) || SETTING.SheetLink,
     now,
     nearTermWeatherSummaryMap
   }));
+}
+
+/** カードのボタンに使えるリンク（http(s) で、LINE の上限の長さまで）。使えなければ空 */
+function usableCardLink_(link) {
+  const text = String(link || "").trim();
+  return /^https?:\/\//.test(text) && text.length <= LINE_URI_MAX_CHARS_ ? text : "";
 }
 
 function buildCarouselMessages_(bubbleEntries) {

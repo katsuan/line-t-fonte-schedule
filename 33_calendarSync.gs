@@ -81,7 +81,8 @@ function syncPlansToCalendarSafely_(force) {
   try {
     return syncPlansToCalendar_(force);
   } catch (err) {
-    Log.debug(`⚠️ calendar sync failed: ${err.message}`);
+    Log.debug(`⚠️ calendar sync failed: ${err.message}`); // qcheck-ok: G2 実行ログだけ
+    // qcheck-ok: G2 返す先は管理ページ（管理者だけ）。直し方の手がかりに中身を見せる
     return { ok: false, message: `カレンダー同期に失敗しました: ${err.message}` };
   }
 }

@@ -82,19 +82,32 @@ function formatGoogleCalendarDateTime_(date) {
   return Utilities.formatDate(date, scriptTimeZone_(), "yyyyMMdd'T'HHmmss");
 }
 
+// LINE のカードの URL は 1000 字まで（こえるとカードごと断られる）
+const LINE_URI_MAX_CHARS_ = 1000;
+
+/**
+ * カレンダーに入れるリンク。長すぎるときは補足を外し、それでも長ければ空（リンクなし）にする
+ */
 function createGoogleCalendarUrl_(record) {
   if (!record || !record.date || !record.endDate) return "";
 
-  const params = [
-    "action=TEMPLATE",
-    `text=${encodeURIComponent(record.memo1 || "予定")}`,
-    `dates=${encodeURIComponent(`${formatGoogleCalendarDateTime_(record.date)}/${formatGoogleCalendarDateTime_(record.endDate)}`)}`,
-    `location=${encodeURIComponent(record.place || "")}`,
-    `details=${encodeURIComponent(record.memo2 || "")}`,
-    `ctz=${encodeURIComponent(scriptTimeZone_())}`
-  ];
+  const build = details => {
+    const params = [
+      "action=TEMPLATE",
+      `text=${encodeURIComponent(record.memo1 || "予定")}`,
+      `dates=${encodeURIComponent(`${formatGoogleCalendarDateTime_(record.date)}/${formatGoogleCalendarDateTime_(record.endDate)}`)}`,
+      `location=${encodeURIComponent(record.place || "")}`,
+      `details=${encodeURIComponent(details)}`,
+      `ctz=${encodeURIComponent(scriptTimeZone_())}`
+    ];
+    return `https://calendar.google.com/calendar/render?${params.join("&")}`;
+  };
 
-  return `https://calendar.google.com/calendar/render?${params.join("&")}`;
+  const url = build(record.memo2 || "");
+  if (url.length <= LINE_URI_MAX_CHARS_) return url;
+
+  const shorter = build("");
+  return shorter.length <= LINE_URI_MAX_CHARS_ ? shorter : "";
 }
 
 function buildYearMonthKey_(date) {
@@ -176,7 +189,7 @@ function createMessage() {
   if (!records.length) return errorMessage;
 
   const messageText = buildReminderTextMessageTextFromRecords_(records);
-  const actions = [ACTIONS.FlexSender, ACTIONS.Copy(messageText), ACTIONS.SS, ACTIONS.Plan];
+  const actions = [ACTIONS.FlexSender, ACTIONS.Copy(trimClipboardText_(messageText)), ACTIONS.SS, ACTIONS.Plan];
 
   console.log(messageText);
 
@@ -250,8 +263,11 @@ function extractUpcomingRecordsWithDateObjects(forceRefresh) {
   Log.start();
   const cachedRecords = loadCachedUpcomingRecords_(forceRefresh);
   if (cachedRecords) {
-    Log.finish({ result: cachedRecords });
-    return cachedRecords;
+    // 控えはその日の最初に作るので、そのあとに過ぎた今日の予定を除く（シートから読むときと同じ）
+    const now = new Date();
+    const upcoming = cachedRecords.filter(record => record.date >= now);
+    Log.finish({ result: upcoming });
+    return upcoming;
   }
 
   const result = readUpcomingRecordsFromSheet_();

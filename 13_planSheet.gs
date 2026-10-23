@@ -51,9 +51,25 @@ function mapPlanRowToRecord_(row, rowNumber) {
   };
 }
 
-/** 予定（Date を持つ形）を、シートの1行の並びにする */
+/** 予定（Date を持つ形）を、シートの1行の並びにする。文字は safeCell_ を通す（LINE や画面から来た文字のため） */
 function toPlanRow_(record) {
-  return [record.date, record.start, record.end || "", record.place, record.memo1, record.memo2 || "", record.link || ""];
+  return [
+    record.date,
+    record.start,
+    record.end || "",
+    safeCell_(record.place),
+    safeCell_(record.memo1),
+    safeCell_(record.memo2 || ""),
+    safeCell_(record.link || "")
+  ];
+}
+
+/**
+ * = + - @ で始まる文字は、シートを開いたときに式として動くので、先頭に ' を付けて文字のままにする。
+ * ' はシートでは見えず、読み直すと元の文字に戻る
+ */
+function safeCell_(value) {
+  return typeof value === "string" && /^[=+\-@]/.test(value) ? `'${value}` : value;
 }
 
 function appendScheduleRecordsToSheet_(records) {

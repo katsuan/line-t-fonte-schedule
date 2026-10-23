@@ -11,8 +11,17 @@ const SHEETS = {
 
 // ==========[ 初期化：設定情報読込 ]==========
 const SETTING = {
-  RemindNum: Number(SHEETS.Setting.getRange("B2").getDisplayValue()),
+  RemindNum: parseRemindNum_(SHEETS.Setting.getRange("B2").getDisplayValue()),
   SheetLink: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=0`,
+}
+
+/**
+ * Setting!B2（何日前から通知するか）。空や数字でないときは NaN（通知しない）。
+ * Number("") は 0 になり、空のまま「今日の予定」を通知してしまうので、空は別に扱う
+ */
+function parseRemindNum_(text) {
+  const trimmed = String(text == null ? "" : text).trim();
+  return trimmed === "" ? NaN : Number(trimmed);
 }
 
 const LIFF_URLS = {
@@ -101,13 +110,6 @@ const FORMAT = {
 // 日付フォーマット
 function _formatDate_(date, pattern) {
   return Utilities.formatDate(date, FORMAT.TimeZone, pattern);
-}
-
-const now = new Date();
-
-const NOW = {
-  Date: _formatDate_(now, FORMAT.Date),
-  Time: _formatDate_(now, FORMAT.Time),
 }
 
 // ==========[ クイックリプライアクション群 ]==========

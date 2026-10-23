@@ -40,7 +40,7 @@ const TEXT_MESSAGE_HANDLERS = [
 function handleTextMessage(event) {
   logScheduleDebug_('handleTextMessage:enter', {
     sourceType: event && event.source && event.source.type,
-    sourceId: resolveScheduleSourceId_(event),
+    sourceId: hashForLog_(resolveScheduleSourceId_(event)),
     messageType: event && event.message && event.message.type,
     text: event && event.message && event.message.text
   });
@@ -73,13 +73,14 @@ function routeTextMessage_(text, event) {
   } catch (err) {
     logScheduleDebug_('routeTextMessage:error', {
       text: text,
-      message: err && err.message,
+      message: err && err.message, // qcheck-ok: G2 DebugLog（管理者だけが見るシート）だけ
       stack: err && err.stack
     });
 
+    // エラーの中身は LINE に出さず、DebugLog（上）にだけ残す
     return [{
       type: 'text',
-      text: `⚠️ 内部エラーが発生しました。\n${err && err.message}`,
+      text: '⚠️ 内部エラーが発生しました。\n少し待ってから、もう一度送ってください。',
       sender: SENDERS.Error
     }];
   }
