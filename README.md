@@ -50,6 +50,24 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
 - `appsscript.json`
   Apps Script マニフェスト
 
+## 週のはじまり（カレンダー）
+
+- 公開カレンダー（`calendar.html`）と管理ページ（`admin.html`）の月の表の下に「週のはじまり 日｜月」がある。既定は日曜はじまり（いままでどおり）
+- 選んだものは、その端末の localStorage（`t_fonte_week_start`）に残る。2つのページで同じ設定を使う
+
+## テスト
+
+本番のシート・LINE に触らずに、偽物の GAS（`~/GitHub/q-oqrn/tools/qtest/fake-gas.js`）で主な流れを確かめる。
+
+```bash
+node --test test/*.test.js
+node ~/GitHub/q-oqrn/tools/qtest/check-code.mjs .
+```
+
+- `test/reminder.test.js` 予定の読みこみ・自動リマインドの対象と送信済み・日付またぎ・月末・LINE のカード
+- `test/registration.test.js` `#予定登録`／`#予定確定`（ない日付・二度押し・同時に動いたとき・シートの式）・振り分け
+- `test/admin.test.js` 管理ページの API（本人確認・権限・入力の確かめ・エラーの中身を出さない）と公開カレンダーの API
+
 ## 版情報
 
 - デプロイ時に `version.json`（commit SHA・生成時刻）を公開ページ直下に生成する（`.github/workflows/deploy-pages.yml`）

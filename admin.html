@@ -244,6 +244,40 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        .week-start {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .week-start span {
+            margin-right: 2px;
+        }
+
+        .week-start button {
+            min-width: 36px;
+            min-height: 32px;
+            padding: 0 8px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: var(--card);
+            font: inherit;
+            font-weight: 700;
+            color: var(--muted);
+            cursor: pointer;
+        }
+
+        .week-start button[aria-pressed="true"] {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            color: var(--accent);
+            cursor: default;
+        }
+
         .cal-cell.blank {
             visibility: hidden;
             pointer-events: none;
@@ -1407,6 +1441,58 @@
 
         try { if (localStorage.getItem("admin-view") === "list") view = "list"; } catch (err) { /* 保存できなくても動く */ }
 
+        // ---------- 週のはじまり（日曜／月曜）。その端末に残す（公開ページと管理ページで同じ設定） ----------
+
+        const WEEK_START_KEY = "t_fonte_week_start"; // "1" なら月曜はじまり。ないときは日曜はじまり（いままでどおり）
+        let weekStart = readWeekStart();
+
+        function readWeekStart() {
+            try { return localStorage.getItem(WEEK_START_KEY) === "1" ? 1 : 0; } catch (err) { return 0; }
+        }
+
+        function setWeekStart(next) {
+            weekStart = next;
+            try { localStorage.setItem(WEEK_START_KEY, String(next)); } catch (err) { /* 保存できなくても動く */ }
+            renderCalendar();
+        }
+
+        /** 月の表の曜日の見出し（週のはじまりから7つ）。曜日の番号は getDay() と同じ（0=日曜） */
+        function appendWeekdayHeads(grid) {
+            for (let i = 0; i < 7; i++) {
+                const index = (weekStart + i) % 7;
+                const dow = document.createElement("div");
+                dow.className = `cal-dow${index === 0 ? " sun" : index === 6 ? " sat" : ""}`;
+                dow.textContent = WEEKDAYS[index];
+                grid.appendChild(dow);
+            }
+        }
+
+        /** 1日の前に置く空きマスの数 */
+        function leadingBlankCount(year, month) {
+            return (new Date(year, month - 1, 1).getDay() - weekStart + 7) % 7;
+        }
+
+        /** 月の表の下の「週のはじまり 日｜月」 */
+        function createWeekStartToggle() {
+            const wrap = document.createElement("div");
+            wrap.className = "week-start";
+            wrap.setAttribute("role", "group");
+            wrap.setAttribute("aria-label", "週のはじまり");
+            const label = document.createElement("span");
+            label.textContent = "週のはじまり";
+            wrap.appendChild(label);
+            [[0, "日"], [1, "月"]].forEach(([value, text]) => {
+                const option = document.createElement("button");
+                option.type = "button";
+                option.textContent = text;
+                option.setAttribute("aria-pressed", String(weekStart === value));
+                option.setAttribute("aria-label", `${text}曜はじまり`);
+                if (weekStart !== value) option.addEventListener("click", () => setWeekStart(value));
+                wrap.appendChild(option);
+            });
+            return wrap;
+        }
+
         /** 先頭の1文字（絵文字なども1つの文字として数える） */
         function firstGrapheme(text) {
             if (window.Intl && Intl.Segmenter) {
@@ -1418,12 +1504,7 @@
         /** 内容の1文字目（絵文字は1つの文字として）をアイコンにする */
         function iconOf(memo) {
             const text = String(memo || "").trim();
-            if (!text) return "📅";
-            if (window.Intl && Intl.Segmenter) {
-                const first = new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(text)[Symbol.iterator]().next();
-                return first.value.segment;
-            }
-            return Array.from(text)[0];
+            return text ? firstGrapheme(text) : "📅";
         }
 
         function setView(next) {
@@ -1493,14 +1574,9 @@
 
             const grid = document.createElement("div");
             grid.className = "cal-grid";
-            WEEKDAYS.forEach((name, index) => {
-                const dow = document.createElement("div");
-                dow.className = `cal-dow${index === 0 ? " sun" : index === 6 ? " sat" : ""}`;
-                dow.textContent = name;
-                grid.appendChild(dow);
-            });
+            appendWeekdayHeads(grid);
 
-            const leading = new Date(year, month - 1, 1).getDay();
+            const leading = leadingBlankCount(year, month);
             for (let i = 0; i < leading; i++) {
                 const blank = document.createElement("div");
                 blank.className = "cal-cell blank";
@@ -1513,7 +1589,7 @@
                 grid.appendChild(createCalendarCell(date, day, byDate.get(date) || [], today));
             }
 
-            const children = [nav, grid];
+            const children = [nav, grid, createWeekStartToggle()];
             const dayRecords = byDate.get(selectedDate) || [];
             if (selectedDate.startsWith(calMonth) && dayRecords.length) {
                 children.push(createDayPanel(selectedDate, dayRecords, today));
