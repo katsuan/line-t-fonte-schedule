@@ -34,6 +34,8 @@ Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex 
   天気（Open-Meteo）の取得とキャッシュ。いまは `WEATHER_CONFIG.Enabled = false` で止めている
 - `20_handleTextMessage.gs`
   テキストトリガーのルーティング
+- `21_adminTestDesk.gs`
+  管理者のテストの窓口。`ADMIN_USER_IDS` にいる人がトークで `#テスト`（`#test`）と送ると 🧪 テストのカードが返り、クイックリプライで返事・カードの見本（自動リマインド・予定カード・#予定登録の確認・登録したあと・文の返事・カードが断られたときの文）と自己点検を試せる。見本はためしのデータで、本物の予定・シート・カレンダー・登録待ちには書かない。ふつうの人には何も返さない
 - `30_webappFlexEndpoint.gs`
   Web App 入口と Flex Message の整形
 - `31_adminApi.gs`
@@ -66,6 +68,7 @@ node ~/GitHub/q-oqrn/tools/qtest/check-code.mjs .
 
 - `test/reminder.test.js` 予定の読みこみ・自動リマインドの対象と送信済み・日付またぎ・月末・LINE のカード
 - `test/registration.test.js` `#予定登録`／`#予定確定`（ない日付・二度押し・同時に動いたとき・シートの式）・振り分け
+- `test/admin-test-desk.test.js` `#テスト`（管理者だけに返る・本物に書かない）
 - `test/admin.test.js` 管理ページの API（本人確認・権限・入力の確かめ・エラーの中身を出さない）と公開カレンダーの API
 
 ## 版情報

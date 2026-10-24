@@ -1,5 +1,12 @@
 const TEXT_MESSAGE_HANDLERS = [
   {
+    // 管理者だけ（21_adminTestDesk.gs）。ふつうの人には何も返さない
+    matches: isAdminTestTriggerText_,
+    createMessages: function (text, event) {
+      return createAdminTestMessages_(text, event);
+    }
+  },
+  {
     matches: isScheduleConfirmTriggerText_,
     createMessages: function (text, event) {
       return createScheduleConfirmMessages_(event);
