@@ -23,7 +23,9 @@ function useRealishLock(gas) {
 test("#予定登録：自由文と末尾のリンクを読み、確定でシートに書く", () => {
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   const reply = gas.call("handleTextMessage", event("#予定登録\n11月2日 15:00〜17:00 灘崎総合公園 フットサル（P）②\n11/3 9:00- 体育館 大会\nhttps://example.com/form"));
-  assert.match(reply[0].text, /2件読み取りました/);
+  assert.equal(reply[0].type, "flex");
+  assert.equal(reply[0].altText, "📝 予定登録の確認：2件（11/2〜11/3）");
+  assert.match(JSON.stringify(reply[0].contents), /2件を登録しますか/);
   assert.deepEqual(checkMessages(plain(reply)).filter((p) => p.level === "error"), []);
 
   const done = gas.call("handleTextMessage", event("#予定確定"));
@@ -65,7 +67,7 @@ test("#予定確定：2回続けて押しても、2回目は登録しない", ()
   gas.call("handleTextMessage", event("#予定登録\n11/2 10:00〜12:00 公園 練習"));
   gas.call("handleTextMessage", event("#予定確定"));
   const second = gas.call("handleTextMessage", event("#予定確定"));
-  assert.match(second[0].text, /登録待ちの予定が見つかりません/);
+  assert.match(second[0].text, /登録待ちの予定はありません/);
   assert.equal(gas.plan.rows.length, 2);
 });
 
@@ -91,12 +93,36 @@ test("#予定確定：同時に2回動いても、1回分だけ登録する", ()
   assert.equal(gas.plan.rows.length, 2);
 });
 
+test("#予定登録の確認カード：登録・キャンセルはクイックリプライだけ。カードはあとで見ても通じる", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const lines = [];
+  for (let i = 1; i <= 30; i++) lines.push(`11/${i} 10:00〜12:00 公園 練習`);
+  const reply = plain(gas.call("handleTextMessage", event(`#予定登録\n${lines.join("\n")}\n2/30 10:00〜12:00 公園 練習`)));
+  assert.equal(reply.length, 1);
+  assert.deepEqual(checkMessages(reply).filter((p) => p.level === "error"), []);
+  const card = JSON.stringify(reply[0].contents);
+  assert.doesNotMatch(card, /"button"|"action"/); // カードには押せるところを置かない
+  assert.match(card, /ほか15件（登録はすべてします）/);
+  assert.match(card, /#予定確定」と送って/);
+  assert.match(card, /読み取れなかった行/);
+  assert.ok(card.length < 20000, `カードの大きさ ${card.length}`);
+  assert.deepEqual(reply[0].quickReply.items.map((it) => it.action.label), ["登録する", "キャンセル"]);
+});
+
+test("#予定登録：読み取れないときは、書き方の見本と、画面で入れる道を出す", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const reply = gas.call("handleTextMessage", event("#予定登録"));
+  assert.equal(reply[0].type, "text");
+  assert.match(reply[0].text, /書き方/);
+  assert.deepEqual(reply[0].quickReply.items.map((it) => it.action.label), ["予定を管理"]);
+});
+
 test("#予定キャンセル：登録待ちを消す", () => {
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   gas.call("handleTextMessage", event("#予定登録\n11/2 10:00〜12:00 公園 練習"));
   gas.call("handleTextMessage", event("#予定キャンセル"));
   const reply = gas.call("handleTextMessage", event("#予定確定"));
-  assert.match(reply[0].text, /見つかりません/);
+  assert.match(reply[0].text, /登録待ちの予定はありません/);
   assert.equal(gas.plan.rows.length, 1);
 });
 
@@ -104,7 +130,7 @@ test("登録待ちは、トーク（グループ）ごとに分ける", () => {
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   gas.call("handleTextMessage", event("#予定登録\n11/2 10:00〜12:00 公園 練習", "G1"));
   const other = gas.call("handleTextMessage", event("#予定確定", "G2"));
-  assert.match(other[0].text, /見つかりません/);
+  assert.match(other[0].text, /登録待ちの予定はありません/);
 });
 
 test("振り分け：#今後の予定・#リマインド はカード、関係ない文字には返事しない", () => {

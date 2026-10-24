@@ -296,19 +296,31 @@ function clearSchedulePendingRecords_(sourceId) {
 
 // ---------- メッセージ生成 ----------
 
+// 確認カードに並べる予定の数（多いと LINE のカードの大きさの上限をこえるため）。登録はすべてする
+const SCHEDULE_CONFIRM_CARD_MAX_ROWS_ = 15;
+
+const SCHEDULE_REGISTRATION_EXAMPLE_ =
+  '書き方（1行に1件）:\n#予定登録\n11月2日 15:00〜17:00 灘崎総合公園 フットサル\n11/3 9:00〜 体育館 大会\n（最後の行にURLを書くと、参加リンクになります）';
+
+function scheduleQuickReply_(items) {
+  return { items: items };
+}
+
 function createScheduleRegistrationMessages_(text, event) {
   const sourceId = resolveScheduleSourceId_(event);
   const parsedResult = parseScheduleRegistrationLines_(text);
   const records = parsedResult.records;
   const errors = parsedResult.errors;
 
+  // まちがいの知らせは文のまま。直し方（書き方の見本）と、画面で入れる道を付ける
   if (!records.length) {
     return [{
       type: 'text',
       text: errors.length
-        ? `⚠️ 読み取れる予定がありませんでした。\n${formatScheduleErrors_(errors)}`
-        : '⚠️「#予定登録」の下に、予定を1行ずつ入力してください。',
-      sender: SENDERS.Error
+        ? `⚠️ 読み取れる予定がありませんでした。\n${formatScheduleErrors_(errors)}\n\n${SCHEDULE_REGISTRATION_EXAMPLE_}`
+        : `⚠️「#予定登録」の下に、予定を1行ずつ入力してください。\n\n${SCHEDULE_REGISTRATION_EXAMPLE_}`,
+      sender: SENDERS.Error,
+      quickReply: scheduleQuickReply_([ACTIONS.Admin])
     }];
   }
 
@@ -316,36 +328,113 @@ function createScheduleRegistrationMessages_(text, event) {
 
   saveSchedulePendingRecords_(sourceId, records);
 
-  const messageLines = [`📝 ${records.length}件読み取りました。この内容で登録しますか？`]
-    .concat(buildScheduleTableLines_(records));
+  // 読み取った予定は一覧のカードで見せる。登録・キャンセルは1回きりなので、カードのボタンにせずクイックリプライにする
+  const card = createScheduleConfirmFlexMessage_(records, {
+    link: parsedResult.link,
+    autoFilledCount: monthlyAutoFilledCount,
+    errors: errors
+  });
+  card.sender = SENDERS.Auto;
+  card.quickReply = scheduleQuickReply_([
+    LINE_func.createQuickReply('登録する', { text: '#予定確定' }),
+    LINE_func.createQuickReply('キャンセル', { text: '#予定キャンセル' })
+  ]);
+  return [card];
+}
 
-  if (parsedResult.link) {
-    messageLines.push('');
-    messageLines.push(`🔗 参加リンク（未指定の行に適用）: ${parsedResult.link}`);
+/**
+ * 「#予定登録」で読み取った予定の確認カード。
+ * カードはトークに残り、クイックリプライは次のメッセージで消えるので、
+ * あとで見ても通じるよう「#予定確定」と送れば登録できること・10分で消えることを書く
+ */
+function createScheduleConfirmFlexMessage_(records, notes) {
+  const shown = records.slice(0, SCHEDULE_CONFIRM_CARD_MAX_ROWS_);
+  const rows = shown.map(createScheduleConfirmRow_);
+  if (records.length > shown.length) {
+    rows.push(createScheduleNoteText_(`ほか${records.length - shown.length}件（登録はすべてします）`));
   }
 
-  if (monthlyAutoFilledCount) {
-    messageLines.push('');
-    messageLines.push(`🔗 ${monthlyAutoFilledCount}件は同月の既存予定からリンクを自動補完しました。`);
-  }
+  const noteTexts = [];
+  if (notes.link) noteTexts.push(`🔗 参加リンク（リンクのない行に入れます）: ${notes.link}`);
+  if (notes.autoFilledCount) noteTexts.push(`🔗 ${notes.autoFilledCount}件は、同じ月の予定のリンクを入れました。`);
+  if (notes.errors && notes.errors.length) noteTexts.push(`⚠️ 読み取れなかった行（登録しません）:\n${formatScheduleErrors_(notes.errors)}`);
 
-  if (errors.length) {
-    messageLines.push('');
-    messageLines.push('⚠️ 読み取れなかった行:');
-    messageLines.push(formatScheduleErrors_(errors));
-  }
-
-  return [{
+  const minutes = Math.round(SCHEDULE_PENDING_CACHE_CONFIG.ttlSeconds / 60);
+  const bodyContents = rows.concat(noteTexts.map(createScheduleNoteText_));
+  bodyContents.push({
     type: 'text',
-    text: messageLines.join('\n'),
-    sender: SENDERS.Auto,
-    quickReply: {
-      items: [
-        LINE_func.createQuickReply('登録する', { text: '#予定確定' }),
-        LINE_func.createQuickReply('キャンセル', { text: '#予定キャンセル' })
-      ]
+    text: `登録するときは「登録する」を押すか、「#予定確定」と送ってください（${minutes}分たつと取り消されます）。`,
+    size: 'xs',
+    color: FLEX_CONFIG.textSecondaryColor,
+    wrap: true,
+    margin: 'md'
+  });
+
+  return {
+    type: 'flex',
+    altText: trimAltText_(`📝 予定登録の確認：${records.length}件（${formatScheduleDateRange_(records)}）`),
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: FLEX_CONFIG.headerBackgroundColor,
+        paddingAll: FLEX_CONFIG.headerPadding,
+        contents: [
+          { type: 'text', text: '予定登録の確認', size: 'xs', color: '#ffffff' },
+          { type: 'text', text: `${records.length}件を登録しますか？`, size: 'lg', weight: 'bold', color: '#ffffff', wrap: true }
+        ]
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        paddingAll: FLEX_CONFIG.cardPadding,
+        contents: bodyContents
+      }
     }
-  }];
+  };
+}
+
+/** 確認カードの予定1件：日時（曜日に色）と、内容・場所・補足 */
+function createScheduleConfirmRow_(record) {
+  const date = record.date;
+  const time = `${_formatDate_(record.start, FORMAT.Time)}${record.end ? `-${_formatDate_(record.end, FORMAT.Time)}` : '〜'}`;
+  const detail = [record.memo1, record.place, record.memo2, record.link ? '🔗' : ''].filter(Boolean).join(' ');
+
+  return {
+    type: 'box',
+    layout: 'vertical',
+    paddingAll: '8px',
+    backgroundColor: FLEX_CONFIG.recordBackgroundColor,
+    cornerRadius: '8px',
+    contents: [
+      {
+        type: 'box',
+        layout: 'horizontal',
+        contents: [
+          { type: 'text', text: `${date.getMonth() + 1}/${date.getDate()}(`, size: 'sm', weight: 'bold', color: FLEX_CONFIG.textPrimaryColor, flex: 0 },
+          { type: 'text', text: getJapaneseWeekday_(date), size: 'sm', weight: 'bold', color: getWeekdayTextColor_(date), flex: 0 },
+          { type: 'text', text: `) ${time}`, size: 'sm', weight: 'bold', color: FLEX_CONFIG.textPrimaryColor, flex: 1 }
+        ]
+      },
+      { type: 'text', text: detail || '予定', size: 'sm', color: FLEX_CONFIG.textSecondaryColor, wrap: true }
+    ]
+  };
+}
+
+function createScheduleNoteText_(text) {
+  return { type: 'text', text: text, size: 'xs', color: FLEX_CONFIG.textSecondaryColor, wrap: true, margin: 'sm' };
+}
+
+/** 「11/2〜11/5」（1日だけなら「11/2」） */
+function formatScheduleDateRange_(records) {
+  const times = records.map(function (record) { return record.date.getTime(); });
+  const label = function (ms) { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()}`; };
+  const first = label(Math.min.apply(null, times));
+  const last = label(Math.max.apply(null, times));
+  return first === last ? first : `${first}〜${last}`;
 }
 
 /**
@@ -359,7 +448,8 @@ function createScheduleConfirmMessages_(event) {
     return [{
       type: 'text',
       text: '⚠️ ほかの登録の途中です。少し待ってから「#予定確定」を送ってください。',
-      sender: SENDERS.Error
+      sender: SENDERS.Error,
+      quickReply: scheduleQuickReply_([LINE_func.createQuickReply('登録する', { text: '#予定確定' })])
     }];
   }
 
@@ -374,11 +464,13 @@ function createScheduleConfirmMessages_(event) {
     lock.releaseLock();
   }
 
+  // 古い「登録する」が押されたときも黙らない（済んだか、時間がたって消えたか）
   if (!records || !records.length) {
     return [{
       type: 'text',
-      text: '⚠️ 登録待ちの予定が見つかりません。「#予定登録」からやり直してください。',
-      sender: SENDERS.Error
+      text: '登録待ちの予定はありません（登録が済んだか、時間がたって取り消されました）。\n新しく登録するときは「#予定登録」からどうぞ。',
+      sender: SENDERS.Auto,
+      quickReply: scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin])
     }];
   }
 
@@ -400,30 +492,9 @@ function createScheduleCancelMessages_(event) {
   return [{
     type: 'text',
     text: 'キャンセルしました。',
-    sender: SENDERS.Auto
+    sender: SENDERS.Auto,
+    quickReply: scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin])
   }];
-}
-
-/**
- * Plan シートの列（date/start/end/place/memo1/memo2/link）と1:1で見せる。
- * LINEはmarkdownを描画しないため罫線としては揃わないが、区切り文字としてこの書式を使う
- */
-function buildScheduleTableLines_(records) {
-  const header = '|#|date|start|end|place|memo1|memo2|link|';
-  const separator = '|---|---|---|---|---|---|---|---|';
-  const rows = records.map(function (record, index) {
-    return formatScheduleTableRow_(record, index + 1);
-  });
-
-  return [header, separator].concat(rows);
-}
-
-function formatScheduleTableRow_(record, index) {
-  const dateLabel = _formatDate_(record.date, FORMAT.Date);
-  const startLabel = _formatDate_(record.start, FORMAT.Time);
-  const endLabel = record.end ? _formatDate_(record.end, FORMAT.Time) : '';
-  const linkLabel = record.link ? '🔗' : '';
-  return `|${index}|${dateLabel}|${startLabel}|${endLabel}|${record.place}|${record.memo1}|${record.memo2}|${linkLabel}|`;
 }
 
 function formatScheduleErrors_(errors) {
