@@ -1,3 +1,9 @@
+// ==========[ 予定のカード（Flex Message） ]==========
+//
+// 月ごとの予定カード・通知カードの先頭の送信ガイド・画面（リッチに送る）に返す中身を作る。
+// 入口（01_ の doGet・createAutoReminderMessages）・トークの返事（20_・13_）・#テスト（21_）から使う
+
+/** 予定カードの色・大きさ・1枚に並べる数 */
 const FLEX_CONFIG = {
   maxBubblesPerCarousel: 12,
   maxVisibleRecordsPerMonth: 4,
@@ -29,13 +35,16 @@ const FLEX_CONFIG = {
   badgeOffset: "12px"
 };
 
+/** カードの通知文（altText）の既定の見出しと、長さの上限 */
 const ALT_TEXT_CONFIG = {
   defaultTitle: "🗓️ 活動日リマインド",
   maxChars: 1500
 };
 
+/** コピーのボタンの文字の上限（LINE の上限） */
 const CLIPBOARD_TEXT_MAX_CHARS = 1000;
 
+/** 通知カードの先頭の「リマインド送信ガイド」の文字と色 */
 const AUTO_REMINDER_GUIDE_CONFIG = {
   headerTitle: "リマインド送信ガイド",
   bodyLabel: "これまでのテキスト文面",
@@ -50,36 +59,33 @@ const AUTO_REMINDER_GUIDE_CONFIG = {
   guideAccentColor: "#B7791F"
 };
 
-function doGet(e) {
-  try {
-    if (e && e.parameter && e.parameter.action === "plans") {
-      return createPublicCalendarResponse_();
-    }
+// LINE のカードの URL は 1000 字まで（こえるとカードごと断られる）
+const LINE_URI_MAX_CHARS_ = 1000;
 
-    const forceRefresh = !!(e && e.parameter && e.parameter.refresh === "1");
-    const payload = createLiffPayload_(forceRefresh);
+// ---------- 返事にするカード ----------
 
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        ok: true,
-        messages: payload.previewMessages,
-        previewMessages: payload.previewMessages,
-        shareMessages: payload.shareMessages
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch (err) {
-    // エラーの中身は画面に出さず、実行ログにだけ残す
-    console.error(err);
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        ok: false,
-        message: "予定を読み込めませんでした。少し待ってから、やり直してください。"
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+/** 管理者への通知・#今後の予定 の返事：送信ガイド＋月ごとの予定カード */
+function createAutoReminderFlexMessages_() {
+  const records = extractUpcomingRecordsWithDateObjects();
+  const reminderText = buildReminderTextMessageTextFromRecords_(records);
+  const messages = buildReminderFlexMessages_(records, {
+    forceRefresh: false,
+    includeGuideBubble: true,
+    reminderText
+  });
+  return attachReminderQuickReply_(messages);
 }
 
+/** #リマインド の返事：月ごとの予定カード（クイックリプライつき） */
+function createShareFlexMessages_(forceRefresh) {
+  const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
+  const messages = buildReminderFlexMessages_(records, {
+    forceRefresh: !!forceRefresh
+  });
+  return attachReminderQuickReply_(messages);
+}
+
+/** 画面（リッチに送る）に返す中身：見本とシェア用のカード（送信ガイドは入れない） */
 function createLiffPayload_(forceRefresh) {
   const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
   const reminderText = buildReminderTextMessageTextFromRecords_(records);
@@ -105,25 +111,16 @@ function createLiffPayload_(forceRefresh) {
   };
 }
 
-function createShareFlexMessages_(forceRefresh) {
-  const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
-  const messages = buildReminderFlexMessages_(records, {
-    forceRefresh: !!forceRefresh
-  });
-  return attachReminderQuickReply_(messages);
+/** 送信ガイド（先頭のカード）を除いたカード。カードが1枚だけなら、そのまま使う */
+function getShareablePreviewBubbleEntries_(bubbleEntries) {
+  if (!Array.isArray(bubbleEntries)) {
+    return [];
+  }
+
+  return bubbleEntries.length <= 1 ? bubbleEntries.slice() : bubbleEntries.slice(1);
 }
 
-function createAutoReminderFlexMessages_() {
-  const records = extractUpcomingRecordsWithDateObjects();
-  const reminderText = buildReminderTextMessageTextFromRecords_(records);
-  const messages = buildReminderFlexMessages_(records, {
-    forceRefresh: false,
-    includeGuideBubble: true,
-    reminderText
-  });
-  return attachReminderQuickReply_(messages);
-}
-
+/** 予定から、横に並べたカードのメッセージを作る（予定がなければ文のお知らせ） */
 function buildReminderFlexMessages_(records, options) {
   const viewModel = buildReminderFlexViewModel_(records, options);
 
@@ -134,6 +131,7 @@ function buildReminderFlexMessages_(records, options) {
   return buildCarouselMessages_(viewModel.bubbleEntries);
 }
 
+/** カードに使うもの（月ごとのまとまり・カード）を作る。予定がなければ errorMessage を返す */
 function buildReminderFlexViewModel_(records, options) {
   const { forceRefresh, includeGuideBubble, reminderText } = options || {};
   const now = new Date();
@@ -180,15 +178,26 @@ function buildReminderFlexViewModel_(records, options) {
   };
 }
 
-/** 送信ガイド（先頭のカード）を除いたカード。カードが1枚だけなら、そのまま使う */
-function getShareablePreviewBubbleEntries_(bubbleEntries) {
-  if (!Array.isArray(bubbleEntries)) {
-    return [];
+/** 最後のメッセージに、送り主とクイックリプライ（リッチに送る・予定を管理・シート・予定）をつける */
+function attachReminderQuickReply_(messages) {
+  if (!Array.isArray(messages) || !messages.length) {
+    return messages;
   }
 
-  return bubbleEntries.length <= 1 ? bubbleEntries.slice() : bubbleEntries.slice(1);
+  const decorated = messages.map(message => Object.assign({}, message));
+  const lastIndex = decorated.length - 1;
+
+  decorated[lastIndex].sender = SENDERS.Auto;
+  decorated[lastIndex].quickReply = {
+    items: [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.SS, ACTIONS.Plan]
+  };
+
+  return decorated;
 }
 
+// ---------- 横に並べる ----------
+
+/** 予定を月ごとにまとめる（月のリンクもつける） */
 function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
   const groupsByMonth = new Map();
 
@@ -214,12 +223,15 @@ function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
   }));
 }
 
-/** カードのボタンに使えるリンク（http(s) で、LINE の上限の長さまで）。使えなければ空 */
-function usableCardLink_(link) {
-  const text = String(link || "").trim();
-  return /^https?:\/\//.test(text) && text.length <= LINE_URI_MAX_CHARS_ ? text : "";
+/** 月ごとのまとまりから、カードと近い予定の日付を作る */
+function buildBubbleEntriesFromGroups_(groups) {
+  return groups.map(group => ({
+    bubble: createMonthlyFlexBubble_(group),
+    nearTermDates: collectNearTermDates_(group.records, group.now)
+  }));
 }
 
+/** カードを12枚ずつ、横に並べたメッセージにする */
 function buildCarouselMessages_(bubbleEntries) {
   const messages = [];
 
@@ -239,6 +251,7 @@ function buildCarouselMessages_(bubbleEntries) {
   return messages;
 }
 
+/** 横に並べたカードの通知文（見出し＋近い予定の日付） */
 function buildCarouselAltText_(bubbleEntries) {
   const baseTitle = getRandomAltTextTitle_();
   const nearTermDateLabels = collectNearTermDateLabels_(bubbleEntries);
@@ -250,36 +263,30 @@ function buildCarouselAltText_(bubbleEntries) {
   return baseTitle;
 }
 
+/** 通知文の見出しを1つ選ぶ */
 function getRandomAltTextTitle_() {
   return _pickRandom_(RANDOM_TEXTS.title) || ALT_TEXT_CONFIG.defaultTitle;
 }
 
+/** 近い（もうすぐの）予定の日付の文字の並び */
 function collectNearTermDates_(records, now) {
   return records
     .filter(record => isNearTermDate_(record.date, now, FLEX_CONFIG.nearTermDays))
     .map(record => formatNearTermDateLabel_(record.date));
 }
 
+/** カードの並びから、近い予定の日付を重ならないように集める */
 function collectNearTermDateLabels_(bubbleEntries) {
   const labels = bubbleEntries.flatMap(entry => entry.nearTermDates || []);
   return Array.from(new Set(labels));
 }
 
+/** 「11/2」の文字 */
 function formatNearTermDateLabel_(date) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function truncateText_(text, maxChars) {
-  return String(text || "").slice(0, maxChars);
-}
-
-function trimAltText_(text) {
-  return truncateText_(text, ALT_TEXT_CONFIG.maxChars);
-}
-
-function trimClipboardText_(text) {
-  return truncateText_(text, CLIPBOARD_TEXT_MAX_CHARS);
-}
+// ---------- カードの部品 ----------
 
 /** カードの見出し（青い帯に白い文字） */
 function createFlexHeader_(title) {
@@ -301,6 +308,7 @@ function createFlexHeader_(title) {
   };
 }
 
+/** 通知カードの先頭の「リマインド送信ガイド」（文面・コピー・シート・管理・グループ・リッチに送る） */
 function createAutoReminderGuideBubble_(reminderText, altText) {
   return {
     type: "bubble",
@@ -435,29 +443,7 @@ function createAutoReminderGuideBubble_(reminderText, altText) {
   };
 }
 
-function buildBubbleEntriesFromGroups_(groups) {
-  return groups.map(group => ({
-    bubble: createMonthlyFlexBubble_(group),
-    nearTermDates: collectNearTermDates_(group.records, group.now)
-  }));
-}
-
-function attachReminderQuickReply_(messages) {
-  if (!Array.isArray(messages) || !messages.length) {
-    return messages;
-  }
-
-  const decorated = messages.map(message => Object.assign({}, message));
-  const lastIndex = decorated.length - 1;
-
-  decorated[lastIndex].sender = SENDERS.Auto;
-  decorated[lastIndex].quickReply = {
-    items: [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.SS, ACTIONS.Plan]
-  };
-
-  return decorated;
-}
-
+/** 1か月分の予定カード（見出し・予定・ほか○件・月のリンク） */
 function createMonthlyFlexBubble_(group) {
   const { monthLabel, records, link, now, nearTermWeatherSummaryMap } = group;
   const title = `${monthLabel}の予定`;
@@ -512,6 +498,7 @@ function createMonthlyFlexBubble_(group) {
   };
 }
 
+/** 月のカードに並べる予定（上から決めた数まで） */
 function buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap) {
   const visibleRecords = records.slice(0, FLEX_CONFIG.maxVisibleRecordsPerMonth);
   return visibleRecords.map(record => createRecordBox_(record, {
@@ -520,6 +507,7 @@ function buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap) {
   }));
 }
 
+/** 月のカードの下の「以上」か「他○件 (日付)」 */
 function buildMonthlySummaryText_(records) {
   const hiddenCount = Math.max(records.length - FLEX_CONFIG.maxVisibleRecordsPerMonth, 0);
   if (hiddenCount <= 0) {
@@ -538,6 +526,7 @@ function buildMonthlySummaryText_(records) {
   return `他${hiddenCount}件 ${previewText}`;
 }
 
+/** 予定1件の箱（アイコン・内容・日時・場所・もうすぐの印） */
 function createRecordBox_(record, options) {
   const { now, nearTermWeatherSummaryMap } = options;
   const isNearTerm = isNearTermDate_(record.date, now, FLEX_CONFIG.nearTermDays);
@@ -668,50 +657,7 @@ function createRecordBox_(record, options) {
   };
 }
 
-/** 内容の1文字目（絵文字も1文字として数える）。空なら undefined */
-function firstCharOf_(memo1) {
-  return Array.from(String(memo1 || "").trim())[0];
-}
-
-function getCalendarIconText_(memo1) {
-  return firstCharOf_(memo1) || "予";
-}
-
-function getSummaryIconText_(memo1) {
-  const firstChar = firstCharOf_(memo1);
-  return isEmojiLikeChar_(firstChar) ? firstChar : "";
-}
-
-function getDisplayTitleText_(memo1) {
-  const normalized = String(memo1 || "").trim();
-  if (!normalized) return "予定";
-
-  const chars = Array.from(normalized);
-  const firstChar = chars[0];
-
-  if (isEmojiLikeChar_(firstChar)) {
-    const remaining = chars.slice(1).join("").replace(/^\s+/, "");
-    return remaining || normalized;
-  }
-
-  return normalized;
-}
-
-function isEmojiLikeChar_(char) {
-  return !!char && /\p{Extended_Pictographic}/u.test(char);
-}
-
-function getJapaneseWeekday_(date) {
-  return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()] || "";
-}
-
-function getWeekdayTextColor_(date) {
-  const weekday = date.getDay();
-  if (weekday === 0) return FLEX_CONFIG.sundayTextColor;
-  if (weekday === 6) return FLEX_CONFIG.saturdayTextColor;
-  return FLEX_CONFIG.textSecondaryColor;
-}
-
+/** 「11月2日(日) 15:00-17:00」の部品（曜日だけ色を変える） */
 function buildRecordDateTimeContents_(record) {
   const weekday = getJapaneseWeekday_(record.date);
 
@@ -743,6 +689,116 @@ function buildRecordDateTimeContents_(record) {
   ];
 }
 
+/** カードのボタンに使えるリンク（http(s) で、LINE の上限の長さまで）。使えなければ空 */
+function usableCardLink_(link) {
+  const text = String(link || "").trim();
+  return /^https?:\/\//.test(text) && text.length <= LINE_URI_MAX_CHARS_ ? text : "";
+}
+
+/** 予定の並びで、最初にあるリンク（なければ空文字） */
+function findFirstLink_(records) {
+  const recordWithLink = records.find(record => record.link);
+  return recordWithLink ? recordWithLink.link : "";
+}
+
+/**
+ * カレンダーに入れるリンク。長すぎるときは補足を外し、それでも長ければ空（リンクなし）にする
+ */
+function createGoogleCalendarUrl_(record) {
+  if (!record || !record.date || !record.endDate) return "";
+
+  const build = details => {
+    const params = [
+      "action=TEMPLATE",
+      `text=${encodeURIComponent(record.memo1 || "予定")}`,
+      `dates=${encodeURIComponent(`${formatGoogleCalendarDateTime_(record.date)}/${formatGoogleCalendarDateTime_(record.endDate)}`)}`,
+      `location=${encodeURIComponent(record.place || "")}`,
+      `details=${encodeURIComponent(details)}`,
+      `ctz=${encodeURIComponent(scriptTimeZone_())}`
+    ];
+    return `https://calendar.google.com/calendar/render?${params.join("&")}`;
+  };
+
+  const url = build(record.memo2 || "");
+  if (url.length <= LINE_URI_MAX_CHARS_) return url;
+
+  const shorter = build("");
+  return shorter.length <= LINE_URI_MAX_CHARS_ ? shorter : "";
+}
+
+/** Google カレンダーの登録リンクに使う日時の文字（yyyyMMddTHHmmss） */
+function formatGoogleCalendarDateTime_(date) {
+  return Utilities.formatDate(date, scriptTimeZone_(), "yyyyMMdd'T'HHmmss");
+}
+
+// ---------- 文字 ----------
+
+/** 文字を maxChars 字までにする */
+function truncateText_(text, maxChars) {
+  return String(text || "").slice(0, maxChars);
+}
+
+/** 通知文（altText）を上限の長さまでにする */
+function trimAltText_(text) {
+  return truncateText_(text, ALT_TEXT_CONFIG.maxChars);
+}
+
+/** コピーの文字を上限の長さまでにする */
+function trimClipboardText_(text) {
+  return truncateText_(text, CLIPBOARD_TEXT_MAX_CHARS);
+}
+
+/** 内容の1文字目（絵文字も1文字として数える）。空なら undefined */
+function firstCharOf_(memo1) {
+  return Array.from(String(memo1 || "").trim())[0];
+}
+
+/** 予定のアイコンの文字（内容の1文字目。なければ「予」） */
+function getCalendarIconText_(memo1) {
+  return firstCharOf_(memo1) || "予";
+}
+
+/** 「他○件」に添える絵文字（内容の1文字目が絵文字のときだけ） */
+function getSummaryIconText_(memo1) {
+  const firstChar = firstCharOf_(memo1);
+  return isEmojiLikeChar_(firstChar) ? firstChar : "";
+}
+
+/** カードに出す内容（先頭の絵文字はアイコンに出すので外す） */
+function getDisplayTitleText_(memo1) {
+  const normalized = String(memo1 || "").trim();
+  if (!normalized) return "予定";
+
+  const chars = Array.from(normalized);
+  const firstChar = chars[0];
+
+  if (isEmojiLikeChar_(firstChar)) {
+    const remaining = chars.slice(1).join("").replace(/^\s+/, "");
+    return remaining || normalized;
+  }
+
+  return normalized;
+}
+
+/** 絵文字か */
+function isEmojiLikeChar_(char) {
+  return !!char && /\p{Extended_Pictographic}/u.test(char);
+}
+
+/** 曜日の1文字（日〜土） */
+function getJapaneseWeekday_(date) {
+  return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()] || "";
+}
+
+/** 曜日の色（日曜は赤・土曜は青） */
+function getWeekdayTextColor_(date) {
+  const weekday = date.getDay();
+  if (weekday === 0) return FLEX_CONFIG.sundayTextColor;
+  if (weekday === 6) return FLEX_CONFIG.saturdayTextColor;
+  return FLEX_CONFIG.textSecondaryColor;
+}
+
+/** 「11/2日」の文字（日付＋曜日） */
 function formatCompactDateLabel_(date) {
   return `${date.getMonth() + 1}/${date.getDate()}${getJapaneseWeekday_(date)}`;
 }

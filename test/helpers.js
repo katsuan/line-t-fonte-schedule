@@ -11,7 +11,7 @@ const { createGas, checkMessages } = require(path.join(process.env.HOME, "GitHub
 const ROOT = path.join(__dirname, "..");
 const SHEET_ID = "SHEET_TEST";
 
-// GAS は .gs を名前の順に読む（00_const.gs は先に読まれる前提）
+// GAS は .gs を名前の順に読む（02_init.gs の共通の定数を、あとのファイルが使う）
 const GS_FILES = fs.readdirSync(ROOT).filter((f) => f.endsWith(".gs")).sort();
 
 const PRELUDE = `

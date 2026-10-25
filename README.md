@@ -3,54 +3,48 @@
 Google Apps Script で動く、予定リマインド配信プロジェクトです。
 Spreadsheet の予定を読み取り、LINE 向けのテキスト通知と Flex Message を生成します。
 
-## Structure
+## ファイル
 
-ファイル名の先頭番号はレイヤーを表す（共通 RULES の `04_naming_and_directory_rules.md` 準拠）。
+並べ方と名前は、Q のツール共通の決まり（q-oqrn の `docs/structure.md`）にそろえている。
 
-- `00_*` 共通設定・ロガー・デバッグログ
-- `10_*` ドメインロジック（予定取得・リマインド判定・予定登録パース）
-- `20_*` ルーティング（テキストトリガー解釈）
-- `30_*` Web入口・Flex表示整形
+### GAS（`clasp push` で送るのは `.gs` と `appsscript.json` だけ。`.claspignore`）
 
-同じ番号内の並びは責務の近さを表し、実行順を厳密に保証するものではない（`00_const.gs` はグローバル定数の初期化が他ファイルより先に必要なため、番号にかかわらず必ず最初に評価される前提を保つ）。
+GAS はファイルを名前の順に1つずつ読む。読みこみ時（トップレベル）に、あとのファイルの関数・定数を直接使わない（`test/load-order.test.js` で確かめる）。
 
-- `00_const.gs`
-  Spreadsheet・設定値・アイコン・quick reply アクションなどのグローバル初期化
-- `00_LoggerLib.gs`
-  Logger 初期化
-- `00_debugLog.gs`
-  親プロジェクトの実行ログを確認できない場合向けの、スプレッドシート(`DebugLog`シート)への簡易ログ出力
-- `00_memo.gs`
-  1回の呼び出しの中で、同じシートや設定の読み取りを使い回す（`memo_` / `forgetMemo_`）
-- `10_reminderCore.gs`
-  今後の予定の読み取り、リマインド判定・送信済みの記録、テキスト文面生成
-- `11_scheduleRegistration.gs`
-  `#予定登録` からのテキスト予定一括登録（パース・確認保留・確定）。確認カードの「登録する／キャンセル」は下書きID つきの文字（`#予定確定 <ID>`）を送り、押されるたびに、済んだ・古い・ほかの人・時間切れを見分けて返す（親のボットに渡るのは文字のメッセージだけなので postback は使わない）
-- `12_upcomingRecordsCache.gs`
-  今後の予定のキャッシュ（Script Properties に月ごとに保存し、日付が変わったら作り直す）
-- `13_planSheet.gs`
-  Plan シートの読み書きの共通部分。読み取りは1回の呼び出しで1回だけにして使い回し、書いたら `forgetPlanValues_` で捨てる。行の追加・同月リンクの補完もここ
-- `14_weather.gs`
-  天気（Open-Meteo）の取得とキャッシュ。いまは `WEATHER_CONFIG.Enabled = false` で止めている
-- `20_handleTextMessage.gs`
-  テキストトリガーのルーティング
-- `21_adminTestDesk.gs`
-  管理者のテストの窓口。`ADMIN_USER_IDS` にいる人がトークで `#テスト`（`#test`）と送ると 🧪 テストのカードが返り、クイックリプライで返事・カードの見本（自動リマインド・予定カード・#予定登録の確認・登録したあと・文の返事・カードが断られたときの文）と自己点検を試せる。見本はためしのデータで、本物の予定・シート・カレンダー・登録待ちには書かない。ふつうの人には何も返さない
-- `30_webappFlexEndpoint.gs`
-  Web App 入口と Flex Message の整形
-- `31_adminApi.gs`
-  管理者ページ用 API（`doPost`）。LIFF アクセストークンを LINE API で検証し、Script Property `ADMIN_USER_IDS`（カンマ区切りの userId）に含まれる人だけが予定の一覧・追加・編集・削除を行える
-- `34_adminBulkAdd.gs`
-  管理ページの「📝 文章で追加」用。チャットの `#予定登録` と同じ流れ（プレーンテキスト入力 → 入力値の分解 → 確認 → 登録）。読み取りは `11_scheduleRegistration.gs` のパーサを再利用し、確認用の読み取り（`parseSchedule`、書き込まない）と、確認済みの予定のまとめて登録（`addBatch`、1件でも不正なら全件書き込まない）に分ける。登録済みと同じ予定（日付・開始・場所）は、確認画面で未チェックにする
-- `32_publicCalendarApi.gs`
-  公開カレンダー用の読み取り API（`doGet` の `?action=plans`）。同期先カレンダーの登録リンク（`subscribeUrl`）も返すが、カレンダーIDがメールアドレス形式（個人のメインカレンダー）のときは、IDが読み取れてしまうため返さない（専用カレンダー `@group.calendar.google.com` のときだけ返す）。Plan シートの「更新バージョン」（スプレッドシートのドキュメント公開範囲メタデータ）をキーにキャッシュし、予定を書き込む処理（管理ページ・`#予定確定`）がバージョンを進める。シートを手で編集した場合は、GAS エディタで `installPlanChangeTrigger` を一度だけ実行して変更検知トリガーを作る（未実行でも有効期限1時間で自然に更新される）
-- `33_calendarSync.gs`
-  Plan シートの今日以降の予定を Google カレンダーへ反映する（シート→カレンダーの一方向）。このシステムが作った予定だけにタグを付けて追加・削除し、手で作った予定や過去の予定には触れない。カレンダーIDは Script Property `CALENDAR_ID`（子プロジェクト側）。カレンダーの予定は、タイトル=内容、場所=場所、説明欄=「補足＋改行＋リンク」で作る。初期設定は、`authorizeCalendarSync`（権限の承認）→ `installCalendarSyncTrigger`（1日1回の定期トリガー）を GAS エディタで一度ずつ実行する。同期するタイミングは、管理ページの保存直後、「📅 カレンダー同期」ボタン、シートの手編集（`installPlanChangeTrigger` の変更検知トリガー）、1日1回の定期トリガー（LINE の `#予定確定` など、他で拾えない変更の取りこぼし対策）
-  **注意**: カレンダーを扱う権限が増えるため、子を `clasp push` すると、子をライブラリ（開発モード）で使う親プロジェクト（LINE Webhook）も再承認が必要になる。push の前に手順を確認すること
-- `admin.html`
-  管理者ページ（別ページ）。LIFF 経由で `https://liff.line.me/<LIFF_ID>/admin.html` から開く。管理者未登録のときは自分の userId を表示するので、それを `ADMIN_USER_IDS` に追加する
-- `appsscript.json`
-  Apps Script マニフェスト
+| ファイル | 中身 |
+|---|---|
+| `00_setup.gs` | 人が GAS エディタから実行する関数（`runSelfCheck` 自己点検 → `authorizeCalendarSync` → `installCalendarSyncTrigger` → `installPlanChangeTrigger`）と、人が書きかえる設定（LIFF の URL・グループのリンク・終了時刻の既定・天気）。先頭に、どの順に何を実行するか |
+| `01_entry.gs` | 入口。ウェブアプリ（`doGet`・`doPost`）、親の LINE ボットから呼ばれる関数（`handleTextMessage`・`shouldSendRemindMessage`・`createAutoReminderSenderName`・`createAutoReminderMessages`・`completeAutoReminderSend`・`createMessage`・`main`）、トリガー（`onPlanSheetChanged`・`syncPlansToCalendarJob`）。名前を変えると親・トリガーが動かなくなる |
+| `02_init.gs` | 読みこみ時の準備：シート・Setting の設定・アイコン・日付の書式・クイックリプライ・送り主 |
+| `03_request-memo.gs` | 1回の呼び出しの中で、同じシートや設定の読み取りを使い回す（`memo_` / `forgetMemo_`） |
+| `04_debug-log.gs` | DebugLog シートへのログ（親の実行ログを見られないとき用。LINE の ID はそのまま残さない） |
+| `05_dates.gs` | 日付の小さな道具（日付で数える・月のキー） |
+| `10_plan-sheet.gs` | Plan シートの読み書き（外から来た文字は `safeCell_`）・同じ月のリンクで補う |
+| `11_upcoming-records.gs` | これからの予定と、その日の控え（Script Properties に月ごと。日付が変わったら作り直す） |
+| `12_reminder.gs` | 自動リマインド：通知する予定（今日から `RemindNum` 日後までで未通知）・送信済みの記録（60日）・文面 |
+| `13_schedule-registration.gs` | `#予定登録`：文章の読み取り（タブ区切り・自由文）→ 確認カード → 「登録する」（`#予定確定 <下書きID>`）。ボタンは押されるたびに、済んだ・古い・ほかの人・時間切れを見分けて返す（親のボットに渡るのは文字のメッセージだけなので postback は使わない） |
+| `14_weather.gs` | 天気（Open-Meteo）。いまは `WEATHER_CONFIG.Enabled = false` で止めている |
+| `20_text-router.gs` | トークの文字の振り分け（`#予定登録`・`#今後の予定`・`#リマインド`・`#テスト` など） |
+| `21_admin-test-desk.gs` | 管理者のテストの窓口。`ADMIN_USER_IDS` にいる人が `#テスト`（`#test`）と送ると 🧪 テストのカードが返り、返事・カードの見本と自己点検を試せる。見本はためしのデータで、本物には書かない。ふつうの人には何も返さない |
+| `30_flex-cards.gs` | 予定のカード（月ごとのカード・通知カードの送信ガイド・画面に返す中身） |
+| `31_admin-api.gs` | 管理ページの API。LIFF のアクセストークンを LINE に確かめ、`ADMIN_USER_IDS` の人だけが一覧・追加・編集・削除できる |
+| `32_admin-bulk-add.gs` | 管理ページの「📝 文章で追加」（読み取りは `#予定登録` と同じ。1件でも不正なら書かない） |
+| `33_public-calendar-api.gs` | 公開カレンダーの API（`doGet ?action=plans`）と予定の版。登録リンクは専用カレンダー（`@group.calendar.google.com`）のときだけ返す。シートを手で直したときの反映は `installPlanChangeTrigger` |
+| `34_calendar-sync.gs` | Google カレンダー同期（シート→カレンダーの一方向。タグのある予定だけを足し・消す）。ID は Script Property `CALENDAR_ID` |
+| `appsscript.json` | Apps Script マニフェスト |
+
+**注意**: カレンダーなどの権限が増える変更を `clasp push` すると、このプロジェクトをライブラリ（開発モード）で使う親プロジェクト（LINE Webhook）も再承認が必要になる。push の前に手順を確認すること
+
+### 画面（GitHub Pages。`.github/workflows/deploy-pages.yml` で公開）
+
+| ファイル | 中身 |
+|---|---|
+| `index.html` ・ `app.js` ・ `style.css` | 予定シェア（LIFF「リッチに送る」）。GAS（`doGet`）のカードを見本に出し、LINE の友だち・グループに送る |
+| `admin.html` ・ `admin.js` ・ `admin.css` | 予定の管理（LIFF。`https://liff.line.me/<LIFF_ID>/admin.html`）。管理者未登録のときは自分の userId を出すので、それを `ADMIN_USER_IDS` に足す |
+| `calendar.html` ・ `calendar.js` ・ `calendar.css` | 公開の活動予定カレンダー（ログインなし） |
+| `js/month-calendar.js` | 月の表の部品（曜日・週のはじまり・マス・アイコン・月のリンク・スワイプ）。`calendar.html`・`admin.html` が入口より先に読む |
+
+JS・CSS を直したら、`python3 ../q-oqrn/tools/qstamp.py index.html admin.html calendar.html` で `?v=` を付け直す（LINE の中のブラウザが古いファイルを覚えているため）。
 
 ## 週のはじまり（カレンダー）
 
@@ -69,6 +63,7 @@ node ~/GitHub/q-oqrn/tools/qtest/check-code.mjs .
 - `test/reminder.test.js` 予定の読みこみ・自動リマインドの対象と送信済み・日付またぎ・月末・LINE のカード
 - `test/registration.test.js` `#予定登録`／`#予定確定`（ない日付・二度押し・同時に動いたとき・シートの式）・振り分け
 - `test/admin-test-desk.test.js` `#テスト`（管理者だけに返る・本物に書かない）
+- `test/load-order.test.js` GAS と同じく1ファイルずつ読んでもエラーにならない・関数の前のコメント・`00_` の中身
 - `test/admin.test.js` 管理ページの API（本人確認・権限・入力の確かめ・エラーの中身を出さない）と公開カレンダーの API
 
 ## 版情報
@@ -119,6 +114,6 @@ node ~/GitHub/q-oqrn/tools/qtest/check-code.mjs .
 
 ## Refactoring Policy
 
-- 大きな 1 ファイル構成のままでも、入口・取得・判定・表示の境界は守る
-- 新しい機能追加時は、まず既存の責務へ乗るか確認する
-- `30_webappFlexEndpoint.gs` の renderer 群は今後の分割候補
+- 入口（`01_entry.gs`）は薄くし、取得・判定・表示を分ける
+- 新しい機能を足すときは、まず今のファイルの役わりに乗るか確かめる
+- ファイルの先頭に「何のためか・中に何があるか・どこから呼ばれるか」、関数の前に「何をするか」を書く（`test/load-order.test.js` で確かめる）

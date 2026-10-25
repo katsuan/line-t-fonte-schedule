@@ -1,13 +1,30 @@
+// ==========[ 読みこみ時の準備：シート・設定・アイコン・送り主・クイックリプライ ]==========
+//
+// どのファイルも使う共通の定数。ほかのファイルより先に読まれる（GAS はファイルを名前の順に読む）。
+// 人が書きかえる設定は 00_setup.gs に置く
+
+/** ログ（親プロジェクトと同じ LoggerLib） */
+const Log = LoggerLib.createLogger(LoggerLib.createLogger().LEVEL.DEBUG);
+
 // ==========[ 初期化：スプレッドシート ]==========
 const prop = PropertiesService.getScriptProperties();
+
+/** 予定のスプレッドシートの ID（Script Property `SHEET_ID`） */
 const SHEET_ID = prop.getProperty('SHEET_ID');
+
+/** 通知先の LINE グループの ID（Script Property `GROUP_ID`） */
 const GROUP_ID = prop.getProperty('GROUP_ID');
+
+/** 予定のスプレッドシート */
 const ss = SpreadsheetApp.openById(SHEET_ID);
 
+/** 使うシート（Plan: 予定、Setting: 設定） */
 const SHEETS = {
   Plan: ss.getSheetByName("Plan"),
   Setting: ss.getSheetByName("Setting"),
 }
+
+// ---------- 設定（Setting シート） ----------
 
 // ==========[ 初期化：設定情報読込 ]==========
 const SETTING = {
@@ -24,36 +41,7 @@ function parseRemindNum_(text) {
   return trimmed === "" ? NaN : Number(trimmed);
 }
 
-const LIFF_URLS = {
-  FlexSender: "https://liff.line.me/2009927582-9QtOstUK",
-  // 管理ページ（予定の追加・編集・削除）。LIFF の URL にパスを足すと、エンドポイント配下のそのページが開く
-  Admin: "https://liff.line.me/2009927582-9QtOstUK/admin.html"
-}
-
-const GROUP_LINK = "line://ti/g/hwc5nRC7mS"
-
-// 終了時刻が無い予定は、開始の何時間後までとみなすか（管理ページ・まとめて追加・カレンダー同期で共通）
-const DEFAULT_PLAN_DURATION_HOURS = 2;
-
-const WEATHER_CONFIG = {
-  Enabled: false, // 天気の取得・表示を止めている（戻すときは true）
-  TimeZone: "Asia/Tokyo",
-  ForecastApiBaseUrl: "https://api.open-meteo.com/v1/forecast",
-  GeocodeApiBaseUrl: "https://geocoding-api.open-meteo.com/v1/search",
-  ForecastModels: "jma_seamless",
-  GeocodeCount: 1,
-  GeocodeLanguage: "ja",
-  GeocodeCountryCode: "JP",
-  GeocodeCachePrefix: "WEATHER_GEOCODE_V1_",
-  ForecastCacheDateKey: "WEATHER_FORECAST_CACHE_DATE_V1",
-  ForecastCacheIndexKey: "WEATHER_FORECAST_CACHE_KEYS_V1",
-  ForecastCachePrefix: "WEATHER_FORECAST_V1_",
-  AreaHint: "岡山",
-  QueryAliases: {
-    "灘崎総合公園": "灘崎総合公園 岡山",
-    "ニッショク岡山": "ニッショク岡山"
-  }
-}
+// ---------- 色・アイコン ----------
 
 // ==========[ 定数：色 ]==========
 const COLORS = {
@@ -92,6 +80,7 @@ const createIcon = (text = '', options = {}) => {
   return `${PLACEHOLD.BaseUrl}${textSize}/${bgColor}/${textColor}/${size}.png?text=${encodedText}`;
 };
 
+/** 送り主やクイックリプライのアイコン */
 const ICONS = {
   Auto: createIcon("自動\n返信", { textSize: 40 }),
   Copy: createIcon("↑", { bgColor: COLORS.White, textColor: COLORS.Black }),
@@ -99,6 +88,8 @@ const ICONS = {
   Soccer: createIcon("⚽", { bgColor: COLORS.Yellow, textColor: COLORS.Black, textSize: 100 }),
   Warning: createIcon("！", { bgColor: COLORS.Red, textSize: 120 }),
 }
+
+// ---------- 日付の書式 ----------
 
 // ==========[ 初期化：日付・時間 ]==========
 const FORMAT = {
@@ -111,6 +102,8 @@ const FORMAT = {
 function _formatDate_(date, pattern) {
   return Utilities.formatDate(date, FORMAT.TimeZone, pattern);
 }
+
+// ---------- クイックリプライ・送り主 ----------
 
 // ==========[ クイックリプライアクション群 ]==========
 const ACTIONS = {
@@ -130,6 +123,7 @@ const createSender = (name, iconUrl) => {
   return { name: name, iconUrl: iconUrl }
 }
 
+/** 返事の送り主（名前とアイコン） */
 const SENDERS = {
   Error: createSender("エラー", ICONS.Warning),
   Auto: createSender("T-FONTE", ICONS.Auto),

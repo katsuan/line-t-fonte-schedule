@@ -1,11 +1,17 @@
-// ==========[ Plan シートの読み書き（チャット・管理ページ・公開カレンダー・カレンダー同期で共通） ]==========
+// ==========[ Plan シートの読み書き ]==========
 //
 // 列の並び: date / start / end / place / memo1 / memo2 / link（1行目は見出し）
-// - 読み取りは1回の呼び出しで1回だけにして使い回す（readPlanValues_）
-// - シートに書いたら forgetPlanValues_ を呼び、次の読み取りで読み直す
+// - 読み取りは1回の呼び出しで1回だけにして使い回す（readPlanValues_）。書いたら forgetPlanValues_
+// - 外から来た文字は safeCell_ を通して書く（式として動かないように）
+// チャット（13_）・管理ページ（31_・32_）・公開カレンダー（33_）・カレンダー同期（34_）から使う
 
+/** Plan シートの列の数（date / start / end / place / memo1 / memo2 / link） */
 const PLAN_COLUMN_COUNT_ = 7;
+
+/** Plan シートのリンクの列 */
 const PLAN_LINK_COLUMN_ = 7;
+
+// ---------- 読む ----------
 
 /** Plan シートの全体（見出し行も含む）。同じ呼び出しの中では使い回す。中身は書きかえないこと */
 function readPlanValues_() {
@@ -36,6 +42,7 @@ function listPlanRecords_() {
   });
 }
 
+/** Plan シートの1行を、画面や API に返す文字の形にする（日付のない行は null） */
 function mapPlanRowToRecord_(row, rowNumber) {
   if (!isValidDate(row[0])) return null;
 
@@ -50,6 +57,8 @@ function mapPlanRowToRecord_(row, rowNumber) {
     link: String(row[6] || "")
   };
 }
+
+// ---------- 書く ----------
 
 /** 予定（Date を持つ形）を、シートの1行の並びにする。文字は safeCell_ を通す（LINE や画面から来た文字のため） */
 function toPlanRow_(record) {
@@ -72,6 +81,7 @@ function safeCell_(value) {
   return typeof value === "string" && /^[=+\-@]/.test(value) ? `'${value}` : value;
 }
 
+/** 予定を Plan シートの最後に足す（前の行の書式をそろえ、公開カレンダーの版を進める） */
 function appendScheduleRecordsToSheet_(records) {
   const lastRow = SHEETS.Plan.getLastRow();
   const rows = records.map(toPlanRow_);
@@ -94,7 +104,7 @@ function copyExistingRowFormatToRange_(lastRow, destRange) {
   templateRange.copyTo(destRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
 }
 
-// ---------- 既存シートからのリンク自動補完 ----------
+// ---------- 同じ月のリンクで補う ----------
 
 /**
  * リンク未指定の予定を、Plan シート上の同月（yyyy-MM）の既存リンクで補完する。
@@ -122,6 +132,7 @@ function applyExistingMonthlyLinkFallback_(records) {
   return autoFilledCount;
 }
 
+/** その月の予定で、いちばん下の行のリンク（なければ空文字） */
 function findExistingLinkForYearMonth_(yearMonthKey) {
   const dataRows = readPlanValues_().slice(1);
 

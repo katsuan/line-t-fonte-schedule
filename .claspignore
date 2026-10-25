@@ -2,3 +2,9 @@
 .github/**
 test/**
 **/node_modules/**
+# 画面（GitHub Pages）のファイルは GAS に送らない（.js を送ると GAS のコードとして読まれて動かなくなる）
+*.js
+js/**
+*.css
+*.html
+docs/**

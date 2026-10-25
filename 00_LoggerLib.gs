@@ -1,1 +1,0 @@
-const Log = LoggerLib.createLogger(LoggerLib.createLogger().LEVEL.DEBUG);

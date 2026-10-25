@@ -1,14 +1,16 @@
-// ==========[ 管理者のテストの窓口: #テスト（#test） ]==========
+// ==========[ 管理者のテストの窓口：#テスト（#test） ]==========
 //
-// 管理者（Script Property `ADMIN_USER_IDS` にいる人。管理ページと同じ決め方）だけが、
-// トークで「#テスト」と送ると 🧪 テストのカードが返る。ふつうの人には、知らない言葉と同じ（何も返さない）。
+// 管理者（Script Property `ADMIN_USER_IDS`。管理ページと同じ決め方）だけが、トークで「#テスト」と送ると 🧪 テストのカードが返る。
+// ふつうの人には、知らない言葉と同じ（何も返さない）。
 // - クイックリプライを押すだけで、返事・カードの見本と自己点検を試せる
 // - 見本の中身はためしのデータ。本物の予定・シート・カレンダー・登録待ちには書かない（DebugLog はいつもどおり残る）
 // - 返事（reply）だけで返す。push の自動リマインドは、見本を reply で見せる
-// - 親のボットがこのコードをライブラリとして読んでも、管理者の一覧はこのプロジェクトの Script Properties を読む
+// 20_text-router.gs から呼ばれる。自己点検は 00_setup.gs の runSelfCheck も使う
 
+/** #テスト（#test）と、そのあとに書く言葉 */
 const ADMIN_TEST_TRIGGER_PATTERN_ = /^#(テスト|test)(?:[ \t　]+(.*))?$/i;
 
+/** 見本の返事の送り主 */
 const ADMIN_TEST_SENDER_ = createSender("🧪 T-FONTE テスト", ICONS.Auto);
 
 /** #テスト のあとに書く言葉と、試せるもの。並びはクイックリプライの並び */
@@ -23,6 +25,7 @@ const ADMIN_TEST_ITEMS_ = [
   { key: "点検", label: "自己点検", detail: "設定・シート・カレンダー・通知のようす" }
 ];
 
+/** #テスト（#test）か */
 function isAdminTestTriggerText_(text) {
   return ADMIN_TEST_TRIGGER_PATTERN_.test(text);
 }
@@ -50,6 +53,7 @@ function createAdminTestMessages_(text, event) {
 
 // ---------- テストのカード ----------
 
+/** 🧪 テストのカード（試せるものの一覧） */
 function createAdminTestMenu_() {
   const rows = ADMIN_TEST_ITEMS_.map(function (item) {
     return {
@@ -118,11 +122,13 @@ function markAdminTestMessages_(messages) {
   });
 }
 
+/** 文の先頭に 🧪 をつける（すでにあればそのまま） */
 function prefixAdminTestMark_(text) {
   const value = String(text || "");
   return value.indexOf("🧪") === 0 ? value : `🧪 ${value}`;
 }
 
+/** カードの見出しの先頭に 🧪 をつける */
 function markAdminTestBubbleHeader_(bubble) {
   const header = bubble && bubble.header;
   const texts = header && Array.isArray(header.contents)
@@ -170,6 +176,7 @@ function buildAdminTestRecords_() {
   ];
 }
 
+/** 見本：管理者への通知（送信ガイド＋月ごとのカード） */
 function buildAdminTestAutoReminder_() {
   const records = buildAdminTestRecords_();
   return buildReminderFlexMessages_(records, {
@@ -179,10 +186,12 @@ function buildAdminTestAutoReminder_() {
   });
 }
 
+/** 見本：#リマインド の予定カード */
 function buildAdminTestShareCards_() {
   return buildReminderFlexMessages_(buildAdminTestRecords_(), { forceRefresh: false });
 }
 
+/** 見本：#予定登録 の確認カード（ボタンは見本の返事へ） */
 function buildAdminTestRegistration_() {
   const records = buildAdminTestRecords_().slice(0, 3).map(function (record) {
     return { date: startOfDay_(record.date), start: record.start, end: record.end, place: record.place, memo1: record.memo1, memo2: record.memo2, link: record.link };
@@ -197,16 +206,17 @@ function buildAdminTestRegistration_() {
   })];
 }
 
+/** 見本：#予定確定 のあとの返事（シートには書かない） */
+function buildAdminTestRegistered_() {
+  return [{ type: "text", text: "✅ 3件登録しました。（見本なので、シートには書いていません）" }]
+    .concat(buildAdminTestAutoReminder_());
+}
+
 /** 確認カードが、済んだあと・何日もあと・ほかの人に押されたときの返事（5通） */
 function buildAdminTestStaleDraft_() {
   return ["registered", "cancelled", "old", "expired", "otherUser"].map(function (kind) {
     return { type: "text", text: SCHEDULE_DRAFT_REPLY_TEXTS_[kind] };
   });
-}
-
-function buildAdminTestRegistered_() {
-  return [{ type: "text", text: "✅ 3件登録しました。（見本なので、シートには書いていません）" }]
-    .concat(buildAdminTestAutoReminder_());
 }
 
 /** 文のまま返している返事の見本（5通まで。LINE の返事は1回に5通まで） */
@@ -230,10 +240,11 @@ function buildAdminTestCardFallback_() {
 
 // ---------- 自己点検（読むだけ。書かない） ----------
 
+/** 自己点検のカード（設定・シート・カレンダー・通知のようす） */
 function buildAdminTestSelfCheck_() {
   const checks = collectAdminSelfChecks_();
   const rows = checks.map(function (check) {
-    const mark = check.level === "ok" ? "✅" : check.level === "warn" ? "⚠️" : "❌";
+    const mark = selfCheckMark_(check.level);
     return {
       type: "box",
       layout: "horizontal",
@@ -266,6 +277,11 @@ function buildAdminTestSelfCheck_() {
       body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: FLEX_CONFIG.cardPadding, contents: rows }
     }
   }];
+}
+
+/** 自己点検の印（ok: ✅・warn: ⚠️・ng: ❌） */
+function selfCheckMark_(level) {
+  return level === "ok" ? "✅" : level === "warn" ? "⚠️" : "❌";
 }
 
 /** 1つ読めなくても、ほかの点検は続ける */

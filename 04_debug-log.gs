@@ -1,7 +1,9 @@
-// ==========[ デバッグログ（スプレッドシート出力） ]==========
-// 呼び出し元（親プロジェクト）の実行ログを確認できない状況向けに、
-// このプロジェクトのスプレッドシートへ直接ログを残す。
+// ==========[ デバッグログ（DebugLog シート） ]==========
+//
+// 親プロジェクトの実行ログを見られないときのために、予定のスプレッドシートにログを残す。
+// LINE の ID はそのまま残さない（hashForLog_）。20_text-router.gs などから使う
 
+/** DebugLog シートの名前と、残す行数 */
 const DEBUG_LOG_CONFIG = {
   sheetName: "DebugLog",
   maxRows: 500
@@ -23,6 +25,7 @@ function getDebugLogSheet_() {
   });
 }
 
+/** DebugLog シートに1行残す（失敗しても本処理は止めない） */
 function logScheduleDebug_(label, detail) {
   try {
     const sheet = getDebugLogSheet_();
@@ -48,6 +51,7 @@ function hashForLog_(value) {
   }
 }
 
+/** ログに書けるよう文字にする（JSON にできなければ String） */
 function safeStringifyForLog_(value) {
   try {
     return JSON.stringify(value);
@@ -56,6 +60,7 @@ function safeStringifyForLog_(value) {
   }
 }
 
+/** DebugLog シートが上限の行数をこえたら、古い行を消す */
 function trimDebugLogSheet_(sheet) {
   const lastRow = sheet.getLastRow();
   const overflow = lastRow - DEBUG_LOG_CONFIG.maxRows;

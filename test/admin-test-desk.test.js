@@ -72,3 +72,14 @@ test("自己点検：本物の設定を読み、足りないものを知らせ�
   assert.match(emptyCard, /数字になっていません/);
   assert.match(emptyCard, /CALENDAR_ID が未設定/);
 });
+
+test("runSelfCheck（GAS エディタから）：自己点検を実行ログに出し、何も書かない", () => {
+  const gas = make();
+  const before = JSON.stringify(gas.properties);
+  gas.reset();
+  gas.call("runSelfCheck");
+  assert.ok(gas.logs.some((l) => /^✅ Plan シート: 予定 1件/.test(l)), gas.logs.join("\n"));
+  assert.ok(gas.logs.some((l) => /^⚠️ トリガー/.test(l)));
+  assert.equal(JSON.stringify(gas.properties), before);
+  assert.deepEqual(gas.writes, []);
+});

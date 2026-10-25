@@ -1,17 +1,12 @@
-// ==========[ Google カレンダー同期: Plan シートの今日以降の予定をカレンダーへ反映（シート→カレンダーの一方向） ]==========
+// ==========[ Google カレンダー同期：Plan シートの今日からの予定をカレンダーへ（シート→カレンダーの一方向） ]==========
 //
-// - 正はシート。カレンダー側の編集は、次の同期でシートの内容に戻る
-// - 同期するのは「今日以降」の予定だけ。過去の予定には触れない
-// - このシステムが作った予定にだけタグを付け、タグのある予定だけを追加・削除する（手で作った予定には触れない）
-// - 予定の内容（日時・場所・内容・補足・リンク）から作ったハッシュで「同じ予定か」を判定する。
-//   内容が変わった予定は、古い予定を削除して作り直す
-// - カレンダーID は Script Property `CALENDAR_ID`（子プロジェクト側）に入れる。未設定なら何もしない
-// - 実行のきっかけ:
-//   ・管理ページでの保存直後、「カレンダー同期」ボタン
-//   ・シートを手で編集したとき（`installPlanChangeTrigger` で作る変更検知トリガーから）
-//   ・1日1回の定期トリガー（`installCalendarSyncTrigger`）。LINE の #予定確定 など、上の2つで拾えない変更の取りこぼし対策
-//   定期トリガーは、シートの「更新バージョン」が前回の同期から変わったときだけ動く
+// - 正はシート。このシステムが作った（タグのある）予定だけを足し・消す。手で作った予定・過去の予定には触れない
+// - 中身（日時・場所・内容・補足・リンク）の印で同じ予定か見分け、変わった予定は消して作り直す
+// - カレンダー ID は Script Property `CALENDAR_ID`。なければ何もしない
+// - きっかけ：管理ページの保存直後・「カレンダー同期」ボタン（31_）／シートの手直し（onPlanSheetChanged）／1日1回（syncPlansToCalendarJob）
+//   1日1回のものは、予定の版が前の同期から変わったときだけ動く
 
+/** Google カレンダー同期の設定（ID の名前・タグ・同期する日数・ロック・定期実行の時刻） */
 const CALENDAR_SYNC_CONFIG = {
   idProperty: "CALENDAR_ID",
   syncedVersionProperty: "CALENDAR_SYNCED_VERSION",
@@ -22,6 +17,17 @@ const CALENDAR_SYNC_CONFIG = {
   lockWaitMs: 20000,
   triggerHour: 3
 };
+
+/** 同期の失敗で、予定の保存そのものを失敗させないための包み。失敗は結果として返す */
+function syncPlansToCalendarSafely_(force) {
+  try {
+    return syncPlansToCalendar_(force);
+  } catch (err) {
+    Log.debug(`⚠️ calendar sync failed: ${err.message}`); // qcheck-ok: G2 実行ログだけ
+    // qcheck-ok: G2 返す先は管理ページ（管理者だけ）。直し方の手がかりに中身を見せる
+    return { ok: false, message: `カレンダー同期に失敗しました: ${err.message}` };
+  }
+}
 
 /**
  * Plan シートの今日以降の予定を、カレンダーに合わせる。
@@ -76,18 +82,7 @@ function getCalendarSyncId_() {
   });
 }
 
-/** 同期の失敗で、予定の保存そのものを失敗させないための包み。失敗は結果として返す */
-function syncPlansToCalendarSafely_(force) {
-  try {
-    return syncPlansToCalendar_(force);
-  } catch (err) {
-    Log.debug(`⚠️ calendar sync failed: ${err.message}`); // qcheck-ok: G2 実行ログだけ
-    // qcheck-ok: G2 返す先は管理ページ（管理者だけ）。直し方の手がかりに中身を見せる
-    return { ok: false, message: `カレンダー同期に失敗しました: ${err.message}` };
-  }
-}
-
-// ---------- 望ましい状態（シート）と、現在の状態（カレンダー） ----------
+// ---------- シートとカレンダーを合わせる ----------
 
 /**
  * シートの今日以降の予定を、カレンダーに作りたい予定の形にする。
@@ -117,12 +112,14 @@ function buildDesiredCalendarEvents_(todayDateKey) {
     });
 }
 
+/** 「2026-11-02」と「15:00」から日時を作る */
 function parseCalendarDateTime_(dateText, timeText) {
   const date = dateText.split("-").map(Number);
   const time = timeText.split(":").map(Number);
   return new Date(date[0], date[1] - 1, date[2], time[0], time[1]);
 }
 
+/** カレンダーの予定の中身から作る印（同じ予定かを見分ける） */
 function hashCalendarEvent_(event) {
   const source = JSON.stringify([
     event.title, event.start.getTime(), event.end.getTime(), event.options.location, event.options.description
@@ -139,6 +136,7 @@ function listSyncedCalendarEvents_(calendar, rangeStart, rangeEnd) {
   });
 }
 
+/** カレンダーの予定を、印ごとにまとめる */
 function groupSyncedEventsByHash_(events) {
   const grouped = {};
   events.forEach(function (event) {
@@ -188,32 +186,7 @@ function reconcileCalendarEvents_(calendar, desired, existingByHash) {
   return result;
 }
 
-// ---------- 定期実行・初期設定（GAS エディタから実行する） ----------
-
-/** 定期トリガーから呼ばれる。シートに変更があったときだけ同期する */
-function syncPlansToCalendarJob() {
-  syncPlansToCalendarSafely_(false);
-}
-
-/**
- * 最初に一度だけ GAS エディタで実行する。カレンダーを扱う権限の承認画面を出し、カレンダーを開けるか確かめる。
- * 実行ログに、カレンダー名が出れば OK。
- */
-function authorizeCalendarSync() {
-  const calendarId = getCalendarSyncId_();
-  if (!calendarId) throw new Error("先に Script Property CALENDAR_ID にカレンダーIDを入れてください。");
-
-  const calendar = CalendarApp.getCalendarById(calendarId);
-  if (!calendar) throw new Error("カレンダーを開けません。IDと共有設定（この Google アカウントに「予定の変更」権限）を確認してください。");
-  console.log(`OK: ${calendar.getName()}`);
-}
-
-/** 一度だけ GAS エディタで実行する。1日1回の定期トリガーを作る（何度実行しても1つだけになる） */
-function installCalendarSyncTrigger() {
-  replaceProjectTrigger_("syncPlansToCalendarJob", function (builder) {
-    return builder.timeBased().everyDays(1).atHour(CALENDAR_SYNC_CONFIG.triggerHour);
-  });
-}
+// ---------- トリガー ----------
 
 /** 同じ関数を呼ぶトリガーを消してから、1つだけ作り直す（何度実行しても1つだけになる） */
 function replaceProjectTrigger_(handlerFunction, configure) {

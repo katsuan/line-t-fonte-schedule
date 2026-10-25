@@ -1,12 +1,9 @@
-// ==========[ 管理ページ: 文章でまとめて追加（チャットの #予定登録 と同じ流れ） ]==========
+// ==========[ 管理ページ：文章でまとめて追加 ]==========
 //
-// プレーンテキスト入力 → 入力値の分解（previewAdminBulkText_）→ 画面で確認 → 登録（addAdminPlanRows_）
-// - 読み取りは、チャットの #予定登録 と同じパーサ（parseScheduleRegistrationLines_）を使う
-//   （自由文「8月2日 15:00〜17:00 灘崎総合公園 フットサル」・シートからコピーしたタブ区切り・末尾のURL）
-// - 確認のための読み取り（previewAdminBulkText_）は、シートに書き込まない
-// - 登録は、画面で確認した内容（予定のリスト）を受け取り、1件ずつ検証してから、まとめて書き込む。
-//   1件でも不正なら、1件も書き込まない
+// 文章 → 読み取り（previewAdminBulkText_。書きこまない）→ 画面で確認 → まとめて登録（addAdminPlanRows_。1件でも不正なら書かない）。
+// 読み取りはチャットの #予定登録 と同じ（13_schedule-registration.gs）。31_admin-api.gs から呼ばれる
 
+/** 文章でまとめて追加の上限と、終了時刻の既定 */
 const ADMIN_BULK_CONFIG = {
   maxRecords: 50,
   defaultDurationHours: DEFAULT_PLAN_DURATION_HOURS
@@ -39,34 +36,6 @@ function previewAdminBulkText_(text) {
   };
 }
 
-function buildAdminBulkKey_(record) {
-  return [record.date, record.start, record.place].join("|");
-}
-
-function toAdminBulkPreviewRecord_(record, existingKeys) {
-  const start = _formatDate_(record.start, FORMAT.Time);
-  const preview = {
-    date: _formatDate_(record.date, "yyyy-MM-dd"),
-    start: start,
-    // 終了が書かれていなければ、開始の2時間後（管理ページの追加フォームと同じ初期値）
-    end: record.end ? _formatDate_(record.end, FORMAT.Time) : defaultAdminEndTime_(record.start),
-    endIsDefault: !record.end,
-    place: record.place,
-    memo1: record.memo1,
-    memo2: record.memo2 || "",
-    link: record.link || ""
-  };
-  preview.duplicate = !!existingKeys[buildAdminBulkKey_(preview)];
-  return preview;
-}
-
-/** 開始の2時間後（日をまたがないよう、23:59までに収める） */
-function defaultAdminEndTime_(startDate) {
-  const limit = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59);
-  const end = new Date(startDate.getTime() + ADMIN_BULK_CONFIG.defaultDurationHours * MS_PER_HOUR_);
-  return _formatDate_(end > limit ? limit : end, FORMAT.Time);
-}
-
 /**
  * 確認済みの予定をまとめて書き込む。
  * 1件でも不正なら、どれも書き込まない（途中までの登録を残さない）。
@@ -91,4 +60,34 @@ function addAdminPlanRows_(inputs) {
   if (withoutLink.length) applyExistingMonthlyLinkFallback_(withoutLink);
 
   appendScheduleRecordsToSheet_(records);
+}
+
+/** 読み取った予定を、確認画面に返す形にする（登録済みと同じなら duplicate） */
+function toAdminBulkPreviewRecord_(record, existingKeys) {
+  const start = _formatDate_(record.start, FORMAT.Time);
+  const preview = {
+    date: _formatDate_(record.date, "yyyy-MM-dd"),
+    start: start,
+    // 終了が書かれていなければ、開始の2時間後（管理ページの追加フォームと同じ初期値）
+    end: record.end ? _formatDate_(record.end, FORMAT.Time) : defaultAdminEndTime_(record.start),
+    endIsDefault: !record.end,
+    place: record.place,
+    memo1: record.memo1,
+    memo2: record.memo2 || "",
+    link: record.link || ""
+  };
+  preview.duplicate = !!existingKeys[buildAdminBulkKey_(preview)];
+  return preview;
+}
+
+/** 登録済みと同じ予定かを見分けるキー（日付・開始・場所） */
+function buildAdminBulkKey_(record) {
+  return [record.date, record.start, record.place].join("|");
+}
+
+/** 開始の2時間後（日をまたがないよう、23:59までに収める） */
+function defaultAdminEndTime_(startDate) {
+  const limit = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59);
+  const end = new Date(startDate.getTime() + ADMIN_BULK_CONFIG.defaultDurationHours * MS_PER_HOUR_);
+  return _formatDate_(end > limit ? limit : end, FORMAT.Time);
 }

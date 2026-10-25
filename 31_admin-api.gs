@@ -1,10 +1,11 @@
-// ==========[ 管理者ページ用 API: 予定の一覧・追加・編集・削除 ]==========
+// ==========[ 管理ページの API：予定の一覧・追加・編集・削除 ]==========
 //
-// admin.html（別ページ）から POST で呼ばれる。
-// - 本人確認: LIFF のアクセストークンを LINE API で検証し、userId を取得する
-// - 権限: Script Property `ADMIN_USER_IDS`（カンマ区切りの userId）に含まれる人だけが読み書きできる
-// - 本人確認だけで足りる `whoami` は、管理者登録前に自分の userId を確認するために開放している
+// admin.html から POST で呼ばれる（doPost は 01_entry.gs）。
+// - 本人確認: LIFF のアクセストークンを LINE に確かめて userId を決める（画面から送られた userId は信じない）
+// - 権限: Script Property `ADMIN_USER_IDS` にいる人だけ。`whoami` だけは、管理者に登録する前に自分の userId を知るため開けている
+// - 書きこみはロックの中で、画面が見ていた行とシートが同じときだけ
 
+/** 管理ページの API の設定（管理者の一覧の名前・LIFF のチャネル・LINE の確かめ先） */
 const ADMIN_API_CONFIG = {
   adminUserIdsProperty: "ADMIN_USER_IDS",
   liffChannelId: "2009927582",
@@ -14,44 +15,12 @@ const ADMIN_API_CONFIG = {
   unexpectedErrorMessage: "うまくいきませんでした。少し待ってから、やり直してください。"
 };
 
-// qcheck-ok: G3 管理ページだけの入口。LIFF のアクセストークンを LINE に確かめ、ADMIN_USER_IDS の人だけ（LINE の Webhook は親プロジェクトが受ける）
-function doPost(e) {
-  try {
-    const request = parseAdminRequest_(e);
-    const userId = verifyLineAccessToken_(request.accessToken);
-    const isAdmin = isAdminUserId_(userId);
+// 入力の長さの上限。リンクは LINE のカードのボタンに使うので、LINE の上限（1000字）まで
+const ADMIN_INPUT_LIMITS_ = { text: 200, link: 1000 };
 
-    if (request.action === "whoami") {
-      return createAdminResponse_({ ok: true, userId: userId, isAdmin: isAdmin });
-    }
+// ---------- 呼び出しと返事 ----------
 
-    if (!isAdmin) {
-      return createAdminResponse_({ ok: false, code: "forbidden", message: "管理者として登録されていません。" });
-    }
-
-    return createAdminResponse_(runAdminAction_(request));
-  } catch (err) {
-    Log.debug(`⚠️ admin api failed: ${err.message}`); // qcheck-ok: G2 実行ログだけ
-    // 自分で決めた言葉（createAdminError_）だけを返す。思わぬエラーの中身は、実行ログにだけ残す
-    // qcheck-ok: G2 code のあるものは createAdminError_ で自分で決めた言葉
-    if (err.code) return createAdminResponse_({ ok: false, code: err.code, message: err.message });
-    console.error(err);
-    return createAdminResponse_({ ok: false, code: "error", message: ADMIN_API_CONFIG.unexpectedErrorMessage });
-  }
-}
-
-function createAdminResponse_(payload) {
-  return ContentService
-    .createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function createAdminError_(code, message) {
-  const err = new Error(message);
-  err.code = code;
-  return err;
-}
-
+/** 管理ページからの呼び出しを読む（中身・ログイン情報がなければエラー） */
 function parseAdminRequest_(e) {
   const raw = e && e.postData && e.postData.contents;
   if (!raw) throw createAdminError_("bad_request", "リクエストが空です。");
@@ -69,8 +38,23 @@ function parseAdminRequest_(e) {
   return request;
 }
 
+/** JSON の返事にする */
+function createAdminResponse_(payload) {
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/** 画面にそのまま見せてよいエラー（code つき）を作る */
+function createAdminError_(code, message) {
+  const err = new Error(message);
+  err.code = code;
+  return err;
+}
+
 // ---------- 本人確認・権限 ----------
 
+/** LIFF のアクセストークンを LINE に確かめ、その人の userId を返す */
 function verifyLineAccessToken_(accessToken) {
   const verifyResponse = UrlFetchApp.fetch(
     `${ADMIN_API_CONFIG.verifyUrl}?access_token=${encodeURIComponent(accessToken)}`,
@@ -107,13 +91,15 @@ function verifyLineAccessToken_(accessToken) {
   return JSON.parse(profileResponse.getContentText()).userId;
 }
 
+/** 管理者（Script Property `ADMIN_USER_IDS`）か */
 function isAdminUserId_(userId) {
   const raw = PropertiesService.getScriptProperties().getProperty(ADMIN_API_CONFIG.adminUserIdsProperty) || "";
   return raw.split(",").map(function (id) { return id.trim(); }).filter(Boolean).indexOf(userId) !== -1;
 }
 
-// ---------- アクション ----------
+// ---------- 操作 ----------
 
+/** 管理ページの操作（一覧・読み取り・同期・追加・編集・削除・月のリンク）をして、最新の一覧を返す */
 function runAdminAction_(request) {
   if (request.action === "list") return { ok: true, records: listPlanRecords_() };
   if (request.action === "parseSchedule") return Object.assign({ ok: true }, previewAdminBulkText_(request.text));
@@ -145,12 +131,14 @@ function runAdminAction_(request) {
   return { ok: true, records: listPlanRecords_(), calendar: syncPlansToCalendarSafely_(true) };
 }
 
+/** 予定を1件足す（リンクがなければ同じ月のリンクで補う） */
 function addAdminPlanRow_(input) {
   const record = buildAdminRecordFromInput_(input);
   if (!record.link) applyExistingMonthlyLinkFallback_([record]);
   appendScheduleRecordsToSheet_([record]);
 }
 
+/** 予定を1件書きかえる（画面が見ていた行と同じときだけ） */
 function updateAdminPlanRow_(rowNumber, expected, input) {
   const row = assertAdminRowUnchanged_(rowNumber, expected);
   const record = buildAdminRecordFromInput_(input);
@@ -158,6 +146,7 @@ function updateAdminPlanRow_(rowNumber, expected, input) {
   forgetPlanValues_();
 }
 
+/** 予定を1件消す（画面が見ていた行と同じときだけ） */
 function deleteAdminPlanRow_(rowNumber, expected) {
   const row = assertAdminRowUnchanged_(rowNumber, expected);
   SHEETS.Plan.deleteRow(row);
@@ -216,6 +205,7 @@ function assertAdminRowUnchanged_(rowNumber, expected) {
   return row;
 }
 
+/** 画面の入力を確かめて、シートに書く予定の形にする（まちがいは createAdminError_） */
 function buildAdminRecordFromInput_(input) {
   const source = input || {};
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(source.date || ""));
@@ -257,9 +247,6 @@ function buildAdminRecordFromInput_(input) {
     link: link
   };
 }
-
-// 入力の長さの上限。リンクは LINE のカードのボタンに使うので、LINE の上限（1000字）まで
-const ADMIN_INPUT_LIMITS_ = { text: 200, link: 1000 };
 
 /** リンクの形と長さを確かめる。required でなければ空はよい */
 function assertAdminLink_(link, required) {
