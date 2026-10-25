@@ -30,7 +30,10 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Verify static site entrypoint
-        run: test -f index.html && test -f admin.html && test -f calendar.html
+        run: |
+          for f in index.html admin.html calendar.html app.js admin.js calendar.js style.css admin.css calendar.css js/month-calendar.js; do
+            test -f "$f" || { echo "missing $f"; exit 1; }
+          done
 
       - name: Prepare static site
         env:
@@ -38,9 +41,10 @@ jobs:
           GENERATED_AT: ${{ github.event.head_commit.timestamp }}
         run: |
           mkdir -p _site
-          cp index.html _site/index.html
-          cp admin.html _site/admin.html
-          cp calendar.html _site/calendar.html
+          cp index.html admin.html calendar.html _site/
+          cp app.js admin.js calendar.js _site/
+          cp style.css admin.css calendar.css _site/
+          cp -R js _site/js
           cp .nojekyll _site/.nojekyll
           short_sha="${COMMIT_SHA::7}"
           cat <<EOF > _site/version.json

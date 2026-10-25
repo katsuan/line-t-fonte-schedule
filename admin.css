@@ -1,0 +1,896 @@
+/* 予定の管理（admin.html）の見た目 */
+
+:root {
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --line: #d9e2ef;
+    --text: #1c2733;
+    --muted: #627487;
+    --primary: #06c755;
+    --primary-dark: #05a347;
+    --accent: #4284f3;
+    --accent-soft: #e9f1ff;
+    --danger: #d94b45;
+    --danger-soft: #fdecec;
+    --sun: #d94b45;
+    --sat: #3b82f6;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+html {
+    background: var(--bg);
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 12px 12px 96px;
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    background: linear-gradient(180deg, #eef5ff 0%, var(--bg) 44%, #eef2f7 100%);
+    color: var(--text);
+}
+
+.shell {
+    width: min(640px, 100%);
+    margin: 0 auto;
+}
+
+.top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+a.chip {
+    text-decoration: none;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.toolbar label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    background: #e8eef6;
+    color: #334155;
+}
+
+.btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+/* 月の共通リンクは薄めに。その予定だけ別のリンクのときは、濃い緑で目立たせる */
+.btn-answer-soft {
+    background: #e3f6ea;
+    color: #0b8a3b;
+}
+
+.btn-answer {
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.btn-danger {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.btn-small {
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+.tabs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px;
+    margin-bottom: 10px;
+    padding: 4px;
+    border-radius: 14px;
+    background: #e1e9f4;
+}
+
+.tab {
+    padding: 9px 6px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.tab.is-active {
+    background: #ffffff;
+    color: var(--accent);
+    box-shadow: 0 2px 8px rgba(42, 72, 120, 0.12);
+}
+
+.cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.cal-title {
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.cal-nav .btn {
+    min-width: 44px;
+}
+
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+    padding: 8px 6px;
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+}
+
+.cal-dow {
+    padding: 2px 0 4px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--muted);
+}
+
+.cal-dow.sun,
+.cal-cell.sun .cal-day {
+    color: var(--sun);
+}
+
+.cal-dow.sat,
+.cal-cell.sat .cal-day {
+    color: var(--sat);
+}
+
+.cal-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1px;
+    min-width: 0;
+    min-height: 58px;
+    padding: 4px 1px 3px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    font: inherit;
+    color: var(--text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.week-start {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.week-start span {
+    margin-right: 2px;
+}
+
+.week-start button {
+    min-width: 36px;
+    min-height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card);
+    font: inherit;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.week-start button[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    cursor: default;
+}
+
+.cal-cell.blank {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.cal-cell.has-events {
+    background: var(--accent-soft);
+}
+
+.cal-cell.past {
+    opacity: .5;
+}
+
+.cal-cell.today .cal-day {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #ffffff;
+}
+
+.cal-cell.selected {
+    border-color: var(--accent);
+}
+
+.cal-day {
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 22px;
+}
+
+.cal-events {
+    display: grid;
+    gap: 2px;
+    justify-items: center;
+    width: 100%;
+}
+
+/* 予定ごとに「アイコン＋場所の1文字目」と「開始時刻」を2行で出す */
+.cal-ev {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 100%;
+    line-height: 1.1;
+}
+
+.cal-ev-top {
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.cal-ev-place {
+    margin-left: 1px;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--muted);
+}
+
+.cal-ev-time {
+    font-size: 9px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.cal-more {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--accent);
+}
+
+.day-panel {
+    margin-top: 12px;
+    scroll-margin-bottom: 92px; /* タップして動かしたとき、右下の「＋ 予定を追加」ボタンに隠れないように */
+}
+
+.field select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 10px 36px 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--text);
+    /* appearance: none で消える▼を、自分で描く */
+    background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23627487' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center;
+}
+
+.field > label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+/* ---- 月ごとのカード（送信されるカードに近い見た目） ---- */
+
+.month-card {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 14px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+}
+
+/* リストは月ごとのカードを横に並べ、横スクロールで切り替える（送信されるカルーセルと同じ見せ方） */
+.month-scroller {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: min(320px, 88%);
+    align-items: stretch;
+    gap: 10px;
+    margin: 0 -12px;
+    padding: 2px 12px 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 12px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.month-scroller .month-card {
+    margin-bottom: 0;
+    scroll-snap-align: start;
+}
+
+.month-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--accent);
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.month-card-head .btn {
+    background: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
+}
+
+.month-card-body {
+    display: grid;
+    flex: 1;
+    align-content: start;
+    gap: 4px;
+    padding: 6px;
+}
+
+.month-card-foot {
+    padding: 4px 14px 14px;
+}
+
+.month-card-foot .btn-answer {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+}
+
+.month-card-note {
+    margin: 0;
+    padding: 4px 14px 12px;
+    font-size: 12px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.month-card-note.unset {
+    color: var(--danger, #d94b45);
+}
+
+.row-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: #f5f8fd;
+}
+
+.row-item.past {
+    opacity: .5;
+}
+
+/* 保存・登録した予定を、見える位置に出して、少しのあいだ目立たせる */
+.row-item.is-flash {
+    animation: rowFlash 2.2s ease-out;
+}
+
+@keyframes rowFlash {
+    0%, 40% {
+        background: #e4eeff;
+        box-shadow: 0 0 0 2px var(--accent);
+    }
+    100% {
+        background: #f5f8fd;
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+.row-icon {
+    flex: 0 0 40px;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e6eef9;
+    font-size: 19px;
+    line-height: 1;
+}
+
+.row-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.row-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.row-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.row-until {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e6eef9;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.row-until.today {
+    background: #ffe2bf;
+    color: #a54b00;
+}
+
+.row-until.done {
+    color: var(--muted);
+}
+
+.row-meta {
+    margin: 1px 0 0;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--muted);
+    word-break: break-word;
+}
+
+.row-meta .sun {
+    color: var(--sun);
+}
+
+.row-meta .sat {
+    color: var(--sat);
+}
+
+.row-actions {
+    display: grid;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+/* 回答リンクとカレンダー追加は横並びで、幅を等分する */
+.row-links {
+    display: flex;
+    gap: 6px;
+}
+
+.row-links .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    white-space: nowrap;
+    min-height: 40px; /* 指で押しやすい高さ（30pxだと小さい） */
+}
+
+.row-ops {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+/* 複製・編集・削除は隣り合うので、押し間違えにくい大きさ・間隔にする */
+.row-ops .btn {
+    min-height: 38px;
+    padding: 6px 16px;
+}
+
+a.btn {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.btn-calendar {
+    margin-right: auto;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.empty,
+.notice {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.panel {
+    padding: 18px 16px;
+    border-radius: 20px;
+    background: var(--card);
+    box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.panel code {
+    display: block;
+    margin: 8px 0;
+    padding: 10px;
+    border-radius: 10px;
+    background: #f1f5f9;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    vertical-align: -3px;
+    margin-right: 6px;
+    border: 3px solid #d7dfeb;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+dialog {
+    width: min(520px, calc(100% - 24px));
+    max-height: calc(100% - 24px);
+    padding: 0;
+    border: 0;
+    border-radius: 20px;
+    color: var(--text);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.3);
+}
+
+dialog::backdrop {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.form {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+}
+
+/* 開いた直後のフォーカスはタイトルに置く（日付欄に当たると、ピッカーやキーボードが出てしまう） */
+#formTitle:focus {
+    outline: none;
+}
+
+.form h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.field {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+.field input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--text);
+    background: #ffffff;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+}
+
+/* iOS の date / time 入力は中の表示が中央寄せ・縮みやすいので、左寄せで高さをそろえる */
+.field input[type="date"],
+.field input[type="time"] {
+    font-variant-numeric: tabular-nums;
+}
+
+.field input::-webkit-date-and-time-value {
+    min-height: 1.4em;
+    text-align: left;
+}
+
+/* 文章でまとめて追加（チャットの #予定登録 と同じ流れ: 入力 → 確認 → 登録） */
+.bulk-step {
+    display: grid;
+    gap: 12px;
+}
+
+.bulk-help {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted);
+}
+
+#bulkText {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 180px;
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text);
+    background: #ffffff;
+    resize: vertical;
+}
+
+.bulk-list {
+    display: grid;
+    gap: 6px;
+}
+
+.bulk-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: #f5f8fd;
+    cursor: pointer;
+}
+
+.bulk-item.is-off {
+    opacity: .5;
+}
+
+.bulk-item input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin-top: 2px;
+    accent-color: var(--primary);
+}
+
+.bulk-item-body {
+    min-width: 0;
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.bulk-item-when {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.bulk-item-what {
+    word-break: break-word;
+}
+
+.bulk-item-sub {
+    color: var(--muted);
+    font-size: 12px;
+    word-break: break-word;
+}
+
+.bulk-tag {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.bulk-tag.warn {
+    background: #ffe2bf;
+    color: #a54b00;
+}
+
+.bulk-errors {
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: 12px;
+    line-height: 1.6;
+    word-break: break-word;
+}
+
+.toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.field .toggle input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    min-height: 0;
+    padding: 0;
+    -webkit-appearance: auto;
+    appearance: auto;
+    accent-color: var(--primary);
+}
+
+.link-note {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--muted);
+    word-break: break-all;
+}
+
+.form-error {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--danger);
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.fab {
+    position: fixed;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    z-index: 10;
+    padding: 14px 18px;
+    border-radius: 999px;
+    box-shadow: 0 10px 24px rgba(5, 163, 71, 0.4);
+}
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    z-index: 30;
+    transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.9);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.toast.error {
+    background: rgba(185, 28, 28, 0.95);
+}
