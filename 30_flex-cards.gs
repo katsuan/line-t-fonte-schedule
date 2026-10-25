@@ -157,7 +157,7 @@ function buildReminderFlexViewModel_(records, options) {
     return {
       errorMessage: {
         type: "text",
-        text: `🚨表示できる予定がありません。\n${SETTING.SheetLink}`
+        text: SHEET_ERROR_TEXT
       }
     };
   }

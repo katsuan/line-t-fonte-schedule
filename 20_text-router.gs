@@ -47,7 +47,7 @@ function routeTextMessage_(text, event) {
     // エラーの中身は LINE に出さず、DebugLog（上）にだけ残す
     return [{
       type: 'text',
-      text: '⚠️ 内部エラーが発生しました。\n少し待ってから、もう一度送ってください。',
+      text: '⚠️ うまく返事を作れませんでした。\n少し待ってから、もう一度送ってください。',
       sender: SENDERS.Error
     }];
   }

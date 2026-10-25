@@ -126,14 +126,17 @@ test("確認カードの「登録する」：2回押しても1回だけ登録し
   assert.equal(gas.plan.rows.length, 2);
 });
 
-test("確認カードの「登録する」：何日もあとに押すと「時間がたって取り消されました」と返し、登録しない", () => {
+test("確認カードの「登録する」：何日もあとに押すと、登録したかを言い切らずに確かめ方を返し、登録しない", () => {
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   const card = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
   // 10分で登録待ちが消えたあと（CacheService の期限切れ）
   Object.keys(gas.cache).forEach((k) => delete gas.cache[k]);
   gas.setNow("2026-10-27T08:00:00+09:00");
   const reply = gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"));
-  assert.match(reply[0].text, /時間がたって取り消されました/);
+  assert.match(reply[0].text, /受けつけの時間/);
+  // 登録ずみかもしれないので「取り消されました」と言い切らない（言い切ると二重に登録されやすい）
+  assert.doesNotMatch(reply[0].text, /取り消されました/);
+  assert.match(reply[0].text, /「予定」で確かめられます/);
   assert.ok(reply[0].quickReply.items.length > 0);
   assert.equal(gas.plan.rows.length, 1);
 });
@@ -215,7 +218,8 @@ test("振り分け：中でエラーが起きても、エラーの中身は LINE
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00", plans: [planRow("2026-10-24", "10:00", "12:00", "A", "練習")] });
   gas.ctx.SHEETS.Plan.getDataRange = () => { throw new Error("SECRET_SHEET_ID が見つかりません"); };
   const reply = gas.call("handleTextMessage", event("#予定登録\n11/2 10:00〜12:00 公園 練習"));
-  assert.match(reply[0].text, /内部エラー/);
+  assert.match(reply[0].text, /うまく返事を作れませんでした/);
+  assert.doesNotMatch(reply[0].text, /内部エラー/);
   assert.doesNotMatch(reply[0].text, /SECRET/);
 });
 
@@ -225,4 +229,32 @@ test("DebugLog に LINE の ID をそのまま残さない", () => {
   const log = gas.ctx.SpreadsheetApp.openById(gas.sheetId).getSheetByName("DebugLog");
   assert.ok(log.rows.length > 1);
   assert.doesNotMatch(JSON.stringify(log.rows), /U1234567890abcdef/);
+});
+
+test("確認カード：あとからほかの人が #予定登録 を送ったとき、前の人が押すと「別の人が送ったので取り消された」と返す", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const a = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
+  register(gas, "11/3 10:00〜12:00 体育館 大会", "U_B");
+  const reply = gas.call("handleTextMessage", event(a.confirm, "G1", "U_A"));
+  assert.match(reply[0].text, /別の人が「#予定登録」を送った/);
+  assert.equal(gas.plan.rows.length, 1);
+  // 同じ人が送りなおした古いカードは、これまでどおり「古い確認カード」
+  const g2 = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const first = register(g2, "11/2 10:00〜12:00 公園 練習", "U_A");
+  register(g2, "11/3 10:00〜12:00 体育館 大会", "U_A");
+  assert.match(g2.call("handleTextMessage", event(first.confirm, "G1", "U_A"))[0].text, /古い確認カード/);
+});
+
+test("これからの予定がないとき：#今後の予定・#リマインド は「エラー」と言わず、入れ方を返す", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  for (const word of ["#今後の予定", "#リマインド"]) {
+    const reply = gas.call("handleTextMessage", event(word));
+    assert.equal(reply.length, 1, word);
+    assert.match(reply[0].text, /まだありません/, word);
+    assert.doesNotMatch(reply[0].text, /エラー|🚨/, word);
+    assert.ok(reply[0].quickReply && reply[0].quickReply.items.length > 0, word);
+  }
+  const text = gas.call("createMessage");
+  assert.match(text[0].text, /まだありません/);
+  assert.doesNotMatch(text[0].text, /エラー/);
 });

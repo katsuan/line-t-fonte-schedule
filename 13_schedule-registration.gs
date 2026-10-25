@@ -168,7 +168,10 @@ const SCHEDULE_DRAFT_REPLY_TEXTS_ = {
   registered: 'この確認カードの予定は、もう登録しています。\n登録した予定は「予定」から見られます。',
   cancelled: 'この確認カードは、キャンセル済みです。\n登録するときは、もう一度「#予定登録」から送ってください。',
   old: 'これは古い確認カードです。\nいちばん新しい確認カードの「登録する」を押してください。',
-  expired: 'この確認カードは、時間がたって取り消されました。\n登録するときは、もう一度「#予定登録」から送ってください。',
+  // 同じトークで、あとからほかの人が #予定登録 を送ると、登録待ちはその人のものに入れかわる
+  replaced: 'あとから別の人が「#予定登録」を送ったので、この確認は取り消されました。\n登録するときは、もう一度「#予定登録」から送ってください。',
+  // 済んだ印（6時間）も消えたあとは、登録したかどうかがわからない。言い切らずに、確かめ方を書く
+  expired: 'この確認カードは、受けつけの時間（10分）が過ぎています。\n登録できたかは「予定」で確かめられます。まだのときは、もう一度「#予定登録」から送ってください。',
   otherUser: 'この確認は、「#予定登録」を送った人だけが登録・キャンセルできます。',
   none: '登録待ちの予定はありません（登録が済んだか、時間がたって取り消されました）。\n新しく登録するときは「#予定登録」からどうぞ。'
 };
@@ -178,7 +181,9 @@ function checkScheduleDraftAction_(draft, draftId, event) {
   if (draftId && (!draft || draft.id !== draftId)) {
     const done = readScheduleDraftDone_(draftId);
     if (done === 'registered' || done === 'cancelled') return createScheduleDraftReply_(done);
-    return createScheduleDraftReply_(draft ? 'old' : 'expired');
+    if (!draft) return createScheduleDraftReply_('expired');
+    const presser = resolveScheduleUserId_(event);
+    return createScheduleDraftReply_(draft.userId && presser && draft.userId !== presser ? 'replaced' : 'old');
   }
 
   if (!draft || !draft.records.length) return createScheduleDraftReply_('none');
