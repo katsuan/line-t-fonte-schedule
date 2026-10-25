@@ -1,7 +1,10 @@
 const TEXT_MESSAGE_HANDLERS = [
   {
     // 管理者だけ（21_adminTestDesk.gs）。ふつうの人には何も返さない
-    matches: isAdminTestTriggerText_,
+    // GAS はファイルを名前の順に1つずつ読むので、あとのファイル（21_）の関数は、呼ばれたときに探す
+    matches: function (text) {
+      return isAdminTestTriggerText_(text);
+    },
     createMessages: function (text, event) {
       return createAdminTestMessages_(text, event);
     }
