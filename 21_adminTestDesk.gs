@@ -17,6 +17,7 @@ const ADMIN_TEST_ITEMS_ = [
   { key: "共有", label: "予定カード", detail: "#リマインド・#今後の予定・リッチに送る のカード" },
   { key: "登録", label: "予定登録の確認", detail: "#予定登録 の確認の一覧カード" },
   { key: "登録済み", label: "登録したあと", detail: "#予定確定 のあとの返事" },
+  { key: "古いカード", label: "古いカードを押した", detail: "済んだ・古い・ほかの人・時間切れの確認カードが押されたときの返事" },
   { key: "文", label: "文の返事", detail: "まちがい・取り消し・予定がないときの文" },
   { key: "断られ", label: "カードが断られた", detail: "カードを送れなかったときの文の返事" },
   { key: "点検", label: "自己点検", detail: "設定・シート・カレンダー・通知のようす" }
@@ -38,6 +39,7 @@ function createAdminTestMessages_(text, event) {
     "共有": buildAdminTestShareCards_,
     "登録": buildAdminTestRegistration_,
     "登録済み": buildAdminTestRegistered_,
+    "古いカード": buildAdminTestStaleDraft_,
     "文": buildAdminTestTexts_,
     "断られ": buildAdminTestCardFallback_,
     "点検": buildAdminTestSelfCheck_
@@ -189,8 +191,17 @@ function buildAdminTestRegistration_() {
   return [createScheduleConfirmFlexMessage_(records, {
     link: "https://example.com/test-form",
     autoFilledCount: 1,
-    errors: [{ lineNumber: 5, raw: "2/30 10:00〜12:00 公園 練習" }]
+    errors: [{ lineNumber: 5, raw: "2/30 10:00〜12:00 公園 練習" }],
+    // 見本のボタンは本物の登録に進まず、見本の返事を出す
+    actions: { confirmText: "#テスト 登録済み", cancelText: "#テスト 古いカード" }
   })];
+}
+
+/** 確認カードが、済んだあと・何日もあと・ほかの人に押されたときの返事（5通） */
+function buildAdminTestStaleDraft_() {
+  return ["registered", "cancelled", "old", "expired", "otherUser"].map(function (kind) {
+    return { type: "text", text: SCHEDULE_DRAFT_REPLY_TEXTS_[kind] };
+  });
 }
 
 function buildAdminTestRegistered_() {
@@ -202,7 +213,7 @@ function buildAdminTestRegistered_() {
 function buildAdminTestTexts_() {
   return [
     { type: "text", text: `⚠️ 読み取れる予定がありませんでした。\n　2行目: 「2/30 10:00〜12:00 公園 練習」\n\n${SCHEDULE_REGISTRATION_EXAMPLE_}` },
-    { type: "text", text: "登録待ちの予定はありません（登録が済んだか、時間がたって取り消されました）。\n新しく登録するときは「#予定登録」からどうぞ。" },
+    { type: "text", text: SCHEDULE_DRAFT_REPLY_TEXTS_.none },
     { type: "text", text: "キャンセルしました。" },
     { type: "text", text: SHEET_ERROR_TEXT + "\n（これからの予定が1件もないときの返事）" },
     { type: "text", text: "⚠️ 内部エラーが発生しました。\n少し待ってから、もう一度送ってください。" }

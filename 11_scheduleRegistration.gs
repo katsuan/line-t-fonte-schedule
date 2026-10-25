@@ -9,7 +9,10 @@
 const SCHEDULE_PENDING_CACHE_CONFIG = {
   keyPrefix: "SCHEDULE_PENDING_V1_",
   ttlSeconds: 600,
-  confirmLockWaitMs: 10000
+  confirmLockWaitMs: 10000,
+  // 登録・取り消しが済んだ確認カードを覚えておく時間（CacheService の上限の6時間）。そのあとに押されたら「時間がたった」と返す
+  doneKeyPrefix: "SCHEDULE_DONE_V1_",
+  doneTtlSeconds: 6 * 60 * 60
 };
 
 /**
@@ -24,6 +27,15 @@ function isScheduleRegistrationTriggerText_(text) {
  */
 function isScheduleConfirmTriggerText_(text) {
   return text.startsWith('#予定確定');
+}
+
+/**
+ * 確認カードのボタンは「#予定確定 <下書きID>」を送る。ID があれば、どの確認カードの操作かを見分けられる。
+ * ID なし（手で「#予定確定」と打ったとき）は、そのトークでいま登録待ちのものを使う（これまでどおり）
+ */
+function readScheduleDraftId_(text) {
+  const match = /^#予定(?:確定|キャンセル)[ \t　]+([0-9a-z]{8})\s*$/i.exec(String(text || '').trim());
+  return match ? match[1].toLowerCase() : '';
 }
 
 /**
@@ -245,45 +257,61 @@ function buildSchedulePendingCacheKey_(sourceId) {
   return `${SCHEDULE_PENDING_CACHE_CONFIG.keyPrefix}${sourceId}`;
 }
 
-function saveSchedulePendingRecords_(sourceId, records) {
-  const payload = JSON.stringify(records.map(function (record) {
-    return {
-      dateMs: record.date.getTime(),
-      startMs: record.start.getTime(),
-      endMs: record.end ? record.end.getTime() : null,
-      place: record.place,
-      memo1: record.memo1,
-      memo2: record.memo2 || '',
-      link: record.link || ''
-    };
-  }));
+/**
+ * 登録待ちを保存する。id（下書きID）と userId（#予定登録を送った人）も持つ。
+ * @return {string} 下書きID
+ */
+function saveSchedulePendingRecords_(sourceId, records, userId) {
+  const id = Utilities.getUuid().replace(/-/g, '').slice(0, 8).toLowerCase();
+  const payload = JSON.stringify({
+    id: id,
+    userId: userId || '',
+    records: records.map(function (record) {
+      return {
+        dateMs: record.date.getTime(),
+        startMs: record.start.getTime(),
+        endMs: record.end ? record.end.getTime() : null,
+        place: record.place,
+        memo1: record.memo1,
+        memo2: record.memo2 || '',
+        link: record.link || ''
+      };
+    })
+  });
 
   CacheService.getScriptCache().put(
     buildSchedulePendingCacheKey_(sourceId),
     payload,
     SCHEDULE_PENDING_CACHE_CONFIG.ttlSeconds
   );
+  return id;
 }
 
+/** @return {{id: string, userId: string, records: Object[]}|null} 前の形（予定の並びだけ）も読める */
 function loadSchedulePendingRecords_(sourceId) {
   const payload = CacheService.getScriptCache().get(buildSchedulePendingCacheKey_(sourceId));
   if (!payload) return null;
 
   try {
     const parsed = JSON.parse(payload);
-    if (!Array.isArray(parsed)) return null;
+    const draft = Array.isArray(parsed) ? { id: '', userId: '', records: parsed } : parsed;
+    if (!draft || !Array.isArray(draft.records)) return null;
 
-    return parsed.map(function (item) {
-      return {
-        date: new Date(item.dateMs),
-        start: new Date(item.startMs),
-        end: item.endMs ? new Date(item.endMs) : null,
-        place: item.place,
-        memo1: item.memo1,
-        memo2: item.memo2 || '',
-        link: item.link || ''
-      };
-    });
+    return {
+      id: String(draft.id || ''),
+      userId: String(draft.userId || ''),
+      records: draft.records.map(function (item) {
+        return {
+          date: new Date(item.dateMs),
+          start: new Date(item.startMs),
+          end: item.endMs ? new Date(item.endMs) : null,
+          place: item.place,
+          memo1: item.memo1,
+          memo2: item.memo2 || '',
+          link: item.link || ''
+        };
+      })
+    };
   } catch (err) {
     Log.debug(`⚠️ schedule pending cache parse failed: ${err.message}`);
     return null;
@@ -292,6 +320,20 @@ function loadSchedulePendingRecords_(sourceId) {
 
 function clearSchedulePendingRecords_(sourceId) {
   CacheService.getScriptCache().remove(buildSchedulePendingCacheKey_(sourceId));
+}
+
+/** 済んだ確認カードを覚える（result: "registered" | "cancelled"） */
+function markScheduleDraftDone_(draftId, result) {
+  if (!draftId) return;
+  CacheService.getScriptCache().put(
+    `${SCHEDULE_PENDING_CACHE_CONFIG.doneKeyPrefix}${draftId}`,
+    result,
+    SCHEDULE_PENDING_CACHE_CONFIG.doneTtlSeconds
+  );
+}
+
+function readScheduleDraftDone_(draftId) {
+  return draftId ? CacheService.getScriptCache().get(`${SCHEDULE_PENDING_CACHE_CONFIG.doneKeyPrefix}${draftId}`) : null;
 }
 
 // ---------- メッセージ生成 ----------
@@ -326,20 +368,31 @@ function createScheduleRegistrationMessages_(text, event) {
 
   const monthlyAutoFilledCount = applyExistingMonthlyLinkFallback_(records);
 
-  saveSchedulePendingRecords_(sourceId, records);
+  const draftId = saveSchedulePendingRecords_(sourceId, records, resolveScheduleUserId_(event));
 
-  // 読み取った予定は一覧のカードで見せる。登録・キャンセルは1回きりなので、カードのボタンにせずクイックリプライにする
+  // 読み取った予定は一覧のカードで見せる。登録・キャンセルのボタンは下書きIDを送るので、
+  // 何日もあとに押されても、ボットがそのつど「済んだ・古い・ほかの人・時間切れ」を見分けて返す
+  const actions = { confirmText: `#予定確定 ${draftId}`, cancelText: `#予定キャンセル ${draftId}` };
   const card = createScheduleConfirmFlexMessage_(records, {
     link: parsedResult.link,
     autoFilledCount: monthlyAutoFilledCount,
-    errors: errors
+    errors: errors,
+    actions: actions
   });
   card.sender = SENDERS.Auto;
-  card.quickReply = scheduleQuickReply_([
-    LINE_func.createQuickReply('登録する', { text: '#予定確定' }),
-    LINE_func.createQuickReply('キャンセル', { text: '#予定キャンセル' })
-  ]);
+  card.quickReply = scheduleQuickReply_(createScheduleDraftQuickReplyItems_(actions));
   return [card];
+}
+
+function createScheduleDraftQuickReplyItems_(actions) {
+  return [
+    LINE_func.createQuickReply('登録する', { text: actions.confirmText }),
+    LINE_func.createQuickReply('キャンセル', { text: actions.cancelText })
+  ];
+}
+
+function resolveScheduleUserId_(event) {
+  return (event && event.source && event.source.userId) || '';
 }
 
 /**
@@ -363,7 +416,7 @@ function createScheduleConfirmFlexMessage_(records, notes) {
   const bodyContents = rows.concat(noteTexts.map(createScheduleNoteText_));
   bodyContents.push({
     type: 'text',
-    text: `登録するときは「登録する」を押すか、「#予定確定」と送ってください（${minutes}分たつと取り消されます）。`,
+    text: `下の「登録する」を押すと、シートに登録します（${minutes}分たつと取り消されます）。`,
     size: 'xs',
     color: FLEX_CONFIG.textSecondaryColor,
     wrap: true,
@@ -392,6 +445,15 @@ function createScheduleConfirmFlexMessage_(records, notes) {
         spacing: 'sm',
         paddingAll: FLEX_CONFIG.cardPadding,
         contents: bodyContents
+      },
+      footer: {
+        type: 'box',
+        layout: 'horizontal',
+        spacing: 'sm',
+        contents: [
+          { type: 'button', style: 'secondary', flex: 1, action: { type: 'message', label: 'キャンセル', text: notes.actions.cancelText } },
+          { type: 'button', style: 'primary', flex: 2, action: { type: 'message', label: '登録する', text: notes.actions.confirmText } }
+        ]
       }
     }
   };
@@ -439,55 +501,61 @@ function formatScheduleDateRange_(records) {
 
 /**
  * 登録待ちをシートに書く。「登録する」を続けて押して2つ同時に動いても、
- * 同じ予定を2回書かないよう、ロックの中で「読む → 書く → 消す」をする
+ * 同じ予定を2回書かないよう、ロックの中で「読む → 確かめる → 書く → 消す」をする。
+ * カードのボタン（下書きID つき）は何日もあとにも押されるので、そのつど状態を見て返す
  */
-function createScheduleConfirmMessages_(event) {
+function createScheduleConfirmMessages_(text, event) {
   const sourceId = resolveScheduleSourceId_(event);
+  const draftId = readScheduleDraftId_(text);
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(SCHEDULE_PENDING_CACHE_CONFIG.confirmLockWaitMs)) {
     return [{
       type: 'text',
-      text: '⚠️ ほかの登録の途中です。少し待ってから「#予定確定」を送ってください。',
+      text: '⚠️ ほかの登録の途中です。少し待ってから、もう一度「登録する」を押してください。',
       sender: SENDERS.Error,
-      quickReply: scheduleQuickReply_([LINE_func.createQuickReply('登録する', { text: '#予定確定' })])
+      quickReply: scheduleQuickReply_([LINE_func.createQuickReply('登録する', { text: String(text || '#予定確定').trim() })])
     }];
   }
 
-  let records;
+  let draft;
+  let refusal;
   try {
-    records = loadSchedulePendingRecords_(sourceId);
-    if (records && records.length) {
-      appendScheduleRecordsToSheet_(records);
+    draft = loadSchedulePendingRecords_(sourceId);
+    refusal = checkScheduleDraftAction_(draft, draftId, event);
+    if (!refusal) {
+      appendScheduleRecordsToSheet_(draft.records);
       clearSchedulePendingRecords_(sourceId);
+      markScheduleDraftDone_(draft.id, 'registered');
     }
   } finally {
     lock.releaseLock();
   }
 
-  // 古い「登録する」が押されたときも黙らない（済んだか、時間がたって消えたか）
-  if (!records || !records.length) {
-    return [{
-      type: 'text',
-      text: '登録待ちの予定はありません（登録が済んだか、時間がたって取り消されました）。\n新しく登録するときは「#予定登録」からどうぞ。',
-      sender: SENDERS.Auto,
-      quickReply: scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin])
-    }];
-  }
+  if (refusal) return [refusal];
 
   extractUpcomingRecordsWithDateObjects(true);
 
   const confirmMessage = {
     type: 'text',
-    text: `✅ ${records.length}件登録しました。`,
+    text: `✅ ${draft.records.length}件登録しました。`,
     sender: SENDERS.Auto
   };
 
   return [confirmMessage].concat(createAutoReminderFlexMessages_());
 }
 
-function createScheduleCancelMessages_(event) {
+function createScheduleCancelMessages_(text, event) {
   const sourceId = resolveScheduleSourceId_(event);
-  clearSchedulePendingRecords_(sourceId);
+  const draftId = readScheduleDraftId_(text);
+  const draft = loadSchedulePendingRecords_(sourceId);
+  const refusal = checkScheduleDraftAction_(draft, draftId, event);
+  // 登録待ちがないときに手で「#予定キャンセル」と打ったのは、これまでどおり「キャンセルしました」
+  if (refusal && (draftId || draft)) return [refusal];
+
+  if (draft) {
+    clearSchedulePendingRecords_(sourceId);
+    markScheduleDraftDone_(draft.id, 'cancelled');
+  }
 
   return [{
     type: 'text',
@@ -495,6 +563,43 @@ function createScheduleCancelMessages_(event) {
     sender: SENDERS.Auto,
     quickReply: scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin])
   }];
+}
+
+/**
+ * 登録・キャンセルを進めてよいか。だめなら、その理由のやさしい返事を返す（よければ null）
+ * - 済んだ確認カード（登録した・取り消した）／古い確認カード（新しい確認が出ている）／ほかの人の確認／時間切れ
+ */
+const SCHEDULE_DRAFT_REPLY_TEXTS_ = {
+  registered: 'この確認カードの予定は、もう登録しています。\n登録した予定は「予定」から見られます。',
+  cancelled: 'この確認カードは、キャンセル済みです。\n登録するときは、もう一度「#予定登録」から送ってください。',
+  old: 'これは古い確認カードです。\nいちばん新しい確認カードの「登録する」を押してください。',
+  expired: 'この確認カードは、時間がたって取り消されました。\n登録するときは、もう一度「#予定登録」から送ってください。',
+  otherUser: 'この確認は、「#予定登録」を送った人だけが登録・キャンセルできます。',
+  none: '登録待ちの予定はありません（登録が済んだか、時間がたって取り消されました）。\n新しく登録するときは「#予定登録」からどうぞ。'
+};
+
+function createScheduleDraftReply_(kind) {
+  return {
+    type: 'text',
+    text: SCHEDULE_DRAFT_REPLY_TEXTS_[kind],
+    sender: SENDERS.Auto,
+    quickReply: scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin])
+  };
+}
+
+function checkScheduleDraftAction_(draft, draftId, event) {
+  if (draftId && (!draft || draft.id !== draftId)) {
+    const done = readScheduleDraftDone_(draftId);
+    if (done === 'registered' || done === 'cancelled') return createScheduleDraftReply_(done);
+    return createScheduleDraftReply_(draft ? 'old' : 'expired');
+  }
+
+  if (!draft || !draft.records.length) return createScheduleDraftReply_('none');
+
+  const userId = resolveScheduleUserId_(event);
+  if (draft.userId && userId && draft.userId !== userId) return createScheduleDraftReply_('otherUser');
+
+  return null;
 }
 
 function formatScheduleErrors_(errors) {

@@ -12,7 +12,7 @@ const make = () => makeGas({
   properties: { ADMIN_USER_IDS: `U_OTHER,${ADMIN}`, CALENDAR_ID: "abc@group.calendar.google.com" },
   plans: [planRow("2026-10-24", "10:00", "12:00", "本物の場所", "本物の予定")],
 });
-const KEYS = ["一覧", "共有", "登録", "登録済み", "文", "断られ", "点検"];
+const KEYS = ["一覧", "共有", "登録", "登録済み", "古いカード", "文", "断られ", "点検"];
 
 test("管理者が #テスト と送ると、🧪 テストのカードと、試せるもののクイックリプライが返る", () => {
   const gas = make();
@@ -47,8 +47,10 @@ test("見本はすべて 🧪 付きで LINE が受けつける形。本物の�
       assert.equal(m.sender.name, "🧪 T-FONTE テスト");
       if (key !== "点検") assert.doesNotMatch(JSON.stringify(m), /本物の/, key);
     });
-    // 見本から本物の操作（#予定確定 など）に進まない
+    // 見本から本物の操作（#予定確定 など）に進まない（クイックリプライもカードのボタンも）
     assert.ok(reply[reply.length - 1].quickReply.items.every((it) => /^#テスト/.test(it.action.text)), key);
+    const sent = JSON.stringify(reply).match(/"text":"#[^"]*"/g) || [];
+    assert.ok(sent.every((t) => /"text":"#テスト/.test(t)), `${key}: ${sent}`);
   }
   assert.equal(JSON.stringify(gas.properties), before);
   assert.equal(JSON.stringify(gas.plan.rows), planBefore);

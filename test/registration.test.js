@@ -4,7 +4,7 @@ const { makeGas, planRow, plain, checkMessages } = require("./helpers");
 const test = require("node:test");
 const assert = require("node:assert");
 
-const event = (text, groupId = "G1") => ({ type: "message", source: { type: "group", groupId }, message: { type: "text", text } });
+const event = (text, groupId = "G1", userId) => ({ type: "message", source: { type: "group", groupId, userId }, message: { type: "text", text } });
 
 /** 同時に動いたことを確かめるための鍵：持っている間は、ほかからは取れない */
 function useRealishLock(gas) {
@@ -93,7 +93,7 @@ test("#予定確定：同時に2回動いても、1回分だけ登録する", ()
   assert.equal(gas.plan.rows.length, 2);
 });
 
-test("#予定登録の確認カード：登録・キャンセルはクイックリプライだけ。カードはあとで見ても通じる", () => {
+test("#予定登録の確認カード：下書きIDつきの登録・キャンセルのボタンを、カードとクイックリプライに置く", () => {
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   const lines = [];
   for (let i = 1; i <= 30; i++) lines.push(`11/${i} 10:00〜12:00 公園 練習`);
@@ -101,12 +101,82 @@ test("#予定登録の確認カード：登録・キャンセルはクイック�
   assert.equal(reply.length, 1);
   assert.deepEqual(checkMessages(reply).filter((p) => p.level === "error"), []);
   const card = JSON.stringify(reply[0].contents);
-  assert.doesNotMatch(card, /"button"|"action"/); // カードには押せるところを置かない
   assert.match(card, /ほか15件（登録はすべてします）/);
-  assert.match(card, /#予定確定」と送って/);
   assert.match(card, /読み取れなかった行/);
   assert.ok(card.length < 20000, `カードの大きさ ${card.length}`);
-  assert.deepEqual(reply[0].quickReply.items.map((it) => it.action.label), ["登録する", "キャンセル"]);
+  const buttons = reply[0].contents.footer.contents.map((b) => b.action);
+  assert.deepEqual(buttons.map((a) => a.label), ["キャンセル", "登録する"]);
+  assert.match(buttons[1].text, /^#予定確定 [0-9a-z]{8}$/);
+  assert.match(buttons[0].text, /^#予定キャンセル [0-9a-z]{8}$/);
+  assert.deepEqual(reply[0].quickReply.items.map((it) => it.action.text), [buttons[1].text, buttons[0].text]);
+});
+
+/** #予定登録 を送り、確認カードのボタンの文字（登録する・キャンセル）を返す */
+function register(gas, text, userId) {
+  const reply = plain(gas.call("handleTextMessage", event(`#予定登録\n${text}`, "G1", userId)));
+  const [cancel, confirm] = reply[0].contents.footer.contents.map((b) => b.action.text);
+  return { confirm, cancel };
+}
+
+test("確認カードの「登録する」：2回押しても1回だけ登録し、2回目は「もう登録しています」", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const card = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
+  assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0].text, /1件登録しました/);
+  assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0].text, /もう登録しています/);
+  assert.equal(gas.plan.rows.length, 2);
+});
+
+test("確認カードの「登録する」：何日もあとに押すと「時間がたって取り消されました」と返し、登録しない", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const card = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
+  // 10分で登録待ちが消えたあと（CacheService の期限切れ）
+  Object.keys(gas.cache).forEach((k) => delete gas.cache[k]);
+  gas.setNow("2026-10-27T08:00:00+09:00");
+  const reply = gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"));
+  assert.match(reply[0].text, /時間がたって取り消されました/);
+  assert.ok(reply[0].quickReply.items.length > 0);
+  assert.equal(gas.plan.rows.length, 1);
+});
+
+test("確認カードの「登録する」：ほかの人が押しても登録しない（送った人なら登録できる）", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const card = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
+  assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_B"))[0].text, /送った人だけ/);
+  assert.match(gas.call("handleTextMessage", event(card.cancel, "G1", "U_B"))[0].text, /送った人だけ/);
+  assert.equal(gas.plan.rows.length, 1);
+  assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0].text, /1件登録しました/);
+});
+
+test("古い確認カードの「登録する」：新しい確認が出ていれば、古いほうでは登録しない", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const oldCard = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
+  const newCard = register(gas, "11/3 10:00〜12:00 公園 練習", "U_A");
+  assert.match(gas.call("handleTextMessage", event(oldCard.confirm, "G1", "U_A"))[0].text, /古い確認カード/);
+  assert.equal(gas.plan.rows.length, 1);
+  gas.call("handleTextMessage", event(newCard.confirm, "G1", "U_A"));
+  assert.equal(gas.plan.rows.length, 2);
+  assert.equal(gas.plan.rows[1][0].getDate(), 3);
+});
+
+test("キャンセルしたカードの「登録する」は「キャンセル済み」。手で打つ #予定確定 はこれまでどおり使える", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const card = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
+  assert.match(gas.call("handleTextMessage", event(card.cancel, "G1", "U_A"))[0].text, /キャンセルしました/);
+  assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0].text, /キャンセル済み/);
+  assert.match(gas.call("handleTextMessage", event(card.cancel, "G1", "U_A"))[0].text, /キャンセル済み/);
+  assert.equal(gas.plan.rows.length, 1);
+
+  register(gas, "11/4 10:00〜12:00 公園 練習", "U_A");
+  assert.match(gas.call("handleTextMessage", event("#予定確定", "G1", "U_A"))[0].text, /1件登録しました/);
+  assert.equal(gas.plan.rows.length, 2);
+});
+
+test("前の形の登録待ち（反映の前に保存したもの）も、手で打つ #予定確定 で登録できる", () => {
+  const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
+  const ms = new Date(2026, 10, 2).getTime();
+  gas.cache.SCHEDULE_PENDING_V1_G1 = JSON.stringify([{ dateMs: ms, startMs: ms + 10 * 3600e3, endMs: null, place: "公園", memo1: "練習", memo2: "", link: "" }]);
+  assert.match(gas.call("handleTextMessage", event("#予定確定"))[0].text, /1件登録しました/);
+  assert.equal(gas.plan.rows.length, 2);
 });
 
 test("#予定登録：読み取れないときは、書き方の見本と、画面で入れる道を出す", () => {

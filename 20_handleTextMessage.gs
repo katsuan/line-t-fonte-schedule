@@ -9,13 +9,13 @@ const TEXT_MESSAGE_HANDLERS = [
   {
     matches: isScheduleConfirmTriggerText_,
     createMessages: function (text, event) {
-      return createScheduleConfirmMessages_(event);
+      return createScheduleConfirmMessages_(text, event);
     }
   },
   {
     matches: isScheduleCancelTriggerText_,
     createMessages: function (text, event) {
-      return createScheduleCancelMessages_(event);
+      return createScheduleCancelMessages_(text, event);
     }
   },
   {
