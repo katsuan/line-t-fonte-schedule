@@ -644,18 +644,6 @@ a.btn {
     font-size: 15px;
 }
 
-.month-card-note {
-    margin: 0;
-    padding: 4px 14px 12px;
-    font-size: 12px;
-    text-align: center;
-    color: var(--muted);
-}
-
-.month-card-note.unset {
-    color: var(--danger, #d94b45);
-}
-
 .row-item {
     display: flex;
     gap: 10px;
@@ -761,8 +749,3 @@ a.btn {
     min-height: 40px; /* 指で押しやすい高さ（30pxだと小さい） */
 }
 
-.row-ops {
-    display: flex;
-    gap: 6px;
-    justify-content: flex-end;
-}

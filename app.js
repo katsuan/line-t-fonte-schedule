@@ -872,18 +872,15 @@ function getShareableCarouselBubbles_(bubbles) {
         return [];
     }
 
-    if (bubbles.length <= 1) {
-        return bubbles.slice();
-    }
-
-    return bubbles.slice(1);
+    // 送信ガイドだけを外す（ガイドのない並びから、先頭の月のカードを落とさない）。全部ガイドなら、そのまま
+    const withoutGuide = bubbles.filter(bubble => !isAutoReminderGuideBubble_(bubble));
+    return withoutGuide.length ? withoutGuide : bubbles.slice();
 }
 
 /** 「リマインド送信ガイド」のカードか */
 function isAutoReminderGuideBubble_(bubble) {
     if (!bubble || typeof bubble !== "object") return false;
-    const headerTexts = extractTexts(bubble?.header);
-    return headerTexts.includes("リマインド送信ガイド");
+    return extractTexts(bubble.header).includes("リマインド送信ガイド");
 }
 
 /** カードの中から、シェアできないボタンなどを外す */

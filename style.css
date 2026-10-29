@@ -438,11 +438,6 @@ body {
     color: #ffffff;
 }
 
-.button-secondary {
-    background: #e8eef6;
-    color: #334155;
-}
-
 .button:disabled {
     opacity: .6;
     cursor: not-allowed;
