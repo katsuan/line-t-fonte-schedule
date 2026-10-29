@@ -69,3 +69,18 @@ test("月の表：1日の前の空きマスは、週のはじまりに合わせ�
   assert.equal(cal.leadingBlankCount(2026, 11), 6);
   assert.equal(cal.leadingBlankCount(2027, 2), 0);
 });
+
+test("開いたままのページに次の日に戻ると、描き直し、先月を見ていたら今月に移す", () => {
+  let now = at("2026-10-31T22:00:00+09:00");
+  const cal = loadCalendar(now);
+  vm.runInContext(`records = []; calMonth = "2026-10"; document.getElementById = () => ({ hidden: false, classList: { toggle() {} }, setAttribute() {}, replaceChildren() {} }); renderCalendar = function () {}; renderList = function () {}; render();`, cal);
+  assert.equal(vm.runInContext("renderedDay", cal), "2026-10-31");
+  vm.runInContext("refreshIfDayChanged();", cal);
+  assert.equal(vm.runInContext("calMonth", cal), "2026-10"); // 同じ日なら何もしない
+
+  const later = loadCalendar(at("2026-11-01T07:00:00+09:00"));
+  vm.runInContext(`records = []; calMonth = "2026-10"; renderedDay = "2026-10-31"; document.getElementById = () => ({ hidden: false, classList: { toggle() {} }, setAttribute() {}, replaceChildren() {} }); renderCalendar = function () {}; renderList = function () {};`, later);
+  vm.runInContext("refreshIfDayChanged();", later);
+  assert.equal(vm.runInContext("calMonth", later), "2026-11");
+  assert.equal(vm.runInContext("renderedDay", later), "2026-11-01");
+});

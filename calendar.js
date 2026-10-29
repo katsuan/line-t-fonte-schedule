@@ -11,6 +11,7 @@ let view = "calendar";
 let calMonth = "";
 let selectedDate = "";
 let selectedKey = ""; // 選択状態にしている予定（上部の「次回」をタップしたとき）
+let renderedDay = ""; // 最後に描いた日（日付が変わったら描き直すため）
 
 // ---------- 読み込み ----------
 
@@ -196,6 +197,7 @@ function button(label, className, handler, disabled = false) {
 // ---------- 描画 ----------
 
 function render() {
+    renderedDay = todayKey();
     $("calendar").hidden = view !== "calendar";
     $("list").hidden = view !== "list";
     $("tabCal").classList.toggle("is-active", view === "calendar");
@@ -204,6 +206,21 @@ function render() {
     $("tabList").setAttribute("aria-selected", String(view === "list"));
     renderCalendar();
     renderList();
+}
+
+/**
+ * 開いたままのページに戻ったとき、日付が変わっていれば描き直す（「今日」の印・過ぎた日・残り日数）。
+ * 見ていた月が先月になっていたら、今月に移す
+ */
+function refreshIfDayChanged() {
+    if ($("main").hidden || renderedDay === todayKey()) return;
+    const thisMonth = todayKey().slice(0, 7);
+    if (calMonth < thisMonth) {
+        calMonth = thisMonth;
+        selectedDate = "";
+        selectedKey = "";
+    }
+    render();
 }
 
 /** 今月から、予定のある最後の月までが動ける範囲 */
@@ -558,6 +575,7 @@ $("nextBar").addEventListener("click", selectNextRecord);
 setInterval(updateNextBar, 1000);
 document.addEventListener("visibilitychange", () => {
     if (document.hidden) return;
+    refreshIfDayChanged();
     updateNextBar();
     // 開いたままのページに戻ってきたとき、しばらく前の内容なら、裏で更新する
     if (lastUpdatedAt && Date.now() - lastUpdatedAt > AUTO_REFRESH_AFTER_MS) load();
