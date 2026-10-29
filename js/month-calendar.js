@@ -147,6 +147,38 @@ function setWeekStart(next) {
     renderCalendar();
 }
 
+/** 予定を日付ごとにまとめる（"2026-11-02" → その日の予定の並び） */
+function groupRecordsByDate(list) {
+    const byDate = new Map();
+    list.forEach(record => {
+        if (!byDate.has(record.date)) byDate.set(record.date, []);
+        byDate.get(record.date).push(record);
+    });
+    return byDate;
+}
+
+/**
+ * 月の表（曜日の見出し・1日の前の空きマス・日ごとのマス）。month は "2026-11"。
+ * マスは createCell(date, day, その日の予定, today) で作る（公開カレンダーと管理ページで、押したときの動きが違うため）
+ */
+function createMonthGrid(month, byDate, today, createCell) {
+    const [year, monthNumber] = month.split("-").map(Number);
+    const grid = document.createElement("div");
+    grid.className = "cal-grid";
+    appendWeekdayHeads(grid);
+
+    for (let i = 0; i < leadingBlankCount(year, monthNumber); i++) {
+        const blank = document.createElement("div");
+        blank.className = "cal-cell blank";
+        grid.appendChild(blank);
+    }
+    for (let day = 1; day <= new Date(year, monthNumber, 0).getDate(); day++) {
+        const date = `${month}-${String(day).padStart(2, "0")}`;
+        grid.appendChild(createCell(date, day, byDate.get(date) || [], today));
+    }
+    return grid;
+}
+
 /** 月の表の曜日の見出し（週のはじまりから7つ）。曜日の番号は getDay() と同じ（0=日曜） */
 function appendWeekdayHeads(grid) {
     for (let i = 0; i < 7; i++) {

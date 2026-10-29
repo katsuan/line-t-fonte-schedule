@@ -411,12 +411,7 @@ function shiftCalMonth(delta) {
 function renderCalendar() {
     const root = $("calendar");
     const today = todayKey();
-    const [year, month] = calMonth.split("-").map(Number);
-    const byDate = new Map();
-    records.forEach(record => {
-        if (!byDate.has(record.date)) byDate.set(record.date, []);
-        byDate.get(record.date).push(record);
-    });
+    const byDate = groupRecordsByDate(records);
 
     const nav = document.createElement("div");
     nav.className = "cal-nav";
@@ -429,22 +424,7 @@ function renderCalendar() {
         actionButton("▶", "btn", () => shiftCalMonth(1))
     );
 
-    const grid = document.createElement("div");
-    grid.className = "cal-grid";
-    appendWeekdayHeads(grid);
-
-    const leading = leadingBlankCount(year, month);
-    for (let i = 0; i < leading; i++) {
-        const blank = document.createElement("div");
-        blank.className = "cal-cell blank";
-        grid.appendChild(blank);
-    }
-
-    const daysInMonth = new Date(year, month, 0).getDate();
-    for (let day = 1; day <= daysInMonth; day++) {
-        const date = `${calMonth}-${String(day).padStart(2, "0")}`;
-        grid.appendChild(createCalendarCell(date, day, byDate.get(date) || [], today));
-    }
+    const grid = createMonthGrid(calMonth, byDate, today, createCalendarCell);
 
     const children = [nav, grid, createWeekStartToggle()];
     const dayRecords = byDate.get(selectedDate) || [];

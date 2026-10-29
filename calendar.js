@@ -230,13 +230,8 @@ function shiftMonth(delta) {
 function renderCalendar() {
     const today = todayKey();
     const { first: thisMonth, last: lastMonth } = monthRange();
-    const [year, month] = calMonth.split("-").map(Number);
-
-    const byDate = new Map();
-    records.forEach(record => {
-        if (!byDate.has(record.date)) byDate.set(record.date, []);
-        byDate.get(record.date).push(record);
-    });
+    const month = Number(calMonth.slice(5, 7));
+    const byDate = groupRecordsByDate(records);
 
     const title = document.createElement("span");
     title.className = "cal-title";
@@ -249,19 +244,7 @@ function renderCalendar() {
         button("▶", "btn", () => shiftMonth(1), calMonth >= lastMonth)
     );
 
-    const grid = document.createElement("div");
-    grid.className = "cal-grid";
-    appendWeekdayHeads(grid);
-
-    for (let i = 0; i < leadingBlankCount(year, month); i++) {
-        const blank = document.createElement("div");
-        blank.className = "cal-cell blank";
-        grid.appendChild(blank);
-    }
-    for (let day = 1; day <= new Date(year, month, 0).getDate(); day++) {
-        const date = `${calMonth}-${String(day).padStart(2, "0")}`;
-        grid.appendChild(createCell(date, day, byDate.get(date) || [], today));
-    }
+    const grid = createMonthGrid(calMonth, byDate, today, createCell);
 
     const children = [nav, grid, createWeekStartToggle()];
     const monthLink = baseLinkFor(calMonth);

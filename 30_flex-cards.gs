@@ -310,64 +310,20 @@ function createFlexHeader_(title) {
 
 /** 通知カードの先頭の「リマインド送信ガイド」（文面・コピー・シート・管理・グループ・リッチに送る） */
 function createAutoReminderGuideBubble_(reminderText, altText) {
+  const clipboardText = trimClipboardText_(reminderText);
   return {
     type: "bubble",
     size: "mega",
     header: createFlexHeader_(AUTO_REMINDER_GUIDE_CONFIG.headerTitle),
-    hero: {
-      type: "box",
-      layout: "vertical",
-      spacing: "sm",
-      paddingAll: FLEX_CONFIG.cardPadding,
-      backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.cardBackgroundColor,
-      contents: [
-        {
-          type: "text",
-          text: AUTO_REMINDER_GUIDE_CONFIG.bodyLabel,
-          size: "xs",
-          weight: "bold",
-          color: AUTO_REMINDER_GUIDE_CONFIG.guideAccentColor
-        },
-        {
-          type: "box",
-          layout: "vertical",
-          paddingAll: "12px",
-          backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.bodyBackgroundColor,
-          cornerRadius: FLEX_CONFIG.cardCornerRadius,
-          contents: [
-            {
-              type: "text",
-              text: trimClipboardText_(reminderText),
-              size: "xs",
-              color: AUTO_REMINDER_GUIDE_CONFIG.bodyTextColor,
-              wrap: true
-            }
-          ]
-        }
-      ]
-    },
+    hero: createGuideReminderTextBox_(clipboardText),
     body: {
       type: "box",
       layout: "vertical",
       paddingTop: "8px",
       paddingBottom: "2px",
       contents: [
-        {
-          type: "text",
-          text: "右のカードが送信されます",
-          size: "xs",
-          color: FLEX_CONFIG.summaryTextColor,
-          align: "center",
-          wrap: true
-        },
-        {
-          type: "text",
-          text: `件名：${altText || ALT_TEXT_CONFIG.defaultTitle}`,
-          size: "xs",
-          color: FLEX_CONFIG.summaryTextColor,
-          align: "center",
-          wrap: true
-        }
+        createGuideNoteText_("右のカードが送信されます"),
+        createGuideNoteText_(`件名：${altText || ALT_TEXT_CONFIG.defaultTitle}`)
       ]
     },
     footer: {
@@ -375,72 +331,67 @@ function createAutoReminderGuideBubble_(reminderText, altText) {
       layout: "vertical",
       spacing: "sm",
       contents: [
-        {
-          type: "box",
-          layout: "horizontal",
-          spacing: "sm",
-          contents: [
-            {
-              type: "button",
-              style: "secondary",
-              flex: 1,
-              action: {
-                type: "clipboard",
-                label: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel,
-                clipboardText: trimClipboardText_(reminderText)
-              }
-            },
-            {
-              type: "button",
-              style: "secondary",
-              flex: 1,
-              action: {
-                type: "uri",
-                label: AUTO_REMINDER_GUIDE_CONFIG.sheetButtonLabel,
-                uri: SETTING.SheetLink
-              }
-            }
-          ]
-        },
-        {
-          type: "box",
-          layout: "horizontal",
-          spacing: "sm",
-          contents: [
-            {
-              type: "button",
-              style: "secondary",
-              flex: 1,
-              action: {
-                type: "uri",
-                label: AUTO_REMINDER_GUIDE_CONFIG.adminButtonLabel,
-                uri: LIFF_URLS.Admin
-              }
-            },
-            {
-              type: "button",
-              style: "secondary",
-              flex: 1,
-              action: {
-                type: "uri",
-                label: AUTO_REMINDER_GUIDE_CONFIG.groupButtonLabel,
-                uri: GROUP_LINK
-              }
-            }
-          ]
-        },
+        createGuideButtonRow_([
+          createGuideButton_({ type: "clipboard", label: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel, clipboardText: clipboardText }),
+          createGuideButton_({ type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.sheetButtonLabel, uri: SETTING.SheetLink })
+        ]),
+        createGuideButtonRow_([
+          createGuideButton_({ type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.adminButtonLabel, uri: LIFF_URLS.Admin }),
+          createGuideButton_({ type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.groupButtonLabel, uri: GROUP_LINK })
+        ]),
         {
           type: "button",
           style: "primary",
-          action: {
-            type: "uri",
-            label: AUTO_REMINDER_GUIDE_CONFIG.richButtonLabel,
-            uri: LIFF_URLS.FlexSender
-          }
+          action: { type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.richButtonLabel, uri: LIFF_URLS.FlexSender }
         }
       ]
     }
   };
+}
+
+/** 送信ガイドの上の段：「これまでのテキスト文面」と、その文面 */
+function createGuideReminderTextBox_(text) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    paddingAll: FLEX_CONFIG.cardPadding,
+    backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.cardBackgroundColor,
+    contents: [
+      {
+        type: "text",
+        text: AUTO_REMINDER_GUIDE_CONFIG.bodyLabel,
+        size: "xs",
+        weight: "bold",
+        color: AUTO_REMINDER_GUIDE_CONFIG.guideAccentColor
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "12px",
+        backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.bodyBackgroundColor,
+        cornerRadius: FLEX_CONFIG.cardCornerRadius,
+        contents: [
+          { type: "text", text: text, size: "xs", color: AUTO_REMINDER_GUIDE_CONFIG.bodyTextColor, wrap: true }
+        ]
+      }
+    ]
+  };
+}
+
+/** 送信ガイドの中ほどの、小さな説明の文字 */
+function createGuideNoteText_(text) {
+  return { type: "text", text: text, size: "xs", color: FLEX_CONFIG.summaryTextColor, align: "center", wrap: true };
+}
+
+/** 送信ガイドのボタンを2つ横に並べる段 */
+function createGuideButtonRow_(buttons) {
+  return { type: "box", layout: "horizontal", spacing: "sm", contents: buttons };
+}
+
+/** 送信ガイドの灰色のボタン */
+function createGuideButton_(action) {
+  return { type: "button", style: "secondary", flex: 1, action: action };
 }
 
 /** 1か月分の予定カード（見出し・予定・ほか○件・月のリンク） */
@@ -530,10 +481,6 @@ function buildMonthlySummaryText_(records) {
 function createRecordBox_(record, options) {
   const { now, nearTermWeatherSummaryMap } = options;
   const isNearTerm = isNearTermDate_(record.date, now, FLEX_CONFIG.nearTermDays);
-  const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
-  const calendarUrl = createGoogleCalendarUrl_(record);
-  const iconText = getCalendarIconText_(record.memo1);
-  const titleText = getDisplayTitleText_(record.memo1);
   const weatherSummary = isNearTerm
     ? (nearTermWeatherSummaryMap && nearTermWeatherSummaryMap[buildWeatherRecordKey_(record)]) || ""
     : "";
@@ -550,110 +497,105 @@ function createRecordBox_(record, options) {
         type: "box",
         layout: "horizontal",
         spacing: "sm",
-        contents: [
-          {
-            type: "box",
-            layout: "vertical",
-            flex: 0,
-            width: FLEX_CONFIG.iconSize,
-            height: FLEX_CONFIG.iconSize,
-            justifyContent: "center",
-            alignItems: "center",
-            paddingAll: "0px",
-            backgroundColor: FLEX_CONFIG.iconBackgroundColor,
-            cornerRadius: FLEX_CONFIG.iconCornerRadius,
-            action: calendarUrl
-              ? {
-                type: "uri",
-                uri: calendarUrl
-              }
-              : undefined,
-            contents: [
-              {
-                type: "text",
-                text: iconText,
-                size: "xl",
-                weight: "bold",
-                align: "center",
-                gravity: "center",
-                color: FLEX_CONFIG.iconTextColor,
-                flex: 0
-              }
-            ]
-          },
-          {
-            type: "box",
-            layout: "vertical",
-            flex: 1,
-            spacing: "xs",
-            contents: [
-              {
-                type: "text",
-                text: titleText,
-                weight: "bold",
-                size: "md",
-                color: FLEX_CONFIG.textPrimaryColor,
-                wrap: true
-              },
-              {
-                type: "box",
-                layout: "horizontal",
-                spacing: "none",
-                contents: buildRecordDateTimeContents_(record),
-                flex: 0
-              },
-              weatherSummary
-                ? {
-                  type: "text",
-                  text: `天気: ${weatherSummary}`,
-                  size: "xs",
-                  color: FLEX_CONFIG.weatherTextColor,
-                  wrap: true
-                }
-                : null,
-              locationText
-                ? {
-                  type: "text",
-                  text: locationText,
-                  size: "sm",
-                  color: FLEX_CONFIG.textSecondaryColor,
-                  wrap: true
-                }
-                : null
-            ].filter(Boolean)
-          }
-        ]
+        contents: [createRecordIconBox_(record), createRecordDetailBox_(record, weatherSummary)]
       },
-      isNearTerm
-        ? {
-          type: "box",
-          layout: "horizontal",
-          width: FLEX_CONFIG.badgeWidth,
-          justifyContent: "center",
-          alignItems: "center",
-          contents: [
-            {
-              type: "text",
-              text: "もうすぐ",
-              size: "xs",
-              color: FLEX_CONFIG.badgeTextColor,
-              align: "center",
-              gravity: "center"
-            }
-          ],
-          backgroundColor: FLEX_CONFIG.badgeBackgroundColor,
-          paddingAll: FLEX_CONFIG.badgePaddingAll,
-          paddingStart: FLEX_CONFIG.badgePaddingHorizontal,
-          paddingEnd: FLEX_CONFIG.badgePaddingHorizontal,
-          flex: 0,
-          position: "absolute",
-          offsetEnd: FLEX_CONFIG.badgeOffset,
-          offsetTop: FLEX_CONFIG.badgeOffset,
-          cornerRadius: FLEX_CONFIG.badgeCornerRadius,
-          height: FLEX_CONFIG.badgeHeight
-        }
+      isNearTerm ? createNearTermBadge_() : null
+    ].filter(Boolean)
+  };
+}
+
+/** 予定の丸いアイコン（内容の1文字目）。押すと Google カレンダーに入れる画面を開く */
+function createRecordIconBox_(record) {
+  const calendarUrl = createGoogleCalendarUrl_(record);
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 0,
+    width: FLEX_CONFIG.iconSize,
+    height: FLEX_CONFIG.iconSize,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingAll: "0px",
+    backgroundColor: FLEX_CONFIG.iconBackgroundColor,
+    cornerRadius: FLEX_CONFIG.iconCornerRadius,
+    action: calendarUrl ? { type: "uri", uri: calendarUrl } : undefined,
+    contents: [
+      {
+        type: "text",
+        text: getCalendarIconText_(record.memo1),
+        size: "xl",
+        weight: "bold",
+        align: "center",
+        gravity: "center",
+        color: FLEX_CONFIG.iconTextColor,
+        flex: 0
+      }
+    ]
+  };
+}
+
+/** 予定の右側：内容・日時・天気（あれば）・場所と補足（あれば） */
+function createRecordDetailBox_(record, weatherSummary) {
+  const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 1,
+    spacing: "xs",
+    contents: [
+      {
+        type: "text",
+        text: getDisplayTitleText_(record.memo1),
+        weight: "bold",
+        size: "md",
+        color: FLEX_CONFIG.textPrimaryColor,
+        wrap: true
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "none",
+        contents: buildRecordDateTimeContents_(record),
+        flex: 0
+      },
+      weatherSummary
+        ? { type: "text", text: `天気: ${weatherSummary}`, size: "xs", color: FLEX_CONFIG.weatherTextColor, wrap: true }
+        : null,
+      locationText
+        ? { type: "text", text: locationText, size: "sm", color: FLEX_CONFIG.textSecondaryColor, wrap: true }
         : null
     ].filter(Boolean)
+  };
+}
+
+/** 予定の右上の「もうすぐ」の印 */
+function createNearTermBadge_() {
+  return {
+    type: "box",
+    layout: "horizontal",
+    width: FLEX_CONFIG.badgeWidth,
+    justifyContent: "center",
+    alignItems: "center",
+    contents: [
+      {
+        type: "text",
+        text: "もうすぐ",
+        size: "xs",
+        color: FLEX_CONFIG.badgeTextColor,
+        align: "center",
+        gravity: "center"
+      }
+    ],
+    backgroundColor: FLEX_CONFIG.badgeBackgroundColor,
+    paddingAll: FLEX_CONFIG.badgePaddingAll,
+    paddingStart: FLEX_CONFIG.badgePaddingHorizontal,
+    paddingEnd: FLEX_CONFIG.badgePaddingHorizontal,
+    flex: 0,
+    position: "absolute",
+    offsetEnd: FLEX_CONFIG.badgeOffset,
+    offsetTop: FLEX_CONFIG.badgeOffset,
+    cornerRadius: FLEX_CONFIG.badgeCornerRadius,
+    height: FLEX_CONFIG.badgeHeight
   };
 }
 
