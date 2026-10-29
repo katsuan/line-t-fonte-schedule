@@ -15,7 +15,6 @@ const els = {
 
 let records = [];
 let editing = null; // 編集中の予定（追加のときは null）
-const DEFAULT_DURATION_HOURS = 2; // 終了時刻の初期値は、開始の2時間後
 let endTouched = false; // 終了を自分で入力したら、開始を変えても上書きしない
 let commonPref = true; // 「月の共通リンクを使う」の希望（共通リンクのない月では一時的に使えなくなる）
 let toastTimer = null;

@@ -4,6 +4,10 @@
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
+// 終了時刻の初期値（管理ページ）と、終了時刻がない・開始より前の予定が終わるとみなす時刻（公開カレンダー）は、開始の何時間後か。
+// GAS の DEFAULT_PLAN_DURATION_HOURS（カレンダー同期）と同じ
+const DEFAULT_DURATION_HOURS = 2;
+
 /** 今日の「2026-11-02」 */
 function todayKey() {
     const d = new Date();

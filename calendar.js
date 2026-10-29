@@ -500,9 +500,16 @@ function timeMs(date, time) {
     return new Date(y, m - 1, d, hh, mm).getTime();
 }
 
-/** 終わっていない最初の予定（開催中の予定を含む。終了時刻がなければ開始時刻で終わり） */
+/** 予定が終わる時刻（ミリ秒） */
+function recordEndMs(record) {
+    const startMs = timeMs(record.date, record.start);
+    const endMs = record.end ? timeMs(record.date, record.end) : 0;
+    return endMs > startMs ? endMs : startMs + DEFAULT_DURATION_HOURS * 3600000;
+}
+
+/** 終わっていない最初の予定（開催中の予定を含む） */
 function findNextRecord(now) {
-    return records.find(record => timeMs(record.date, record.end || record.start) > now) || null;
+    return records.find(record => recordEndMs(record) > now) || null;
 }
 
 /** 残り時間を「あと2日3時間24分05秒」の形にする（大きい単位が0なら省く。桁が揺れないよう分・秒は2桁） */

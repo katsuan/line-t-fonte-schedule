@@ -714,6 +714,26 @@ dialog::backdrop {
     text-align: left;
 }
 
+/* iPhone では appearance: none で日付・時刻の印が消え、空のときはただの白い箱に見えるので、右に印を描く
+   （-webkit-touch-callout があるのは iPhone・iPad の Safari だけ。ほかの端末は自分の印が出るので描かない） */
+@supports (-webkit-touch-callout: none) {
+    .field input[type="date"],
+    .field input[type="time"] {
+        padding-right: 38px;
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px 16px;
+    }
+
+    .field input[type="date"] {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23627487' stroke-width='1.6'%3E%3Crect x='2' y='3' width='12' height='11' rx='2'/%3E%3Cpath d='M2 6.5h12M5.5 1.5v3M10.5 1.5v3'/%3E%3C/svg%3E");
+    }
+
+    .field input[type="time"] {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23627487' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6.2'/%3E%3Cpath d='M8 4.6V8l2.4 1.6'/%3E%3C/svg%3E");
+    }
+}
+
 /* 文章でまとめて追加（チャットの #予定登録 と同じ流れ: 入力 → 確認 → 登録） */
 .bulk-step {
     display: grid;
