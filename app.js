@@ -185,32 +185,20 @@ function savePreviewCache(payload) {
     }
 }
 
-/** 端末に残した内容を読む（GAS の URL が変わっていたら使わない） */
+/** 端末に残した内容を読む（なければ・GAS の URL が変わっていたら、空） */
 function loadPreviewCache() {
+    const empty = { previewMessages: [], shareMessages: [] };
     try {
         const raw = localStorage.getItem(PREVIEW_CACHE_KEY);
-        if (!raw) {
-            return {
-                previewMessages: [],
-                shareMessages: []
-            };
-        }
+        if (!raw) return empty;
 
         const payload = JSON.parse(raw);
-        if (!payload || payload.gasUrl !== GAS_URL) {
-            return {
-                previewMessages: [],
-                shareMessages: []
-            };
-        }
+        if (!payload || payload.gasUrl !== GAS_URL) return empty;
 
         return normalizePayload_(payload);
     } catch (err) {
         console.warn("preview cache load skipped", err);
-        return {
-            previewMessages: [],
-            shareMessages: []
-        };
+        return empty;
     }
 }
 
@@ -289,14 +277,14 @@ function createMessageTitle(message, index) {
 
 /** 文のメッセージの見本 */
 function createTextPreview(text) {
+    return createPreviewLines(text || "プレビューできるテキストがありません。");
+}
+
+/** 1行だけの見本（文・読めなかったカード） */
+function createPreviewLines(text) {
     const wrapper = document.createElement("div");
     wrapper.className = "preview-lines";
-
-    const line = document.createElement("div");
-    line.className = "preview-line";
-    line.textContent = text || "プレビューできるテキストがありません。";
-
-    wrapper.appendChild(line);
+    wrapper.appendChild(createTextElement("div", "preview-line", text));
     return wrapper;
 }
 
@@ -310,14 +298,7 @@ function createFlexPreview(message) {
         return createBubblePreview(message.contents, "single-bubble");
     }
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "preview-lines";
-
-    const fallback = document.createElement("div");
-    fallback.className = "preview-line";
-    fallback.textContent = "Flex Messageを読み込みました。";
-    wrapper.appendChild(fallback);
-    return wrapper;
+    return createPreviewLines("Flex Messageを読み込みました。");
 }
 
 /** 横に並べたカードの見本 */
@@ -333,88 +314,69 @@ function createCarouselPreview(message) {
     return wrapper;
 }
 
-/** カード1枚の見本（予定・ほか○件・リンク） */
+/** カード1枚の見本（見出し・予定・ほか○件・リンク） */
 function createBubblePreview(bubble, className) {
     const card = document.createElement("section");
     card.className = className;
 
+    const header = createBubbleHeaderPreview(bubble);
+    if (header) card.appendChild(header);
+
     const wrapper = document.createElement("div");
     wrapper.className = "preview-lines bubble-body";
 
-    const headerTexts = extractTexts(bubble?.header);
-    const headerTitle = headerTexts[0] || "";
-    const introText = headerTexts[1] || "";
     const scheduleItems = extractScheduleItems(bubble);
-    const summaryNote = extractSummaryNote(bubble);
-    const footerLink = extractFooterLink(bubble);
-    let footerNode = null;
-
-    if (headerTitle || introText) {
-        const header = document.createElement("div");
-        header.className = "bubble-header";
-
-        const headerColor = bubble?.header?.backgroundColor;
-        if (typeof headerColor === "string" && /^#[0-9a-fA-F]{3,8}$/.test(headerColor)) {
-            header.style.background = headerColor;
-        }
-
-        if (headerTitle) {
-            const title = document.createElement("div");
-            title.className = "bubble-header-title";
-            title.textContent = headerTitle;
-            header.appendChild(title);
-        }
-
-        if (introText) {
-            const intro = document.createElement("div");
-            intro.className = "bubble-header-sub";
-            intro.textContent = introText;
-            header.appendChild(intro);
-        }
-
-        card.appendChild(header);
-    }
-
     if (scheduleItems.length) {
         const list = document.createElement("div");
         list.className = "schedule-list";
-
-        scheduleItems.forEach(item => {
-            list.appendChild(createSchedulePreviewItem(item));
-        });
-
+        scheduleItems.forEach(item => list.appendChild(createSchedulePreviewItem(item)));
         wrapper.appendChild(list);
     }
 
-    if (summaryNote) {
-        const note = document.createElement("div");
-        note.className = "preview-line preview-note";
-        note.textContent = summaryNote;
-        wrapper.appendChild(note);
-    }
+    const summaryNote = extractSummaryNote(bubble);
+    if (summaryNote) wrapper.appendChild(createTextElement("div", "preview-line preview-note", summaryNote));
 
+    if (!wrapper.childNodes.length) {
+        wrapper.appendChild(createTextElement("div", "preview-line", "Flex Messageを読み込みました。"));
+    }
+    card.appendChild(wrapper);
+
+    const footerLink = extractFooterLink(bubble);
     if (footerLink) {
-        const link = document.createElement("a");
-        link.className = "footer-link";
+        const link = createTextElement("a", "footer-link", footerLink.label);
         link.href = footerLink.uri;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.textContent = footerLink.label;
-        footerNode = link;
-    }
-
-    if (!wrapper.childNodes.length) {
-        const fallback = document.createElement("div");
-        fallback.className = "preview-line";
-        fallback.textContent = "Flex Messageを読み込みました。";
-        wrapper.appendChild(fallback);
-    }
-
-    card.appendChild(wrapper);
-    if (footerNode) {
-        card.appendChild(footerNode);
+        card.appendChild(link);
     }
     return card;
+}
+
+/** カードの見出し（題と、その下の一言。色はカードと同じ）。どちらもなければ null */
+function createBubbleHeaderPreview(bubble) {
+    const headerTexts = extractTexts(bubble?.header);
+    const headerTitle = headerTexts[0] || "";
+    const introText = headerTexts[1] || "";
+    if (!headerTitle && !introText) return null;
+
+    const header = document.createElement("div");
+    header.className = "bubble-header";
+
+    const headerColor = bubble?.header?.backgroundColor;
+    if (typeof headerColor === "string" && /^#[0-9a-fA-F]{3,8}$/.test(headerColor)) {
+        header.style.background = headerColor;
+    }
+    if (headerTitle) header.appendChild(createTextElement("div", "bubble-header-title", headerTitle));
+    if (introText) header.appendChild(createTextElement("div", "bubble-header-sub", introText));
+    return header;
+}
+
+/** 文字の入った部品を作る */
+function createTextElement(tag, className, text) {
+    const el = document.createElement(tag);
+    el.className = className;
+    el.textContent = text;
+    return el;
 }
 
 /** カードのメッセージから、カードの並びを取り出す */
@@ -435,72 +397,47 @@ function getFirstBubble(message) {
     return getFlexBubbles(message)[0] || null;
 }
 
-/** 見本の予定1件（アイコン・内容・日時・場所・もうすぐ） */
+/** 見本の予定1件（アイコン・内容・日時・天気・場所・もうすぐ） */
 function createSchedulePreviewItem(item) {
     const article = document.createElement("article");
     article.className = `schedule-item${item.isNear ? " near" : ""}`;
 
     const layout = document.createElement("div");
     layout.className = "schedule-layout";
-
-    const icon = document.createElement("div");
-    icon.className = "schedule-icon";
-    icon.textContent = item.iconText || "予";
-    layout.appendChild(icon);
+    layout.appendChild(createTextElement("div", "schedule-icon", item.iconText || "予"));
 
     const content = document.createElement("div");
     content.className = "schedule-content";
 
     const head = document.createElement("div");
     head.className = "schedule-head";
-
-    const title = document.createElement("h4");
-    title.className = "schedule-title";
-    title.textContent = item.title || "予定";
-
-    head.appendChild(title);
-
-    if (item.isNear) {
-        const chip = document.createElement("div");
-        chip.className = "near-chip";
-        chip.textContent = "もうすぐ";
-        head.appendChild(chip);
-    }
-
+    head.appendChild(createTextElement("h4", "schedule-title", item.title || "予定"));
+    if (item.isNear) head.appendChild(createTextElement("div", "near-chip", "もうすぐ"));
     content.appendChild(head);
 
-    if (item.dateLine) {
-        const meta = document.createElement("p");
-        meta.className = "schedule-meta";
-        if (item.dateMeta) {
-            meta.append(
-                document.createTextNode(item.dateMeta.prefix),
-                createWeekdaySpan(item.dateMeta.weekday, item.dateMeta.weekendType),
-                document.createTextNode(item.dateMeta.suffix)
-            );
-        } else {
-            meta.textContent = item.dateLine;
-        }
-        content.appendChild(meta);
-    }
-
-    if (item.weatherText) {
-        const weather = document.createElement("p");
-        weather.className = "schedule-weather";
-        weather.textContent = item.weatherText;
-        content.appendChild(weather);
-    }
-
-    if (item.placeLine) {
-        const place = document.createElement("p");
-        place.className = "schedule-place";
-        place.textContent = item.placeLine;
-        content.appendChild(place);
-    }
+    if (item.dateLine) content.appendChild(createScheduleDateLine(item));
+    if (item.weatherText) content.appendChild(createTextElement("p", "schedule-weather", item.weatherText));
+    if (item.placeLine) content.appendChild(createTextElement("p", "schedule-place", item.placeLine));
 
     layout.appendChild(content);
     article.appendChild(layout);
     return article;
+}
+
+/** 見本の予定の日時（曜日が読めたときは、土日に色を付ける） */
+function createScheduleDateLine(item) {
+    const meta = document.createElement("p");
+    meta.className = "schedule-meta";
+    if (item.dateMeta) {
+        meta.append(
+            document.createTextNode(item.dateMeta.prefix),
+            createWeekdaySpan(item.dateMeta.weekday, item.dateMeta.weekendType),
+            document.createTextNode(item.dateMeta.suffix)
+        );
+    } else {
+        meta.textContent = item.dateLine;
+    }
+    return meta;
 }
 
 /** カードから、予定の並びを読み取る */
