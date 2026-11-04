@@ -31,7 +31,7 @@ jobs:
 
       - name: Verify static site entrypoint
         run: |
-          for f in index.html admin.html calendar.html app.js admin.js calendar.js style.css admin.css calendar.css js/month-calendar.js; do
+          for f in index.html admin.html calendar.html app.js admin.js calendar.js style.css admin.css calendar.css js/month-calendar.js css/month-calendar.css; do
             test -f "$f" || { echo "missing $f"; exit 1; }
           done
 
@@ -45,6 +45,7 @@ jobs:
           cp app.js admin.js calendar.js _site/
           cp style.css admin.css calendar.css _site/
           cp -R js _site/js
+          cp -R css _site/css
           cp .nojekyll _site/.nojekyll
           short_sha="${COMMIT_SHA::7}"
           cat <<EOF > _site/version.json
