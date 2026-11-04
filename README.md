@@ -26,7 +26,7 @@ GAS はファイルを名前の順に1つずつ読む。読みこみ時（トッ
 | `14_weather.gs` | 天気（Open-Meteo）。いまは `WEATHER_CONFIG.Enabled = false` で止めている |
 | `20_text-router.gs` | トークの文字の振り分け（`#予定登録`・`#今後の予定`・`#リマインド`・`#テスト` など） |
 | `21_admin-test-desk.gs` | 管理者のテストの窓口。`ADMIN_USER_IDS` にいる人が `#テスト`（`#test`）と送ると 🧪 テストのカードが返り、返事・カードの見本と自己点検を試せる。見本はためしのデータで、本物には書かない。ふつうの人には何も返さない |
-| `30_flex-cards.gs` | 予定のカード（月ごとのカード・通知カードの送信ガイド・画面に返す中身） |
+| `30_flex-cards.gs` | 予定のカード（月ごとのカード・通知カードの送信ガイド・画面に返す中身）と、カードの見出しの部品（確認カード・テストのカード・自己点検も使う） |
 | `31_admin-api.gs` | 管理ページの API。LIFF のアクセストークンを LINE に確かめ、`ADMIN_USER_IDS` の人だけが一覧・追加・編集・削除できる |
 | `32_admin-bulk-add.gs` | 管理ページの「📝 文章で追加」（読み取りは `#予定登録` と同じ。1件でも不正なら書かない） |
 | `33_public-calendar-api.gs` | 公開カレンダーの API（`doGet ?action=plans`）と予定の版。登録リンクは専用カレンダー（`@group.calendar.google.com`）のときだけ返す。シートを手で直したときの反映は `installPlanChangeTrigger` |
@@ -42,7 +42,8 @@ GAS はファイルを名前の順に1つずつ読む。読みこみ時（トッ
 | `index.html` ・ `app.js` ・ `style.css` | 予定シェア（LIFF「リッチに送る」）。GAS（`doGet`）のカードを見本に出し、LINE の友だち・グループに送る |
 | `admin.html` ・ `admin.js` ・ `admin.css` | 予定の管理（LIFF。`https://liff.line.me/<LIFF_ID>/admin.html`）。管理者未登録のときは自分の userId を出すので、それを `ADMIN_USER_IDS` に足す |
 | `calendar.html` ・ `calendar.js` ・ `calendar.css` | 公開の活動予定カレンダー（ログインなし） |
-| `js/month-calendar.js` | 月の表の部品（曜日・週のはじまり・マス・アイコン・月のリンク・スワイプ）。`calendar.html`・`admin.html` が入口より先に読む |
+| `js/month-calendar.js` | 2つのページで同じ部品：月の表（曜日・週のはじまり・マス・スワイプ）と、予定の行（アイコン・内容・残り日数・日時・場所・回答リンク・カレンダー追加）・月のカード・選んだ日のカード。目立たせ方（公開は「次回」で選んだ予定、管理は保存した直後の予定）と行の操作（管理だけ 複製・編集・削除）は、入口の `createRowItem` で決める。`calendar.html`・`admin.html` が入口より先に読む |
+| `css/month-calendar.css` | 2つのページで同じ見た目（月の表・予定の行・月のカード・ボタン・タブ）。各ページの CSS（`calendar.css`・`admin.css`。色の変数とページだけのもの）より先に読む |
 
 JS・CSS を直したら、`python3 ../q-oqrn/tools/qstamp.py index.html admin.html calendar.html` で `?v=` を付け直す（LINE の中のブラウザが古いファイルを覚えているため）。
 
@@ -65,6 +66,10 @@ node ~/GitHub/q-oqrn/tools/qtest/check-code.mjs .
 - `test/admin-test-desk.test.js` `#テスト`（管理者だけに返る・本物に書かない）
 - `test/load-order.test.js` GAS と同じく1ファイルずつ読んでもエラーにならない・関数の前のコメント・`00_` の中身
 - `test/admin.test.js` 管理ページの API（本人確認・権限・入力の確かめ・エラーの中身を出さない）と公開カレンダーの API
+- `test/calendar-sync.test.js` Google カレンダー同期（今日からだけ・終了の初期値・同じ予定は残す・変わった予定は作り直す・重複を1つに・手で入れた予定に触れない・失敗しても続ける）
+- `test/share-page.test.js` シェア画面（送信ガイドだけを外して送る）
+- `test/calendar-page.test.js` 公開カレンダー（次回の予定・週のはじまり・日付が変わったとき）
+- `test/record-parts.test.js` 画面の予定の行（回答リンクの濃淡・カレンダー追加のリンク・月の共通リンク）と、管理ページの終了の初期値
 
 ## 版情報
 
