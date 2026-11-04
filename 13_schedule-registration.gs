@@ -212,6 +212,27 @@ function createScheduleDraftReply_(kind) {
  * あとで見ても通じるよう「#予定確定」と送れば登録できること・10分で消えることを書く
  */
 function createScheduleConfirmFlexMessage_(records, notes) {
+  return {
+    type: 'flex',
+    altText: trimAltText_(`📝 予定登録の確認：${records.length}件（${formatScheduleDateRange_(records)}）`),
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: createFlexTwoLineHeader_('予定登録の確認', `${records.length}件を登録しますか？`, true),
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        paddingAll: FLEX_CONFIG.cardPadding,
+        contents: buildScheduleConfirmBodyContents_(records, notes)
+      },
+      footer: createScheduleConfirmFooter_(notes.actions)
+    }
+  };
+}
+
+/** 確認カードの中身：予定（決めた数まで・ほか○件）・リンクと読み取れなかった行の注意・登録の案内 */
+function buildScheduleConfirmBodyContents_(records, notes) {
   const shown = records.slice(0, SCHEDULE_CONFIRM_CARD_MAX_ROWS_);
   const rows = shown.map(createScheduleConfirmRow_);
   if (records.length > shown.length) {
@@ -233,40 +254,19 @@ function createScheduleConfirmFlexMessage_(records, notes) {
     wrap: true,
     margin: 'md'
   });
+  return bodyContents;
+}
 
+/** 確認カードの下の「キャンセル」「登録する」（下書きID つきの文字を送る） */
+function createScheduleConfirmFooter_(actions) {
   return {
-    type: 'flex',
-    altText: trimAltText_(`📝 予定登録の確認：${records.length}件（${formatScheduleDateRange_(records)}）`),
-    contents: {
-      type: 'bubble',
-      size: 'mega',
-      header: {
-        type: 'box',
-        layout: 'vertical',
-        backgroundColor: FLEX_CONFIG.headerBackgroundColor,
-        paddingAll: FLEX_CONFIG.headerPadding,
-        contents: [
-          { type: 'text', text: '予定登録の確認', size: 'xs', color: '#ffffff' },
-          { type: 'text', text: `${records.length}件を登録しますか？`, size: 'lg', weight: 'bold', color: '#ffffff', wrap: true }
-        ]
-      },
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        spacing: 'sm',
-        paddingAll: FLEX_CONFIG.cardPadding,
-        contents: bodyContents
-      },
-      footer: {
-        type: 'box',
-        layout: 'horizontal',
-        spacing: 'sm',
-        contents: [
-          { type: 'button', style: 'secondary', flex: 1, action: { type: 'message', label: 'キャンセル', text: notes.actions.cancelText } },
-          { type: 'button', style: 'primary', flex: 2, action: { type: 'message', label: '登録する', text: notes.actions.confirmText } }
-        ]
-      }
-    }
+    type: 'box',
+    layout: 'horizontal',
+    spacing: 'sm',
+    contents: [
+      { type: 'button', style: 'secondary', flex: 1, action: { type: 'message', label: 'キャンセル', text: actions.cancelText } },
+      { type: 'button', style: 'primary', flex: 2, action: { type: 'message', label: '登録する', text: actions.confirmText } }
+    ]
   };
 }
 

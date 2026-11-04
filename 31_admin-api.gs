@@ -208,7 +208,32 @@ function assertAdminRowUnchanged_(rowNumber, expected) {
 /** 画面の入力を確かめて、シートに書く予定の形にする（まちがいは createAdminError_） */
 function buildAdminRecordFromInput_(input) {
   const source = input || {};
-  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(source.date || ""));
+  const day = parseAdminDateInput_(source.date);
+  const startParts = parseScheduleTimeToken_(source.start);
+  if (!startParts) throw createAdminError_("invalid", "開始時刻を入力してください。");
+
+  const endText = String(source.end || "").trim();
+  const endParts = endText ? parseScheduleTimeToken_(endText) : null;
+  if (endText && !endParts) throw createAdminError_("invalid", "終了時刻が正しくありません。");
+
+  const texts = readAdminTextInputs_(source);
+  const link = String(source.link || "").trim();
+  assertAdminLink_(link, false);
+
+  return {
+    date: day.date,
+    start: new Date(day.year, day.month - 1, day.day, startParts.hour, startParts.minute),
+    end: endParts ? new Date(day.year, day.month - 1, day.day, endParts.hour, endParts.minute) : null,
+    place: texts.place,
+    memo1: texts.memo1,
+    memo2: texts.memo2,
+    link: link
+  };
+}
+
+/** 「2026-11-02」を確かめて、年・月・日とその日の Date にする（ない日付はまちがい） */
+function parseAdminDateInput_(text) {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(text || ""));
   if (!dateMatch) throw createAdminError_("invalid", "日付を入力してください。");
 
   const year = Number(dateMatch[1]);
@@ -218,14 +243,11 @@ function buildAdminRecordFromInput_(input) {
   if (date.getMonth() !== month - 1 || date.getDate() !== day) {
     throw createAdminError_("invalid", "日付が正しくありません。");
   }
+  return { year: year, month: month, day: day, date: date };
+}
 
-  const startParts = parseScheduleTimeToken_(source.start);
-  if (!startParts) throw createAdminError_("invalid", "開始時刻を入力してください。");
-
-  const endText = String(source.end || "").trim();
-  const endParts = endText ? parseScheduleTimeToken_(endText) : null;
-  if (endText && !endParts) throw createAdminError_("invalid", "終了時刻が正しくありません。");
-
+/** 場所・内容・補足を読む（場所と内容は要る。長すぎればまちがい） */
+function readAdminTextInputs_(source) {
   const place = String(source.place || "").trim();
   const memo1 = String(source.memo1 || "").trim();
   const memo2 = String(source.memo2 || "").trim();
@@ -233,19 +255,7 @@ function buildAdminRecordFromInput_(input) {
   if ([place, memo1, memo2].some(function (text) { return text.length > ADMIN_INPUT_LIMITS_.text; })) {
     throw createAdminError_("invalid", `場所・内容・補足は${ADMIN_INPUT_LIMITS_.text}文字までにしてください。`);
   }
-
-  const link = String(source.link || "").trim();
-  assertAdminLink_(link, false);
-
-  return {
-    date: date,
-    start: new Date(year, month - 1, day, startParts.hour, startParts.minute),
-    end: endParts ? new Date(year, month - 1, day, endParts.hour, endParts.minute) : null,
-    place: place,
-    memo1: memo1,
-    memo2: memo2,
-    link: link
-  };
+  return { place: place, memo1: memo1, memo2: memo2 };
 }
 
 /** リンクの形と長さを確かめる。required でなければ空はよい */

@@ -80,16 +80,7 @@ function createAdminTestMenu_() {
     contents: {
       type: "bubble",
       size: "mega",
-      header: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: FLEX_CONFIG.headerBackgroundColor,
-        paddingAll: FLEX_CONFIG.headerPadding,
-        contents: [
-          { type: "text", text: "管理者だけ", size: "xs", color: "#ffffff" },
-          { type: "text", text: "テスト", size: "lg", weight: "bold", color: "#ffffff" }
-        ]
-      },
+      header: createFlexTwoLineHeader_("管理者だけ", "テスト", false),
       body: { type: "box", layout: "vertical", spacing: "md", paddingAll: FLEX_CONFIG.cardPadding, contents: rows }
     }
   };
@@ -264,16 +255,11 @@ function buildAdminTestSelfCheck_() {
     contents: {
       type: "bubble",
       size: "mega",
-      header: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: FLEX_CONFIG.headerBackgroundColor,
-        paddingAll: FLEX_CONFIG.headerPadding,
-        contents: [
-          { type: "text", text: _formatDate_(new Date(), "M/d HH:mm"), size: "xs", color: "#ffffff" },
-          { type: "text", text: problems ? `自己点検（${problems}件 見てね）` : "自己点検（だいじょうぶ）", size: "lg", weight: "bold", color: "#ffffff", wrap: true }
-        ]
-      },
+      header: createFlexTwoLineHeader_(
+        _formatDate_(new Date(), "M/d HH:mm"),
+        problems ? `自己点検（${problems}件 見てね）` : "自己点検（だいじょうぶ）",
+        true
+      ),
       body: { type: "box", layout: "vertical", spacing: "sm", paddingAll: FLEX_CONFIG.cardPadding, contents: rows }
     }
   }];

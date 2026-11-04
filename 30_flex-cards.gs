@@ -137,12 +137,7 @@ function buildReminderFlexViewModel_(records, options) {
   const now = new Date();
 
   if (!records.length) {
-    return {
-      errorMessage: {
-        type: "text",
-        text: SHEET_ERROR_TEXT
-      }
-    };
+    return { errorMessage: createSheetErrorMessage_() };
   }
 
   const nearTermWeatherSummaryMap = getNearTermWeatherSummaryMap_(
@@ -154,12 +149,7 @@ function buildReminderFlexViewModel_(records, options) {
   const groups = buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap);
 
   if (!groups.length) {
-    return {
-      errorMessage: {
-        type: "text",
-        text: SHEET_ERROR_TEXT
-      }
-    };
+    return { errorMessage: createSheetErrorMessage_() };
   }
 
   const bubbleEntries = buildBubbleEntriesFromGroups_(groups);
@@ -175,6 +165,14 @@ function buildReminderFlexViewModel_(records, options) {
   return {
     bubbleEntries: bubbleEntries,
     groups: groups
+  };
+}
+
+/** 予定がないときの文の返事（入れ方つき） */
+function createSheetErrorMessage_() {
+  return {
+    type: "text",
+    text: SHEET_ERROR_TEXT
   };
 }
 
@@ -304,6 +302,25 @@ function createFlexHeader_(title) {
         size: "lg",
         wrap: true
       }
+    ]
+  };
+}
+
+/**
+ * カードの見出し（青い帯に、小さな一言と、白い太字の題）。確認カード・テストのカード・自己点検で使う。
+ * wrapTitle なら、題が長いときに折り返す
+ */
+function createFlexTwoLineHeader_(subText, titleText, wrapTitle) {
+  const title = { type: "text", text: titleText, size: "lg", weight: "bold", color: "#ffffff" };
+  if (wrapTitle) title.wrap = true;
+  return {
+    type: "box",
+    layout: "vertical",
+    backgroundColor: FLEX_CONFIG.headerBackgroundColor,
+    paddingAll: FLEX_CONFIG.headerPadding,
+    contents: [
+      { type: "text", text: subText, size: "xs", color: "#ffffff" },
+      title
     ]
   };
 }
