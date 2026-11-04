@@ -104,47 +104,18 @@ function renderList() {
         els.list.appendChild(empty);
         return;
     }
-
-    const byMonth = new Map();
-    visible.forEach(record => {
-        const month = record.date.slice(0, 7);
-        if (!byMonth.has(month)) byMonth.set(month, []);
-        byMonth.get(month).push(record);
-    });
-
-    const scroller = document.createElement("div");
-    scroller.className = "month-scroller";
-    byMonth.forEach((monthRecords, month) => scroller.appendChild(createMonthCard(month, monthRecords, today)));
-    els.list.appendChild(scroller);
+    els.list.appendChild(createMonthScroller(visible, today, createMonthCard));
 }
 
 /** 送信されるカードと同じ、月ごとのカード（見出し・予定の行・リンクのボタン） */
 function createMonthCard(month, monthRecords, today) {
-    const card = document.createElement("section");
-    card.className = "month-card";
-
-    const head = document.createElement("div");
-    head.className = "month-card-head";
     const label = document.createElement("span");
     label.textContent = `${Number(month.slice(5, 7))}月の予定`;
-    head.append(label, actionButton("共通リンク", "btn btn-small", () => editMonthLink(month)));
+    const head = [label, createButton("共通リンク", "btn btn-small", () => editMonthLink(month))];
+    const card = createRecordCard("month-card", head, monthRecords, today, createRowItem);
 
-    const body = document.createElement("div");
-    body.className = "month-card-body";
-    monthRecords.forEach(record => body.appendChild(createRowItem(record, today)));
-    card.append(head, body);
-
-    const monthLink = baseLinkFor(month);
-    if (monthLink) {
-        const foot = document.createElement("div");
-        foot.className = "month-card-foot";
-        const open = document.createElement("a");
-        open.className = "btn btn-answer";
-        open.href = monthLink;
-        open.target = "_blank";
-        open.rel = "noopener noreferrer";
-        open.textContent = `${Number(month.slice(5, 7))}月のリンクを開く`;
-        foot.appendChild(open);
+    const foot = createMonthLinkFoot(month);
+    if (foot) {
         card.appendChild(foot);
     } else {
         const note = document.createElement("p");
@@ -155,86 +126,21 @@ function createMonthCard(month, monthRecords, today) {
     return card;
 }
 
-/** 管理用の操作（カレンダー追加・複製・編集・削除）。月の共通リンクと違うリンクはここで示す */
-function createRowActions(record) {
-    const links = document.createElement("div");
-    links.className = "row-links";
-    // その予定だけ別のリンクならそれを、なければ月の共通リンクを開く
-    const baseLink = baseLinkFor(record.date.slice(0, 7));
-    const answerLink = record.link || baseLink;
-    if (answerLink) {
-        const isCommon = answerLink === baseLink;
-        links.appendChild(createAnswerLink(
-            "📝 回答リンク",
-            answerLink,
-            isCommon ? "btn btn-small btn-answer-soft" : "btn btn-small btn-answer"
-        ));
-    }
-    links.appendChild(createCalendarLink(record));
-
+/** 行の管理用の操作（複製・編集・削除） */
+function createRowOps(record) {
     const ops = document.createElement("div");
     ops.className = "row-ops";
     ops.append(
-        actionButton("複製", "btn btn-small", () => openEditor(record, true)),
-        actionButton("編集", "btn btn-small", () => openEditor(record, false)),
-        actionButton("削除", "btn btn-small btn-danger", () => removeRecord(record))
+        createButton("複製", "btn btn-small", () => openEditor(record, true)),
+        createButton("編集", "btn btn-small", () => openEditor(record, false)),
+        createButton("削除", "btn btn-small btn-danger", () => removeRecord(record))
     );
-
-    const actions = document.createElement("div");
-    actions.className = "row-actions";
-    actions.append(links, ops);
-    return actions;
+    return ops;
 }
 
-/** リストの予定1件（日時・内容・場所・編集・削除・カレンダー） */
+/** リストの予定1件（日時・内容・場所・リンク・複製・編集・削除）。保存した直後の予定は目立たせる */
 function createRowItem(record, today) {
-    const [y, m, d] = record.date.split("-").map(Number);
-    const weekday = new Date(y, m - 1, d).getDay();
-    const { icon: iconText, title: titleText } = splitMemoIcon(record.memo1);
-
-    const row = document.createElement("article");
-    row.className = `row-item${record.date < today ? " past" : ""}${recordKey(record) === flashKey ? " is-flash" : ""}`;
-    row.dataset.key = recordKey(record);
-
-    const icon = document.createElement("div");
-    icon.className = "row-icon";
-    icon.textContent = iconText;
-
-    const body = document.createElement("div");
-    body.className = "row-body";
-
-    const head = document.createElement("div");
-    head.className = "row-head";
-    const title = document.createElement("h3");
-    title.className = "row-title";
-    title.textContent = titleText;
-    const until = untilLabel(record.date);
-    const badge = document.createElement("span");
-    badge.className = `row-until${until.className ? ` ${until.className}` : ""}`;
-    badge.textContent = until.text;
-    head.append(title, badge);
-
-    const dateLine = document.createElement("p");
-    dateLine.className = "row-meta";
-    const dow = document.createElement("span");
-    dow.className = weekday === 0 ? "sun" : weekday === 6 ? "sat" : "";
-    dow.textContent = `(${WEEKDAYS[weekday]})`;
-    dateLine.append(
-        document.createTextNode(`${m}月${d}日`),
-        dow,
-        document.createTextNode(` ${record.start}${record.end ? `-${record.end}` : ""}`)
-    );
-
-    const placeLine = document.createElement("p");
-    placeLine.className = "row-meta";
-    placeLine.textContent = [record.place, record.memo2].filter(Boolean).join(" ");
-
-    body.append(head, dateLine, placeLine);
-    const actions = createRowActions(record);
-    if (actions) body.appendChild(actions);
-
-    row.append(icon, body);
-    return row;
+    return createRecordRow(record, today, recordKey(record) === flashKey ? " is-flash" : "", createRowOps(record));
 }
 
 /** 月の共通リンクを入れなおす */
@@ -259,42 +165,6 @@ async function editMonthLink(month) {
         console.error(err);
         showToast("通信に失敗しました", true);
     }
-}
-
-/** Googleカレンダーに予定を追加するリンク（送信カードの「カレンダー追加」と同じ内容） */
-function createCalendarLinkUrl(record) {
-    const compact = (date, time) => `${date.replaceAll("-", "")}T${time.replace(":", "")}00`;
-    const end = record.end || record.start;
-    const params = [
-        "action=TEMPLATE",
-        `text=${encodeURIComponent(record.memo1 || "予定")}`,
-        `dates=${encodeURIComponent(`${compact(record.date, record.start)}/${compact(record.date, end)}`)}`,
-        `location=${encodeURIComponent(record.place || "")}`,
-        `details=${encodeURIComponent(record.memo2 || "")}`,
-        "ctz=Asia%2FTokyo"
-    ];
-    return `https://calendar.google.com/calendar/render?${params.join("&")}`;
-}
-
-/** 予定を自分の Google カレンダーに入れるリンク */
-function createCalendarLink(record) {
-    const link = document.createElement("a");
-    link.className = "btn btn-small btn-calendar";
-    link.href = createCalendarLinkUrl(record);
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = "📅 カレンダー追加";
-    return link;
-}
-
-/** ボタンを作る */
-function actionButton(label, className, handler) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = className;
-    button.textContent = label;
-    button.addEventListener("click", handler);
-    return button;
 }
 
 const OTHER = "__other__";
@@ -419,9 +289,9 @@ function renderCalendar() {
     title.className = "cal-title";
     title.textContent = monthLabel(calMonth);
     nav.append(
-        actionButton("◀", "btn", () => shiftCalMonth(-1)),
+        createButton("◀", "btn", () => shiftCalMonth(-1)),
         title,
-        actionButton("▶", "btn", () => shiftCalMonth(1))
+        createButton("▶", "btn", () => shiftCalMonth(1))
     );
 
     const grid = createMonthGrid(calMonth, byDate, today, createCalendarCell);
@@ -436,35 +306,8 @@ function renderCalendar() {
 
 /** カレンダーの1日のマス（押すとその日の予定を出す） */
 function createCalendarCell(date, day, dayRecords, today) {
-    const weekday = new Date(date.replaceAll("-", "/")).getDay();
-    const cell = document.createElement("button");
-    cell.type = "button";
-    cell.className = ["cal-cell",
-        weekday === 0 ? "sun" : weekday === 6 ? "sat" : "",
-        dayRecords.length ? "has-events" : "",
-        date === today ? "today" : "",
-        date < today ? "past" : "",
-        date === selectedDate ? "selected" : ""].filter(Boolean).join(" ");
+    const cell = createDayCell(date, day, dayRecords, today, date === selectedDate);
     cell.setAttribute("aria-label", `${date}${dayRecords.length ? `（予定${dayRecords.length}件）` : ""}`);
-
-    const number = document.createElement("span");
-    number.className = "cal-day";
-    number.textContent = String(day);
-    cell.appendChild(number);
-
-    if (dayRecords.length) {
-        const events = document.createElement("span");
-        events.className = "cal-events";
-        dayRecords.slice(0, 2).forEach(record => events.appendChild(createCellEvent(record)));
-        cell.appendChild(events);
-        if (dayRecords.length > 2) {
-            const more = document.createElement("span");
-            more.className = "cal-more";
-            more.textContent = `+${dayRecords.length - 2}`;
-            cell.appendChild(more);
-        }
-    }
-
     cell.addEventListener("click", () => onDayTap(date, dayRecords));
     return cell;
 }
@@ -503,24 +346,12 @@ function revealSaved(saved) {
     }, 2500);
 }
 
-/** 選んだ日の予定のカード */
+/** 選んだ日の予定のカード（「＋ この日に追加」つき） */
 function createDayPanel(date, dayRecords, today) {
-    const [y, m, d] = date.split("-").map(Number);
-    const card = document.createElement("section");
-    card.className = "month-card day-panel";
-
-    const head = document.createElement("div");
-    head.className = "month-card-head";
     const label = document.createElement("span");
-    label.textContent = `${m}月${d}日(${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
-    head.append(label, actionButton("＋ この日に追加", "btn btn-small", () => openEditor(null, false, date)));
-
-    const body = document.createElement("div");
-    body.className = "month-card-body";
-    dayRecords.forEach(record => body.appendChild(createRowItem(record, today)));
-
-    card.append(head, body);
-    return card;
+    label.textContent = formatDayLabel(date);
+    const head = [label, createButton("＋ この日に追加", "btn btn-small", () => openEditor(null, false, date))];
+    return createRecordCard("month-card day-panel", head, dayRecords, today, createRowItem);
 }
 
 // ---------- 追加・編集 ----------

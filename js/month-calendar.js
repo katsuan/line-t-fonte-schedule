@@ -1,5 +1,6 @@
-// 月の表（カレンダー）の部品。公開カレンダー（calendar.js）と管理ページ（admin.js）で同じもの。
-// 曜日・週のはじまり（日曜／月曜。端末に残す）・マスの予定・アイコンの文字・月のリンク・左右のスワイプ。
+// 月の表（カレンダー）と予定の行の部品。公開カレンダー（calendar.js）と管理ページ（admin.js）で同じもの。
+// 曜日・週のはじまり（日曜／月曜。端末に残す）・マス・アイコンの文字・月のリンク・左右のスワイプ・
+// 予定の行（内容・日時・場所・回答リンク・カレンダー追加）・月のカードと選んだ日のカード。
 // calendar.html・admin.html から、それぞれの入口より先に読む（同じ範囲の変数と関数を使う、ふつうの script）。
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -214,4 +215,204 @@ function createWeekStartToggle() {
         wrap.appendChild(option);
     });
     return wrap;
+}
+
+// ---------- 予定の行とカード（リストの月のカード・カレンダーの選んだ日のカード） ----------
+
+/** ボタンを作る */
+function createButton(label, className, handler, disabled = false) {
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = className;
+    el.textContent = label;
+    el.disabled = disabled;
+    el.addEventListener("click", handler);
+    return el;
+}
+
+/** 予定を月ごとにまとめる（"2026-11" → その月の予定の並び） */
+function groupRecordsByMonth(list) {
+    const byMonth = new Map();
+    list.forEach(record => {
+        const month = record.date.slice(0, 7);
+        if (!byMonth.has(month)) byMonth.set(month, []);
+        byMonth.get(month).push(record);
+    });
+    return byMonth;
+}
+
+/** 月ごとのカードを横に並べる箱。カードは createCard(month, その月の予定, today) で作る */
+function createMonthScroller(list, today, createCard) {
+    const scroller = document.createElement("div");
+    scroller.className = "month-scroller";
+    groupRecordsByMonth(list).forEach((monthRecords, month) => scroller.appendChild(createCard(month, monthRecords, today)));
+    return scroller;
+}
+
+/** 「11月2日(月)」 */
+function formatDayLabel(date) {
+    const [y, m, d] = date.split("-").map(Number);
+    return `${m}月${d}日(${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+}
+
+/**
+ * 予定のカード（見出しと、予定の行）。見出しの中身は headParts（文字か部品）。
+ * 行は createRow(record, today) で作る（目立たせ方と、行の操作がページごとに違うため）
+ */
+function createRecordCard(className, headParts, list, today, createRow) {
+    const card = document.createElement("section");
+    card.className = className;
+
+    const head = document.createElement("div");
+    head.className = "month-card-head";
+    head.append(...headParts);
+
+    const body = document.createElement("div");
+    body.className = "month-card-body";
+    list.forEach(record => body.appendChild(createRow(record, today)));
+
+    card.append(head, body);
+    return card;
+}
+
+/** 月のカードの下の「11月のリンクを開く」（月の共通リンクがなければ null） */
+function createMonthLinkFoot(month) {
+    const monthLink = baseLinkFor(month);
+    if (!monthLink) return null;
+    const foot = document.createElement("div");
+    foot.className = "month-card-foot";
+    foot.appendChild(createAnswerLink(`${Number(month.slice(5, 7))}月のリンクを開く`, monthLink, "btn btn-answer"));
+    return foot;
+}
+
+/**
+ * 予定1件の行（アイコン・内容・残り日数・日時・場所・リンク）。
+ * stateClass は目立たせる印（" is-selected" など。なければ ""）、extraActions はリンクのあとに置く操作（なければ null）
+ */
+function createRecordRow(record, today, stateClass, extraActions) {
+    const { icon: iconText, title: titleText } = splitMemoIcon(record.memo1);
+
+    const row = document.createElement("article");
+    row.className = `row-item${record.date < today ? " past" : ""}${stateClass}`;
+    row.dataset.key = recordKey(record);
+
+    const icon = document.createElement("div");
+    icon.className = "row-icon";
+    icon.textContent = iconText;
+
+    const placeLine = document.createElement("p");
+    placeLine.className = "row-meta";
+    placeLine.textContent = [record.place, record.memo2].filter(Boolean).join(" ");
+
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    actions.appendChild(createRowLinks(record));
+    if (extraActions) actions.appendChild(extraActions);
+
+    const body = document.createElement("div");
+    body.className = "row-body";
+    body.append(createRowHead(record, titleText), createRowDateLine(record), placeLine, actions);
+
+    row.append(icon, body);
+    return row;
+}
+
+/** 行の見出し（内容と「あと○日」） */
+function createRowHead(record, titleText) {
+    const head = document.createElement("div");
+    head.className = "row-head";
+    const title = document.createElement("h3");
+    title.className = "row-title";
+    title.textContent = titleText;
+    const until = untilLabel(record.date);
+    const badge = document.createElement("span");
+    badge.className = `row-until${until.className ? ` ${until.className}` : ""}`;
+    badge.textContent = until.text;
+    head.append(title, badge);
+    return head;
+}
+
+/** 行の日時「11月2日(月) 10:00-12:00」（曜日は土日に色） */
+function createRowDateLine(record) {
+    const [y, m, d] = record.date.split("-").map(Number);
+    const weekday = new Date(y, m - 1, d).getDay();
+    const dateLine = document.createElement("p");
+    dateLine.className = "row-meta";
+    const dow = document.createElement("span");
+    dow.className = weekday === 0 ? "sun" : weekday === 6 ? "sat" : "";
+    dow.textContent = `(${WEEKDAYS[weekday]})`;
+    dateLine.append(
+        document.createTextNode(`${m}月${d}日`),
+        dow,
+        document.createTextNode(` ${record.start}${record.end ? `-${record.end}` : ""}`)
+    );
+    return dateLine;
+}
+
+/** 行のリンク（回答リンクとカレンダー追加）。その予定だけ別のリンクならそれを、なければ月の共通リンクを開く */
+function createRowLinks(record) {
+    const links = document.createElement("div");
+    links.className = "row-links";
+    const baseLink = baseLinkFor(record.date.slice(0, 7));
+    const answerLink = record.link || baseLink;
+    if (answerLink) {
+        const isCommon = answerLink === baseLink;
+        links.appendChild(createAnswerLink(
+            "📝 回答リンク",
+            answerLink,
+            isCommon ? "btn btn-small btn-answer-soft" : "btn btn-small btn-answer"
+        ));
+    }
+    links.appendChild(createAnswerLink("📅 カレンダー追加", createCalendarLinkUrl(record), "btn btn-small btn-calendar"));
+    return links;
+}
+
+/** Googleカレンダーに予定を追加するリンク（送信カードの「カレンダー追加」と同じ内容） */
+function createCalendarLinkUrl(record) {
+    const compact = (date, time) => `${date.replaceAll("-", "")}T${time.replace(":", "")}00`;
+    const end = record.end || record.start;
+    const params = [
+        "action=TEMPLATE",
+        `text=${encodeURIComponent(record.memo1 || "予定")}`,
+        `dates=${encodeURIComponent(`${compact(record.date, record.start)}/${compact(record.date, end)}`)}`,
+        `location=${encodeURIComponent(record.place || "")}`,
+        `details=${encodeURIComponent(record.memo2 || "")}`,
+        "ctz=Asia%2FTokyo"
+    ];
+    return `https://calendar.google.com/calendar/render?${params.join("&")}`;
+}
+
+/**
+ * カレンダーの1日のマス（日付・予定2件まで・+○）。予定があるかで押したときの動きがページごとに違うので、
+ * 押したときの動きと読み上げの名前は、呼んだページで付ける
+ */
+function createDayCell(date, day, dayRecords, today, isSelected) {
+    const weekday = new Date(date.replaceAll("-", "/")).getDay();
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = ["cal-cell",
+        weekday === 0 ? "sun" : weekday === 6 ? "sat" : "",
+        dayRecords.length ? "has-events" : "",
+        date === today ? "today" : "",
+        date < today ? "past" : "",
+        isSelected ? "selected" : ""].filter(Boolean).join(" ");
+
+    const number = document.createElement("span");
+    number.className = "cal-day";
+    number.textContent = String(day);
+    cell.appendChild(number);
+
+    if (dayRecords.length) {
+        const events = document.createElement("span");
+        events.className = "cal-events";
+        dayRecords.slice(0, 2).forEach(record => events.appendChild(createCellEvent(record)));
+        cell.appendChild(events);
+        if (dayRecords.length > 2) {
+            const more = document.createElement("span");
+            more.className = "cal-more";
+            more.textContent = `+${dayRecords.length - 2}`;
+            cell.appendChild(more);
+        }
+    }
+    return cell;
 }
