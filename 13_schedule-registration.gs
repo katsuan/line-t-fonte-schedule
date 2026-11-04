@@ -374,35 +374,10 @@ function parseScheduleRegistrationLines_(text) {
   let link = '';
 
   lines.forEach(function (rawLine, index) {
-    if (!rawLine.trim()) return;
-
-    if (rawLine.indexOf('\t') !== -1) {
-      const parsed = parseScheduleTsvLine_(rawLine);
-      if (parsed === 'header') return;
-      if (parsed) {
-        records.push(parsed);
-        return;
-      }
-      errors.push({ lineNumber: index + 2, raw: rawLine });
-      return;
-    }
-
-    const line = rawLine.trim();
-    const parsed = parseScheduleFreeformLine_(line);
-    if (parsed) {
-      records.push(parsed);
-      return;
-    }
-
-    const urlMatch = line.match(SCHEDULE_LINK_LINE_PATTERN_);
-    if (urlMatch) {
-      link = urlMatch[0];
-      return;
-    }
-
-    if (SCHEDULE_LINE_LOOKS_LIKE_ATTEMPT_PATTERN_.test(line)) {
-      errors.push({ lineNumber: index + 2, raw: rawLine });
-    }
+    const parsed = classifyScheduleRegistrationLine_(rawLine);
+    if (parsed.record) records.push(parsed.record);
+    else if (parsed.link) link = parsed.link;
+    else if (parsed.error) errors.push({ lineNumber: index + 2, raw: rawLine });
   });
 
   if (link) {
@@ -412,6 +387,29 @@ function parseScheduleRegistrationLines_(text) {
   }
 
   return { records: records, errors: errors, link: link };
+}
+
+/**
+ * 1行を見分ける：予定（record）・共通リンク（link）・読めなかった予定の行（error）・読み飛ばす行（どれもなし）。
+ * 空の行・シートの見出しの行・日付で始まらない文は読み飛ばす
+ */
+function classifyScheduleRegistrationLine_(rawLine) {
+  if (!rawLine.trim()) return {};
+
+  if (rawLine.indexOf('\t') !== -1) {
+    const fromTsv = parseScheduleTsvLine_(rawLine);
+    if (fromTsv === 'header') return {};
+    return fromTsv ? { record: fromTsv } : { error: true };
+  }
+
+  const line = rawLine.trim();
+  const parsed = parseScheduleFreeformLine_(line);
+  if (parsed) return { record: parsed };
+
+  const urlMatch = line.match(SCHEDULE_LINK_LINE_PATTERN_);
+  if (urlMatch) return { link: urlMatch[0] };
+
+  return SCHEDULE_LINE_LOOKS_LIKE_ATTEMPT_PATTERN_.test(line) ? { error: true } : {};
 }
 
 /** タブ区切りの1行（Plan シートの列の順）を予定にする。見出しなら 'header'、読めなければ null */
