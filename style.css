@@ -74,7 +74,7 @@ body {
     letter-spacing: .04em;
 }
 
-/* 送信プレビュー：LINEのトーク画面に近い背景の枠（line-share と同じ見せ方） */
+/* 送信プレビュー：LINEのトーク画面に近い背景の枠（oqrn と同じ見せ方） */
 .panel {
     background: var(--talk-bg);
     border-radius: 20px;
