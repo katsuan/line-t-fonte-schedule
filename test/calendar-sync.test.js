@@ -1,4 +1,4 @@
-// Google カレンダー同期（34_calendar-sync.gs）：シートの今日からの予定を、カレンダーに合わせる
+// Google カレンダー同期（34_calendar_sync.gs）：シートの今日からの予定を、カレンダーに合わせる
 "use strict";
 const { makeGas, planRow } = require("./helpers");
 const test = require("node:test");

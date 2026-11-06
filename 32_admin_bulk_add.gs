@@ -1,7 +1,7 @@
 // ==========[ 管理ページ：文章でまとめて追加 ]==========
 //
 // 文章 → 読み取り（previewAdminBulkText_。書きこまない）→ 画面で確認 → まとめて登録（addAdminPlanRows_。1件でも不正なら書かない）。
-// 読み取りはチャットの #予定登録 と同じ（13_schedule-registration.gs）。31_admin-api.gs から呼ばれる
+// 読み取りはチャットの #予定登録 と同じ（13_schedule_registration.gs）。31_admin_api.gs から呼ばれる
 
 /** 文章でまとめて追加の上限と、終了時刻の既定 */
 const ADMIN_BULK_CONFIG = {

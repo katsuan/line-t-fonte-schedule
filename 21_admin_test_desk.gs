@@ -5,7 +5,7 @@
 // - クイックリプライを押すだけで、返事・カードの見本と自己点検を試せる
 // - 見本の中身はためしのデータ。本物の予定・シート・カレンダー・登録待ちには書かない（DebugLog はいつもどおり残る）
 // - 返事（reply）だけで返す。push の自動リマインドは、見本を reply で見せる
-// 20_text-router.gs から呼ばれる。自己点検は 00_setup.gs の runSelfCheck も使う
+// 20_text_router.gs から呼ばれる。自己点検は 00_setup.gs の runSelfCheck も使う
 
 /** #テスト（#test）と、そのあとに書く言葉 */
 const ADMIN_TEST_TRIGGER_PATTERN_ = /^#(テスト|test)(?:[ \t　]+(.*))?$/i;

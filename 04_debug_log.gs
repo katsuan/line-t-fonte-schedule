@@ -1,7 +1,7 @@
 // ==========[ デバッグログ（DebugLog シート） ]==========
 //
 // 親プロジェクトの実行ログを見られないときのために、予定のスプレッドシートにログを残す。
-// LINE の ID はそのまま残さない（hashForLog_）。20_text-router.gs などから使う
+// LINE の ID はそのまま残さない（hashForLog_）。20_text_router.gs などから使う
 
 /** DebugLog シートの名前と、残す行数 */
 const DEBUG_LOG_CONFIG = {

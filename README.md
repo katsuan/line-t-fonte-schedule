@@ -16,21 +16,21 @@ GAS はファイルを名前の順に1つずつ読む。読みこみ時（トッ
 | `00_setup.gs` | 人が GAS エディタから実行する関数（`runSelfCheck` 自己点検 → `authorizeCalendarSync` → `installCalendarSyncTrigger` → `installPlanChangeTrigger`）と、人が書きかえる設定（LIFF の URL・グループのリンク・終了時刻の既定・天気）。先頭に、どの順に何を実行するか |
 | `01_entry.gs` | 入口。ウェブアプリ（`doGet`・`doPost`）、親の LINE ボットから呼ばれる関数（`handleTextMessage`・`shouldSendRemindMessage`・`createAutoReminderSenderName`・`createAutoReminderMessages`・`completeAutoReminderSend`・`createMessage`・`main`）、トリガー（`onPlanSheetChanged`・`syncPlansToCalendarJob`）。名前を変えると親・トリガーが動かなくなる |
 | `02_init.gs` | 読みこみ時の準備：シート・Setting の設定・アイコン・日付の書式・クイックリプライ・送り主 |
-| `03_request-memo.gs` | 1回の呼び出しの中で、同じシートや設定の読み取りを使い回す（`memo_` / `forgetMemo_`） |
-| `04_debug-log.gs` | DebugLog シートへのログ（親の実行ログを見られないとき用。LINE の ID はそのまま残さない） |
+| `03_request_memo.gs` | 1回の呼び出しの中で、同じシートや設定の読み取りを使い回す（`memo_` / `forgetMemo_`） |
+| `04_debug_log.gs` | DebugLog シートへのログ（親の実行ログを見られないとき用。LINE の ID はそのまま残さない） |
 | `05_dates.gs` | 日付の小さな道具（日付で数える・月のキー） |
-| `10_plan-sheet.gs` | Plan シートの読み書き（外から来た文字は `safeCell_`）・同じ月のリンクで補う |
-| `11_upcoming-records.gs` | これからの予定と、その日の控え（Script Properties に月ごと。日付が変わったら作り直す） |
+| `10_plan_sheet.gs` | Plan シートの読み書き（外から来た文字は `safeCell_`）・同じ月のリンクで補う |
+| `11_upcoming_records.gs` | これからの予定と、その日の控え（Script Properties に月ごと。日付が変わったら作り直す） |
 | `12_reminder.gs` | 自動リマインド：通知する予定（今日から `RemindNum` 日後までで未通知）・送信済みの記録（60日）・文面 |
-| `13_schedule-registration.gs` | `#予定登録`：文章の読み取り（タブ区切り・自由文）→ 確認カード → 「登録する」（`#予定確定 <下書きID>`）。ボタンは押されるたびに、済んだ・古い・ほかの人・時間切れを見分けて返す（親のボットに渡るのは文字のメッセージだけなので postback は使わない） |
+| `13_schedule_registration.gs` | `#予定登録`：文章の読み取り（タブ区切り・自由文）→ 確認カード → 「登録する」（`#予定確定 <下書きID>`）。ボタンは押されるたびに、済んだ・古い・ほかの人・時間切れを見分けて返す（親のボットに渡るのは文字のメッセージだけなので postback は使わない） |
 | `14_weather.gs` | 天気（Open-Meteo）。いまは `WEATHER_CONFIG.Enabled = false` で止めている |
-| `20_text-router.gs` | トークの文字の振り分け（`#予定登録`・`#今後の予定`・`#リマインド`・`#テスト` など） |
-| `21_admin-test-desk.gs` | 管理者のテストの窓口。`ADMIN_USER_IDS` にいる人が `#テスト`（`#test`）と送ると 🧪 テストのカードが返り、返事・カードの見本と自己点検を試せる。見本はためしのデータで、本物には書かない。ふつうの人には何も返さない |
-| `30_flex-cards.gs` | 予定のカード（月ごとのカード・通知カードの送信ガイド・画面に返す中身）と、カードの見出しの部品（確認カード・テストのカード・自己点検も使う） |
-| `31_admin-api.gs` | 管理ページの API。LIFF のアクセストークンを LINE に確かめ、`ADMIN_USER_IDS` の人だけが一覧・追加・編集・削除できる |
-| `32_admin-bulk-add.gs` | 管理ページの「📝 文章で追加」（読み取りは `#予定登録` と同じ。1件でも不正なら書かない） |
-| `33_public-calendar-api.gs` | 公開カレンダーの API（`doGet ?action=plans`）と予定の版。登録リンクは専用カレンダー（`@group.calendar.google.com`）のときだけ返す。シートを手で直したときの反映は `installPlanChangeTrigger` |
-| `34_calendar-sync.gs` | Google カレンダー同期（シート→カレンダーの一方向。タグのある予定だけを足し・消す）。ID は Script Property `CALENDAR_ID` |
+| `20_text_router.gs` | トークの文字の振り分け（`#予定登録`・`#今後の予定`・`#リマインド`・`#テスト` など） |
+| `21_admin_test_desk.gs` | 管理者のテストの窓口。`ADMIN_USER_IDS` にいる人が `#テスト`（`#test`）と送ると 🧪 テストのカードが返り、返事・カードの見本と自己点検を試せる。見本はためしのデータで、本物には書かない。ふつうの人には何も返さない |
+| `30_flex_cards.gs` | 予定のカード（月ごとのカード・通知カードの送信ガイド・画面に返す中身）と、カードの見出しの部品（確認カード・テストのカード・自己点検も使う） |
+| `31_admin_api.gs` | 管理ページの API。LIFF のアクセストークンを LINE に確かめ、`ADMIN_USER_IDS` の人だけが一覧・追加・編集・削除できる |
+| `32_admin_bulk_add.gs` | 管理ページの「📝 文章で追加」（読み取りは `#予定登録` と同じ。1件でも不正なら書かない） |
+| `33_public_calendar_api.gs` | 公開カレンダーの API（`doGet ?action=plans`）と予定の版。登録リンクは専用カレンダー（`@group.calendar.google.com`）のときだけ返す。シートを手で直したときの反映は `installPlanChangeTrigger` |
+| `34_calendar_sync.gs` | Google カレンダー同期（シート→カレンダーの一方向。タグのある予定だけを足し・消す）。ID は Script Property `CALENDAR_ID` |
 | `appsscript.json` | Apps Script マニフェスト |
 
 **注意**: カレンダーなどの権限が増える変更を `clasp push` すると、このプロジェクトをライブラリ（開発モード）で使う親プロジェクト（LINE Webhook）も再承認が必要になる。push の前に手順を確認すること
