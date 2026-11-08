@@ -64,7 +64,7 @@ node ~/GitHub/q-oqrn/tools/qtest/check-code.mjs .
 
 - `test/reminder.test.js` 予定の読みこみ・自動リマインドの対象と送信済み・日付またぎ・月末・LINE のカード
 - `test/registration.test.js` `#予定登録`／`#予定確定`（ない日付・二度押し・同時に動いたとき・シートの式）・振り分け
-- `test/availability.test.js` 施設の空き状況（時間帯の途中がうまっている・最初と最後のマスの時刻・活動の ⚽・曜日・次の2週間・空白ありの書き方・カードの大きさの上限・取れないとき・元のファイルと同じか）
+- `test/availability.test.js` 施設の空き状況（時間帯の途中がうまっている・最初と最後のマスの時刻・活動の ⚽・土日祝の色・曜日・次の2週間・空白ありの書き方・カードの大きさの上限・取れないとき・元のファイルと同じか）
 - `test/admin-test-desk.test.js` `#テスト`（管理者だけに返る・本物に書かない）
 - `test/load-order.test.js` GAS と同じく1ファイルずつ読んでもエラーにならない・関数の前のコメント・`00_` の中身
 - `test/admin.test.js` 管理ページの API（本人確認・権限・入力の確かめ・エラーの中身を出さない）と公開カレンダーの API

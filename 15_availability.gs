@@ -84,6 +84,9 @@ function detectAvailabilityFacility_(text) {
   return request;
 }
 
+/** 曜日の番号のほかに、祝日を表す番号（日=0〜土=6 のつぎ） */
+const AVAILABILITY_HOLIDAY = 7;
+
 /** 先の2週間を何回まで出すか（サイトは先の予約をまだ受け付けていないことが多い） */
 const AVAILABILITY_MAX_PAGE = 4;
 
@@ -105,8 +108,7 @@ function formatAvailabilityPage_(page) {
 }
 
 /**
- * 「土日」「土」「月水金」「火曜」「平日」「週末」を曜日の番号（日=0〜土=6）にする。読めなければ null。
- * 祝日は見分けない。
+ * 「土日」「土日祝」「土」「月水金」「火曜」「平日」「週末」「休日」を曜日の番号（日=0〜土=6、祝日=7）にする。読めなければ null。
  *
  * @param {string} text
  * @returns {number[]|null}
@@ -115,21 +117,25 @@ function parseAvailabilityDays_(text) {
   const t = String(text || '').replace(/曜日?/g, '');
   if (t === '平日') return [1, 2, 3, 4, 5];
   if (t === '週末') return [0, 6];
-  if (!/^[月火水木金土日]+$/u.test(t)) return null;
-  return t.split('').map(function (c) { return AVAILABILITY_WEEKDAYS.indexOf(c); })
+  if (t === '休日') return [0, 6, AVAILABILITY_HOLIDAY];
+  if (!/^[月火水木金土日祝]+$/u.test(t)) return null;
+  return t.split('').map(function (c) { return c === '祝' ? AVAILABILITY_HOLIDAY : AVAILABILITY_WEEKDAYS.indexOf(c); })
     .filter(function (n, i, all) { return all.indexOf(n) === i; });
 }
 
-/** [0, 6] → 「土日」、平日5つ → 「平日」 */
+/** [0, 6] → 「土日」、[0, 6, 7] → 「土日祝」、平日5つ → 「平日」 */
 function formatAvailabilityDays_(days) {
   if (days.length === 5 && [1, 2, 3, 4, 5].every(function (d) { return days.indexOf(d) >= 0; })) return '平日';
-  return days.slice().sort(function (x, y) { return (x || 7) - (y || 7); })
-    .map(function (d) { return AVAILABILITY_WEEKDAYS[d]; }).join('');
+  const order = function (d) { return d === 0 ? 7 : d === AVAILABILITY_HOLIDAY ? 8 : d; };
+  return days.slice().sort(function (x, y) { return order(x) - order(y); })
+    .map(function (d) { return d === AVAILABILITY_HOLIDAY ? '祝' : AVAILABILITY_WEEKDAYS[d]; }).join('');
 }
 
-/** その日が、しぼった曜日に入るか（しぼっていなければいつも true） */
-function isAvailabilityDay_(date, days) {
-  return !days || days.indexOf(new Date(`${date}T00:00:00Z`).getUTCDay()) >= 0;
+/** その日が、しぼった曜日に入るか（しぼっていなければいつも true）。「祝」をしぼったときは、祝日も入る */
+function isAvailabilityDay_(date, days, holidays) {
+  if (!days) return true;
+  if (days.indexOf(new Date(`${date}T00:00:00Z`).getUTCDay()) >= 0) return true;
+  return days.indexOf(AVAILABILITY_HOLIDAY) >= 0 && Boolean(holidays && holidays[date]);
 }
 
 /**
@@ -190,7 +196,7 @@ function handleAvailabilityCommand_(request, now) {
         '書き方の例:',
         `#${facility.key} … 2週間の空き`,
         `#${facility.key} 19-21 … 19〜21時の空き`,
-        `#${facility.key} 土日 … 土日の空き（平日・月水金 なども）`,
+        `#${facility.key} 土日 … 土日の空き（土日祝・平日・月水金 なども）`,
         `#${facility.key} 土日 19-21 … 両方でしぼる`,
         `#${facility.key} 次 … 次の2週間（次の次 も）`,
       ].join('\n'),
@@ -205,11 +211,13 @@ function handleAvailabilityCommand_(request, now) {
   let slots;
   let days;
   try {
-    slots = toAvailabilitySlots_(fetchAvailability_(facility, range))
-      .filter(function (slot) { return isAvailabilityDay_(slot.date, request.days); });
-    days = collectAvailabilityDays_(slots, request.window);
+    const data = fetchAvailability_(facility, range);
+    const holidays = toAvailabilityHolidays_(data);
+    slots = toAvailabilitySlots_(data)
+      .filter(function (slot) { return isAvailabilityDay_(slot.date, request.days, holidays); });
+    days = collectAvailabilityDays_(slots, request.window, holidays);
     days.activities = readAvailabilityActivities_(facility, range)
-      .filter(function (a) { return isAvailabilityDay_(a.date, request.days); });
+      .filter(function (a) { return isAvailabilityDay_(a.date, request.days, holidays); });
   } catch (err) {
     // 中身はログにだけ残し、LINE にはやさしい言葉とリンクだけを返す
     logAvailabilityError_(err);
@@ -342,6 +350,21 @@ function fetchAvailability_(facility, range) {
 }
 
 /**
+ * GetDay の応答の祝日。{ '2026-11-23': '勤労感謝の日' }
+ *
+ * @param {Object} data
+ * @returns {Object<string, string>}
+ */
+function toAvailabilityHolidays_(data) {
+  const out = {};
+  (data.holidays || []).forEach(function (h) {
+    const date = String((h && h.holidayDate) || '').slice(0, 10);
+    if (date) out[date] = String(h.holidayName || '祝日');
+  });
+  return out;
+}
+
+/**
  * GetDay の応答を1枠ずつの配列にする。
  *
  * @param {Object} data
@@ -415,10 +438,11 @@ function shortAvailabilityRoomLabel_(rooms) {
  *
  * @param {Object[]} slots toAvailabilitySlots_ の戻り値
  * @param {{start: number, end: number}|null} window
+ * @param {Object<string, string>=} holidays toAvailabilityHolidays_ の戻り値
  * @returns {{courts: string[], rooms: string[], days: Array<{date: string, label: string, open: boolean, cells: Object, reason: string}>}}
  *   cells は コート名 → {whole: boolean, spans: Array<{start: number, end: number, viewOnly: boolean}>}
  */
-function collectAvailabilityDays_(slots, window) {
+function collectAvailabilityDays_(slots, window, holidays) {
   const from = window ? window.start : 0;
   const to = window ? window.end : 24 * 60;
   const byDate = {};
@@ -459,7 +483,9 @@ function collectAvailabilityDays_(slots, window) {
       .filter(function (x, i, a) { return x !== '空きなし' && !AVAILABILITY_OPEN_STATUSES.includes(x) && a.indexOf(x) === i; });
     return {
       date: date,
-      label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${AVAILABILITY_WEEKDAYS[d.getUTCDay()]})`,
+      label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${AVAILABILITY_WEEKDAYS[d.getUTCDay()]}${holidays && holidays[date] ? '・祝' : ''})`,
+      // 日付の文字の色の種類：日曜・祝日は red、土曜は blue
+      tone: (holidays && holidays[date]) || d.getUTCDay() === 0 ? 'red' : d.getUTCDay() === 6 ? 'blue' : '',
       open: Object.keys(cells).length > 0,
       cells: cells,
       reason: reasons.length ? `空きなし（${reasons.join('・')}）` : '空きなし',
@@ -470,7 +496,7 @@ function collectAvailabilityDays_(slots, window) {
 
 /**
  * 続けて空きなしで、理由も同じ日を1つにまとめる（「11/16(月)〜11/21(土) 空きなし（設備保守）」）。
- * 活動のある日（activeDates）はまとめない（⚽ を表に出すため）。
+ * 活動のある日（activeDates）はまとめない（⚽ を表に出すため）。暦の上で続いている日だけまとめる。
  *
  * @param {Object[]} days
  * @returns {Object[]}
@@ -480,8 +506,11 @@ function groupClosedAvailabilityDays_(days, activeDates) {
   days.forEach(function (day) {
     const last = out[out.length - 1];
     const active = activeDates && activeDates.indexOf(day.date) >= 0;
-    if (!active && !day.open && last && !last.open && !last.active && last.reason === day.reason) {
+    // 暦の上で続いている日だけまとめる（曜日でしぼったとき、あいだの日まで入って見えないように）
+    const next = last && Utilities.formatDate(new Date(new Date(`${last.lastDate || last.date}T12:00:00+09:00`).getTime() + 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (!active && !day.open && last && !last.open && !last.active && last.reason === day.reason && next === day.date) {
       last.lastLabel = day.label;
+      last.lastDate = day.date;
     } else {
       out.push(Object.assign({ active: active }, day));
     }
@@ -552,7 +581,7 @@ function getAvailabilityCellState_(slots, start, end) {
 }
 
 /**
- * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・①・②）。
+ * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・①・②）。日付の文字は、土曜は青、日曜・祝日は赤。
  * 空いている時間がつながるところは、最初のマスに始まり、最後のマスに終わりの時刻を書く。
  * 活動の予定があれば、日付の行に「⚽ 15-17時 ①」、その時間・そのコートのマスに ⚽ を入れる（コートがわからなければ空きなしのマスに）。
  * マスの色：濃い緑 … ネットで予約できる / うすい緑 … 空き状況のみ・一部だけ / 灰色 … 空きなし。
@@ -626,6 +655,8 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
   const dark = '#111111';
   const sub = '#666666';
   const faint = '#999999';
+  // 日付の文字の色：土曜は青、日曜・祝日は赤
+  const dayColor = function (day) { return day.tone === 'red' ? '#CF222E' : day.tone === 'blue' ? '#0969DA' : dark; };
   const labelWidth = '16px';
   const courtNames = card.days.courts;
   const hours = getAvailabilityHours_(card.slots, card.window);
@@ -739,12 +770,12 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
       table.push({
         type: 'box', layout: 'baseline', spacing: 'sm', margin: 'md',
         contents: [
-          { type: 'text', text: day.label, size: 'xs', color: dark, weight: 'bold', flex: 0 },
+          { type: 'text', text: day.label, size: 'xs', color: dayColor(day), weight: 'bold', flex: 0 },
           { type: 'text', text: `⚽ ${dayActivities.map(formatAvailabilityActivity_).join(', ')}`, size: 'xxs', color: sub, flex: 0 },
         ],
       });
     } else {
-      table.push({ type: 'text', text: day.label, size: 'xs', color: dark, weight: 'bold', margin: 'md' });
+      table.push({ type: 'text', text: day.label, size: 'xs', color: dayColor(day), weight: 'bold', margin: 'md' });
     }
     courtNames.forEach(function (court, i) {
       table.push(gridRow(courtLabel(court, i), cellsFor(day.date, court, dayActivities, i + 1), 'xs', '14px'));

@@ -51,7 +51,7 @@ function grid(bubble) {
   let date = "";
   for (const x of bubble.body.contents) {
     if (x.type === "text") {
-      if (/^\d+\/\d+\(.\)$/.test(x.text)) date = x.text; // 日付の行
+      if (/^\d+\/\d+\([^)]*\)$/.test(x.text)) date = x.text; // 日付の行
       else out.push(x.text);
       continue;
     }
@@ -90,7 +90,7 @@ test("空いている時間がつながるところは、最初のマスに始�
   const labels = (date, mark) => {
     let current = "";
     for (const x of bubble.body.contents) {
-      if (x.type === "text" && /^\d+\/\d+\(.\)$/.test(x.text)) current = x.text;
+      if (x.type === "text" && /^\d+\/\d+\([^)]*\)$/.test(x.text)) current = x.text;
       if (current === date && x.type === "box" && x.contents.length === 2 && x.contents[0].contents[0] && x.contents[0].contents[0].text === mark) {
         return x.contents[1].contents.map((c) => (c.contents[0] ? c.contents[0].text : "."));
       }
@@ -179,6 +179,20 @@ test("灘崎での活動の予定があれば、日付の行に ⚽ と時間と
   has("11/16(月) ⚽ 10-12時");
   has("11/16(月) ① ⚽⚽xx");
   assert.ok(!rows.some((r) => /11\/14.*⚽/.test(r)), rows.join("\n"));
+});
+
+test("日付の文字は、土曜は青、日曜・祝日は赤。祝日は「(水・祝)」。#灘崎 土日祝 は祝日も入る", () => {
+  const site = Object.assign({}, SITE, { holidays: [{ holidayDate: "2026-11-11T00:00:00", holidayName: "ためしの祝日" }] });
+  const { reply } = setup((url) => (/GetDay/.test(url) ? res(200, site) : undefined));
+  const dates = (bubble) => bubble.body.contents
+    .filter((x) => x.type === "text" && /^\d+\/\d+\([^)]*\)$/.test(x.text))
+    .map((x) => `${x.text} ${x.color}`);
+  assert.deepEqual(dates(reply("#灘崎 10-13")[0].contents), [
+    "11/10(火) #111111", "11/11(水・祝) #CF222E", "11/14(土) #0969DA",
+  ]);
+  assert.deepEqual(dates(reply("#灘崎 土日祝")[0].contents).map((d) => d.split(" ")[0]), ["11/11(水・祝)", "11/14(土)"]);
+  assert.match(reply("#灘崎 土日祝")[0].contents.body.contents[1].text, /^土日祝の空き状況/);
+  assert.deepEqual(dates(reply("#灘崎 土日")[0].contents).map((d) => d.split(" ")[0]), ["11/14(土)"]);
 });
 
 test("予約サイトはボタン。読めない書き方には例を返し、ほかの # の言葉には反応しない", () => {
