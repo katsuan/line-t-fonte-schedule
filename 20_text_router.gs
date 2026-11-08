@@ -62,6 +62,30 @@ function createAvailabilityMessages_(text) {
   });
 }
 
+/**
+ * 空き状況のカードに ⚽ で出す、その施設での活動の予定（15_availability.gs が名前で探して呼ぶ）。
+ * Plan シートの場所に、施設の placeWords（「灘崎」など）が入っている予定。終了が空なら DEFAULT_PLAN_DURATION_HOURS 時間
+ *
+ * @param {{placeWords: string[]}} facility
+ * @param {{start: string, end: string}} range 'yyyy-MM-dd'
+ * @returns {Array<{date: string, start: number, end: number}>} start・end は0時からの分
+ */
+function listAvailabilityActivities_(facility, range) {
+  const words = (facility && facility.placeWords) || [];
+  if (words.length === 0) return [];
+  const minutes = function (time) { return time.getHours() * 60 + time.getMinutes(); };
+  return readPlanValues_().slice(1).map(function (row) {
+    const dateObj = row[0], startObj = row[1], endObj = row[2], place = String(row[3] || '');
+    if (!isValidDate(dateObj) || !isValidDate(startObj)) return null;
+    if (!words.some(function (word) { return place.indexOf(word) >= 0; })) return null;
+    const date = Utilities.formatDate(dateObj, 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (date < range.start || date > range.end) return null;
+    const start = minutes(startObj);
+    const end = isValidDate(endObj) && minutes(endObj) > start ? minutes(endObj) : start + DEFAULT_PLAN_DURATION_HOURS * 60;
+    return { date: date, start: start, end: Math.min(end, 24 * 60) };
+  }).filter(Boolean);
+}
+
 // ---------- トリガーの言葉 ----------
 
 /**

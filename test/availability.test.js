@@ -1,6 +1,6 @@
 // 施設の空き状況（15_availability.gs）：「#灘崎」「#灘崎 10-13」「#灘崎 土日」と、途中がうまっている時間帯
 "use strict";
-const { makeGas, plain, checkMessages } = require("./helpers");
+const { makeGas, planRow, plain, checkMessages } = require("./helpers");
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
@@ -33,13 +33,14 @@ const SITE = {
   }],
 };
 
-function setup(fetch) {
-  const gas = makeGas({ now: "2026-11-10T08:00:00+09:00", fetch: fetch || ((url) => (/GetDay/.test(url) ? res(200, SITE) : undefined)) });
+function setup(fetch, plans) {
+  const gas = makeGas({ now: "2026-11-10T08:00:00+09:00", plans: plans || [], fetch: fetch || ((url) => (/GetDay/.test(url) ? res(200, SITE) : undefined)) });
   const reply = (text) => plain(gas.call("handleTextMessage", event(text)));
   return { gas, reply };
 }
 
 const COLOR_TO_MARK = { "#2DA44E": "O", "#A8DFB8": "v", "#E3E5E8": "x", "#F7F7F7": "-" };
+const cellMark = (c) => (c.contents[0] && c.contents[0].text === "⚽" ? "⚽" : COLOR_TO_MARK[c.backgroundColor] || "?");
 
 /**
  * カードの表を読みやすい文字にする。マスの行は「11/10(火) ❶ OxO」（O 予約できる・v 空き状況のみ/一部・x 空きなし・- 時間の外）、
@@ -54,10 +55,15 @@ function grid(bubble) {
       else out.push(x.text);
       continue;
     }
+    if (x.type === "box" && x.layout === "baseline") { // ⚽ つきの日付の行
+      date = x.contents[0].text;
+      out.push(`${date} ${x.contents[1].text}`);
+      continue;
+    }
     if (x.type !== "box" || x.contents.length !== 2) continue;
     const [label, cells] = x.contents;
     if (!cells.contents || !cells.contents.some((c) => c.backgroundColor)) continue; // 時刻の目もり
-    const marks = cells.contents.map((c) => (COLOR_TO_MARK[c.backgroundColor] || "?").repeat(c.flex || 1)).join("");
+    const marks = cells.contents.map((c) => cellMark(c).repeat(c.flex || 1)).join("");
     out.push(`${date} ${label.contents[0] ? label.contents[0].text : ""} ${marks}`);
   }
   return out;
@@ -151,6 +157,22 @@ test("2週間ずっと空いていても、LINE のカードの大きさの上�
   // 分けても、どの日も1回ずつ出る。ボタンは最後の1枚だけ
   assert.equal(bubbles.flatMap((b) => grid(b).filter((r) => /^\d.*❶/.test(r))).length, 14);
   assert.equal(bubbles.filter((b) => b.footer).length, messages.length > 1 ? 1 : bubbles.filter((b) => b.footer).length);
+});
+
+test("灘崎での活動の予定があれば、日付の行に ⚽ と時間、その時間の空きなしのマスに ⚽ を入れる", () => {
+  const plans = [
+    planRow("2026-11-10", "11:00", "12:00", "灘崎総合公園", "⚽フットサル"), // ❶ の 11-12 がうまっている時間
+    planRow("2026-11-16", "10:00", "", "灘崎町総合公園", "⚽フットサル"),     // 終了が空 → 2時間。設備保守の日でもまとめない
+    planRow("2026-11-11", "10:00", "12:00", "体育館", "🏆大会"),            // ほかの場所は出さない
+  ];
+  const { reply } = setup(undefined, plans);
+  const rows = grid(reply("#灘崎")[0].contents);
+  assert.ok(rows.includes("11/10(火) ⚽ 11-12時"), rows.join("\n"));
+  assert.ok(rows.includes("11/10(火) ❶ O⚽Ox"), rows.join("\n"));
+  assert.ok(rows.includes("11/10(火) ❷ OOOx"), rows.join("\n"));
+  assert.ok(rows.includes("11/16(月) ⚽ 10-12時"), rows.join("\n"));
+  assert.ok(rows.includes("11/16(月) ❶ ⚽⚽xx"), rows.join("\n"));
+  assert.ok(!rows.some((r) => /11\/11.*⚽/.test(r)), rows.join("\n"));
 });
 
 test("予約サイトはボタン。読めない書き方には例を返し、ほかの # の言葉には反応しない", () => {

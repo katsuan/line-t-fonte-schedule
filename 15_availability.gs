@@ -10,7 +10,9 @@
  * - 岡山市施設予約サービスの空き状況ページが裏で使っている API（GetDay）から取る
  * - 予約サイトはカードの下のボタンで開く
  *
- * このファイルだけで動く（ほかのファイルからは Log だけを使う）。同じものを2か所に置いている:
+ * このファイルだけで動く（ほかのファイルからは Log だけを使う）。
+ * ボットに listAvailabilityActivities_(facility, range) があれば、その施設での活動の予定を ⚽ で出す（T-FONTE だけが置いている）。
+ * 同じものを2か所に置いている:
  * - GAS_assistant（ひしょっと）30_domain/05_availability_service.gs … 元
  * - line-t-fonte-schedule（T-FONTE）15_availability.gs … 写し
  * 直すときは元を直して、写しにそのままコピーする（中身は同じにする）。
@@ -20,11 +22,12 @@
 
 /**
  * 「#灘崎」のように送ると空き状況を返す施設。
+ * placeWords は、活動の予定の場所にこの言葉が入っていればこの施設とみなす言葉（listAvailabilityActivities_ を置いたボットだけが使う）。
  * facility と room は岡山市施設予約サービスの空き状況ページの URL
  * （/FacilityAvailability/Index/<facility>?...&rc=<room>）から取る。
  */
 const AVAILABILITY_FACILITIES = Object.freeze([
-  { key: '灘崎', name: '灘崎町総合公園 フットサルコート', facility: '331007/0029', room: '121' },
+  { key: '灘崎', name: '灘崎町総合公園 フットサルコート', facility: '331007/0029', room: '121', placeWords: ['灘崎'] },
 ]);
 
 const AVAILABILITY_BASE_URL = 'https://yoyacool.e-harp.jp/okayamacity/FacilityAvailability';
@@ -205,6 +208,8 @@ function handleAvailabilityCommand_(request, now) {
     slots = toAvailabilitySlots_(fetchAvailability_(facility, range))
       .filter(function (slot) { return isAvailabilityDay_(slot.date, request.days); });
     days = collectAvailabilityDays_(slots, request.window);
+    days.activities = readAvailabilityActivities_(facility, range)
+      .filter(function (a) { return isAvailabilityDay_(a.date, request.days); });
   } catch (err) {
     // 中身はログにだけ残し、LINE にはやさしい言葉とリンクだけを返す
     logAvailabilityError_(err);
@@ -236,6 +241,26 @@ function buildAvailabilityNextText_(request) {
   if (request.days) parts.push(formatAvailabilityDays_(request.days));
   if (request.window) parts.push(formatAvailabilityWindow_(request.window));
   return parts.join(' ');
+}
+
+/**
+ * その施設での活動の予定（ボットに listAvailabilityActivities_ があるときだけ）。
+ * 予定が読めなくても空き状況は返したいので、失敗したら記録して空にする。
+ *
+ * @param {Object} facility
+ * @param {{start: string, end: string}} range
+ * @returns {Array<{date: string, start: number, end: number}>} date は 'yyyy-MM-dd'、start・end は0時からの分
+ */
+function readAvailabilityActivities_(facility, range) {
+  if (typeof listAvailabilityActivities_ !== 'function') return [];
+  try {
+    return (listAvailabilityActivities_(facility, range) || []).filter(function (a) {
+      return a && a.date >= range.start && a.date <= range.end && a.start < a.end;
+    });
+  } catch (err) {
+    logAvailabilityError_(err);
+    return [];
+  }
 }
 
 /** 取れなかったわけを残す。Log に error がない環境でも止まらない */
@@ -438,18 +463,20 @@ function collectAvailabilityDays_(slots, window) {
 
 /**
  * 続けて空きなしで、理由も同じ日を1つにまとめる（「11/16(月)〜11/21(土) 空きなし（設備保守）」）。
+ * 活動のある日（activeDates）はまとめない（⚽ を表に出すため）。
  *
  * @param {Object[]} days
  * @returns {Object[]}
  */
-function groupClosedAvailabilityDays_(days) {
+function groupClosedAvailabilityDays_(days, activeDates) {
   const out = [];
   days.forEach(function (day) {
     const last = out[out.length - 1];
-    if (!day.open && last && !last.open && last.reason === day.reason) {
+    const active = activeDates && activeDates.indexOf(day.date) >= 0;
+    if (!active && !day.open && last && !last.open && !last.active && last.reason === day.reason) {
       last.lastLabel = day.label;
     } else {
-      out.push(Object.assign({}, day));
+      out.push(Object.assign({ active: active }, day));
     }
   });
   return out;
@@ -520,6 +547,7 @@ function getAvailabilityCellState_(slots, start, end) {
 /**
  * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・❶・❷）。
  * 空いている時間がつながるところは、最初のマスに始まり、最後のマスに終わりの時刻を書く。
+ * 活動の予定があれば、日付の行に「⚽ 15-17時」、その時間の空きなしのマスに ⚽ を入れる。
  * マスの色：濃い緑 … ネットで予約できる / うすい緑 … 空き状況のみ・一部だけ / 灰色 … 空きなし。
  * 続けて空きなしの日は「11/16(月)〜11/21(土) 空きなし（設備保守）」の1行にまとめる。
  * 大きさの上限をこえるときは、何枚かに分けて横にめくれるようにする（それでもだめなら、何通かに分けて送る）。
@@ -645,7 +673,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
   const table = [gridRow('', scale, 'lg')];
 
   const roomLabel = shortAvailabilityRoomLabel_(card.days.rooms);
-  const cellsFor = function (date, court) {
+  const cellsFor = function (date, court, dayActivities) {
     const own = card.slots.filter(function (s) { return s.date === date && roomLabel(s.room) === court; });
     const states = hours.map(function (minutes) { return getAvailabilityCellState_(own, minutes, minutes + 60); });
     const runs = [];
@@ -664,7 +692,14 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
       const cell = { type: 'box', layout: 'vertical', backgroundColor: AVAILABILITY_CELL_COLORS[run.state], contents: [] };
       if (!square) cell.cornerRadius = '2px';
       if (run.count > 1) cell.flex = run.count;
-      if (!joinRuns && isOpen(run.state)) {
+      // 活動の時間で、空きなしになっているマス（チームが押さえているコート）に ⚽
+      const playing = !joinRuns && run.state === 'closed' && (dayActivities || []).some(function (a) {
+        return a.start < hours[first] + 60 && a.end > hours[first];
+      });
+      if (playing) {
+        cell.justifyContent = 'center';
+        cell.contents.push({ type: 'text', text: '⚽', size: 'xxs', align: 'center' });
+      } else if (!joinRuns && isOpen(run.state)) {
         const starts = first === 0 || !isOpen(states[first - 1]);
         const ends = last === states.length - 1 || !isOpen(states[last + 1]);
         const label = starts ? hours[first] : ends ? hours[last] + 60 : null;
@@ -680,15 +715,31 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
     });
   };
 
-  groupClosedAvailabilityDays_(days).forEach(function (day) {
-    if (!day.open) {
+  const activities = card.days.activities || [];
+  const activitiesOn = function (date) { return activities.filter(function (a) { return a.date === date; }); };
+  const activeDates = activities.map(function (a) { return a.date; });
+
+  groupClosedAvailabilityDays_(days, activeDates).forEach(function (day) {
+    if (!day.open && !day.active) {
       const range = day.lastLabel ? `${day.label}〜${day.lastLabel}` : day.label;
       table.push({ type: 'text', text: `${range}　${day.reason}`, size: 'xs', color: faint, wrap: true, margin: 'md' });
       return;
     }
-    table.push({ type: 'text', text: day.label, size: 'xs', color: dark, weight: 'bold', margin: 'md' });
+    const dayActivities = activitiesOn(day.date);
+    if (dayActivities.length) {
+      // 日付の行に「⚽ 15-17時」を添える
+      table.push({
+        type: 'box', layout: 'baseline', spacing: 'sm', margin: 'md',
+        contents: [
+          { type: 'text', text: day.label, size: 'xs', color: dark, weight: 'bold', flex: 0 },
+          { type: 'text', text: `⚽ ${dayActivities.map(formatAvailabilityWindow_).join(', ')}`, size: 'xxs', color: sub, flex: 0 },
+        ],
+      });
+    } else {
+      table.push({ type: 'text', text: day.label, size: 'xs', color: dark, weight: 'bold', margin: 'md' });
+    }
     courtNames.forEach(function (court, i) {
-      table.push(gridRow(courtLabel(court, i), cellsFor(day.date, court), 'xs', '14px'));
+      table.push(gridRow(courtLabel(court, i), cellsFor(day.date, court, dayActivities), 'xs', '14px'));
     });
   });
   if (days.length === 0) {
