@@ -250,7 +250,7 @@ function buildAvailabilityNextText_(request) {
  * @param {Object} facility
  * @param {{start: string, end: string}} range
  * @returns {Array<{date: string, start: number, end: number, courts: (number[]|undefined)}>}
- *   date は 'yyyy-MM-dd'、start・end は0時からの分、courts はコートの番号（1 = ❶。わからなければなし）
+ *   date は 'yyyy-MM-dd'、start・end は0時からの分、courts はコートの番号（1 = ①。わからなければなし）
  */
 function readAvailabilityActivities_(facility, range) {
   if (typeof listAvailabilityActivities_ !== 'function') return [];
@@ -264,7 +264,7 @@ function readAvailabilityActivities_(facility, range) {
   }
 }
 
-/** 活動1つの「17-19時 ❶❷」（コートがわからなければ時間だけ） */
+/** 活動1つの「17-19時 ①②」（コートがわからなければ時間だけ） */
 function formatAvailabilityActivity_(activity) {
   const courts = (activity.courts || []).map(function (n) { return AVAILABILITY_COURT_MARKS[n - 1] || String(n); }).join('');
   return courts ? `${formatAvailabilityWindow_(activity)} ${courts}` : formatAvailabilityWindow_(activity);
@@ -501,7 +501,7 @@ const AVAILABILITY_CELL_COLORS = Object.freeze({
 const AVAILABILITY_BUBBLE_MAX_BYTES = 28000;
 const AVAILABILITY_CAROUSEL_MAX_BYTES = 48000;
 
-const AVAILABILITY_COURT_MARKS = ['❶', '❷', '❸', '❹', '❺', '❻', '❼', '❽', '❾', '❿'];
+const AVAILABILITY_COURT_MARKS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
 
 /**
  * 表の列にする時間（1時間ずつ）。時間帯があればその中、なければ受け付けている時間ぜんぶ（灘崎は 7〜21時）。
@@ -552,9 +552,9 @@ function getAvailabilityCellState_(slots, start, end) {
 }
 
 /**
- * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・❶・❷）。
+ * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・①・②）。
  * 空いている時間がつながるところは、最初のマスに始まり、最後のマスに終わりの時刻を書く。
- * 活動の予定があれば、日付の行に「⚽ 15-17時 ❶」、その時間・そのコートのマスに ⚽ を入れる（コートがわからなければ空きなしのマスに）。
+ * 活動の予定があれば、日付の行に「⚽ 15-17時 ①」、その時間・そのコートのマスに ⚽ を入れる（コートがわからなければ空きなしのマスに）。
  * マスの色：濃い緑 … ネットで予約できる / うすい緑 … 空き状況のみ・一部だけ / 灰色 … 空きなし。
  * 続けて空きなしの日は「11/16(月)〜11/21(土) 空きなし（設備保守）」の1行にまとめる。
  * 大きさの上限をこえるときは、何枚かに分けて横にめくれるようにする（それでもだめなら、何通かに分けて送る）。
@@ -652,7 +652,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
       ],
     },
   ];
-  // 行の左の名前。「コート1」「コート2」なら ❶ ❷
+  // 行の左の名前。「コート1」「コート2」なら ① ②
   const courtLabel = function (court, i) {
     const mark = AVAILABILITY_COURT_MARKS[i];
     return mark && /^コート\d+$/.test(court) ? mark : court;

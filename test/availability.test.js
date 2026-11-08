@@ -43,7 +43,7 @@ const COLOR_TO_MARK = { "#2DA44E": "O", "#A8DFB8": "v", "#E3E5E8": "x", "#F7F7F7
 const cellMark = (c) => (c.contents[0] && c.contents[0].text === "⚽" ? "⚽" : COLOR_TO_MARK[c.backgroundColor] || "?");
 
 /**
- * カードの表を読みやすい文字にする。マスの行は「11/10(火) ❶ OxO」（O 予約できる・v 空き状況のみ/一部・x 空きなし・- 時間の外）、
+ * カードの表を読みやすい文字にする。マスの行は「11/10(火) ① OxO」（O 予約できる・v 空き状況のみ/一部・x 空きなし・- 時間の外）、
  * まとめた空きなしの行はそのままの文字
  */
 function grid(bubble) {
@@ -75,11 +75,11 @@ test("時間帯の途中がうまっていたら、そのマスだけ空きな�
   assert.equal(card.type, "flex");
   assert.equal(card.sender.name, "T-FONTE");
   const rows = grid(card.contents);
-  assert.ok(rows.includes("11/10(火) ❶ OxO"), rows.join("\n"));
-  assert.ok(rows.includes("11/10(火) ❷ OOO"), rows.join("\n"));
+  assert.ok(rows.includes("11/10(火) ① OxO"), rows.join("\n"));
+  assert.ok(rows.includes("11/10(火) ② OOO"), rows.join("\n"));
   // 利用可能と空き状況のみがつながっていれば、空き状況のみのマスだけうすい色
-  assert.ok(rows.includes("11/11(水) ❶ OvO"), rows.join("\n"));
-  assert.ok(rows.includes("11/11(水) ❷ xxx"), rows.join("\n"));
+  assert.ok(rows.includes("11/11(水) ① OvO"), rows.join("\n"));
+  assert.ok(rows.includes("11/11(水) ② xxx"), rows.join("\n"));
   assert.ok(rows.includes("11/16(月)　空きなし（設備保守）"), rows.join("\n"));
   assert.deepEqual(checkMessages([card]).filter((p) => p.level === "error"), []);
 });
@@ -97,9 +97,9 @@ test("空いている時間がつながるところは、最初のマスに始�
     }
   };
   // 10-11・12-13 が空き（11-12・13-14 はうまっている）→ 1マスだけの空きは始まりの時刻
-  assert.deepEqual(labels("11/10(火)", "❶"), ["10", ".", "12", "."]);
+  assert.deepEqual(labels("11/10(火)", "①"), ["10", ".", "12", "."]);
   // 10-13 がつながって空き → 最初に 10、最後に 13
-  assert.deepEqual(labels("11/10(火)", "❷"), ["10", ".", "13", "."]);
+  assert.deepEqual(labels("11/10(火)", "②"), ["10", ".", "13", "."]);
 });
 
 test("#灘崎 次 は次の2週間を取り、カードの「次の2週間」ボタンは曜日・時間帯をそのまま送る", () => {
@@ -121,15 +121,15 @@ test("時間帯の外側だけ空いていても、時間帯の中がうまっ�
   const { reply } = setup();
   const rows = grid(reply("#灘崎 13-14")[0].contents);
   assert.ok(rows.includes("11/10(火)〜11/11(水)　空きなし"), rows.join("\n"));
-  assert.ok(rows.includes("11/14(土) ❶ O"), rows.join("\n"));
+  assert.ok(rows.includes("11/14(土) ① O"), rows.join("\n"));
 });
 
 test("#灘崎 土日 は土日の日だけ。#灘崎 だけなら受け付けている時間ぜんぶの列", () => {
   const { reply } = setup();
-  assert.deepEqual(grid(reply("#灘崎 土日")[0].contents).filter((r) => /^\d.*(❶|❷)/.test(r)), ["11/14(土) ❶ OOOO", "11/14(土) ❷ xxxx"]);
+  assert.deepEqual(grid(reply("#灘崎 土日")[0].contents).filter((r) => /^\d.*(①|②)/.test(r)), ["11/14(土) ① OOOO", "11/14(土) ② xxxx"]);
   const all = grid(reply("#灘崎")[0].contents);
-  assert.ok(all.includes("11/10(火) ❶ OxOx"), all.join("\n"));
-  assert.ok(all.includes("11/11(水) ❶ OvOx"), all.join("\n"));
+  assert.ok(all.includes("11/10(火) ① OxOx"), all.join("\n"));
+  assert.ok(all.includes("11/11(水) ① OvOx"), all.join("\n"));
 });
 
 test("2週間ずっと空いていても、LINE のカードの大きさの上限をこえない", () => {
@@ -155,7 +155,7 @@ test("2週間ずっと空いていても、LINE のカードの大きさの上�
   }
   bubbles.forEach((b) => assert.ok(size(b) <= 30000, `1枚 ${size(b)}`));
   // 分けても、どの日も1回ずつ出る。ボタンは最後の1枚だけ
-  assert.equal(bubbles.flatMap((b) => grid(b).filter((r) => /^\d.*❶/.test(r))).length, 14);
+  assert.equal(bubbles.flatMap((b) => grid(b).filter((r) => /^\d.*①/.test(r))).length, 14);
   assert.equal(bubbles.filter((b) => b.footer).length, messages.length > 1 ? 1 : bubbles.filter((b) => b.footer).length);
 });
 
@@ -169,15 +169,15 @@ test("灘崎での活動の予定があれば、日付の行に ⚽ と時間と
   const { reply } = setup(undefined, plans);
   const rows = grid(reply("#灘崎")[0].contents);
   const has = (row) => assert.ok(rows.includes(row), `${row}\n---\n${rows.join("\n")}`);
-  has("11/10(火) ⚽ 11-12時 ❶");
-  has("11/10(火) ❶ O⚽Ox");
-  has("11/10(火) ❷ OOOx");
-  has("11/11(水) ⚽ 12-14時 ❶❷");
-  has("11/11(水) ❶ Ov⚽⚽");
-  has("11/11(水) ❷ xx⚽⚽");
+  has("11/10(火) ⚽ 11-12時 ①");
+  has("11/10(火) ① O⚽Ox");
+  has("11/10(火) ② OOOx");
+  has("11/11(水) ⚽ 12-14時 ①②");
+  has("11/11(水) ① Ov⚽⚽");
+  has("11/11(水) ② xx⚽⚽");
   // どのコートかわからない予定は、その時間の空きなしのマスに
   has("11/16(月) ⚽ 10-12時");
-  has("11/16(月) ❶ ⚽⚽xx");
+  has("11/16(月) ① ⚽⚽xx");
   assert.ok(!rows.some((r) => /11\/14.*⚽/.test(r)), rows.join("\n"));
 });
 
