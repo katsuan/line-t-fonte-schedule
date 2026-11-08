@@ -39,38 +39,118 @@ function setup(fetch) {
   return { gas, reply };
 }
 
-/** カードの表を「日付 | コート1 | コート2」の文字の並びにする */
-function table(message) {
-  const text = (x) => (x.type === "text" ? (x.text ?? x.contents.map((c) => c.text).join("")) : x.type === "box" ? x.contents.map(text) : "");
-  return message.contents.body.contents.filter((x) => x.type === "box").map(text).map((row) => [].concat(...row).join(" | "));
+const COLOR_TO_MARK = { "#2DA44E": "O", "#A8DFB8": "v", "#E3E5E8": "x", "#F7F7F7": "-" };
+
+/**
+ * カードの表を読みやすい文字にする。マスの行は「11/10(火) ❶ OxO」（O 予約できる・v 空き状況のみ/一部・x 空きなし・- 時間の外）、
+ * まとめた空きなしの行はそのままの文字
+ */
+function grid(bubble) {
+  const out = [];
+  let date = "";
+  for (const x of bubble.body.contents) {
+    if (x.type === "text") {
+      if (/^\d+\/\d+\(.\)$/.test(x.text)) date = x.text; // 日付の行
+      else out.push(x.text);
+      continue;
+    }
+    if (x.type !== "box" || x.contents.length !== 2) continue;
+    const [label, cells] = x.contents;
+    if (!cells.contents || !cells.contents.some((c) => c.backgroundColor)) continue; // 時刻の目もり
+    const marks = cells.contents.map((c) => (COLOR_TO_MARK[c.backgroundColor] || "?").repeat(c.flex || 1)).join("");
+    out.push(`${date} ${label.contents[0] ? label.contents[0].text : ""} ${marks}`);
+  }
+  return out;
 }
 
-test("時間帯の途中がうまっていたら ○ にせず、空いている時間だけを △ で並べる", () => {
+test("時間帯の途中がうまっていたら、そのマスだけ空きなしの色にする", () => {
   const { reply } = setup();
   const [card] = reply("#灘崎 10-13");
   assert.equal(card.type, "flex");
   assert.equal(card.sender.name, "T-FONTE");
-  const rows = table(card);
-  assert.ok(rows.includes("11/10(火) | △ 10-11, 12-13時 | ○"), rows.join("\n"));
-  // 利用可能と空き状況のみがつながっていれば、まるごと空き（※ を添える）
-  assert.ok(rows.includes("11/11(水) | ○※ | —"), rows.join("\n"));
+  const rows = grid(card.contents);
+  assert.ok(rows.includes("11/10(火) ❶ OxO"), rows.join("\n"));
+  assert.ok(rows.includes("11/10(火) ❷ OOO"), rows.join("\n"));
+  // 利用可能と空き状況のみがつながっていれば、空き状況のみのマスだけうすい色
+  assert.ok(rows.includes("11/11(水) ❶ OvO"), rows.join("\n"));
+  assert.ok(rows.includes("11/11(水) ❷ xxx"), rows.join("\n"));
   assert.ok(rows.includes("11/16(月)　空きなし（設備保守）"), rows.join("\n"));
   assert.deepEqual(checkMessages([card]).filter((p) => p.level === "error"), []);
 });
 
-test("時間帯の外側だけ空いていても、時間帯の中がうまっていれば空きなし", () => {
+test("空いている時間がつながるところは、最初のマスに始まり、最後のマスに終わりの時刻を書く", () => {
   const { reply } = setup();
-  const rows = table(reply("#灘崎 13-14")[0]);
-  assert.ok(rows.includes("11/10(火)〜11/11(水)　空きなし"), rows.join("\n"));
-  assert.ok(rows.includes("11/14(土) | ○ | —"), rows.join("\n"));
+  const bubble = reply("#灘崎")[0].contents;
+  const labels = (date, mark) => {
+    let current = "";
+    for (const x of bubble.body.contents) {
+      if (x.type === "text" && /^\d+\/\d+\(.\)$/.test(x.text)) current = x.text;
+      if (current === date && x.type === "box" && x.contents.length === 2 && x.contents[0].contents[0] && x.contents[0].contents[0].text === mark) {
+        return x.contents[1].contents.map((c) => (c.contents[0] ? c.contents[0].text : "."));
+      }
+    }
+  };
+  // 10-11・12-13 が空き（11-12・13-14 はうまっている）→ 1マスだけの空きは始まりの時刻
+  assert.deepEqual(labels("11/10(火)", "❶"), ["10", ".", "12", "."]);
+  // 10-13 がつながって空き → 最初に 10、最後に 13
+  assert.deepEqual(labels("11/10(火)", "❷"), ["10", ".", "13", "."]);
 });
 
-test("#灘崎 土日 は土日の日だけ。#灘崎 だけなら全部の時間", () => {
+test("#灘崎 次 は次の2週間を取り、カードの「次の2週間」ボタンは曜日・時間帯をそのまま送る", () => {
+  const asked = [];
+  const { reply } = setup((url, opt) => {
+    if (!/GetDay/.test(url)) return undefined;
+    asked.push(JSON.parse(opt.payload));
+    return res(200, SITE);
+  });
+  const [card] = reply("#灘崎 土日 19-21");
+  const next = card.contents.footer.contents.find((b) => b.action.type === "message");
+  assert.equal(next.action.text, "#灘崎 次 土日 19-21時");
+  reply(next.action.text);
+  assert.deepEqual(asked.map((a) => [a.startDate, a.endDate]), [["2026-11-10", "2026-11-23"], ["2026-11-24", "2026-12-07"]]);
+  assert.equal(reply("#灘崎 次の次")[0].contents.body.contents[1].text.startsWith("12/8〜12/21の空き状況"), true);
+});
+
+test("時間帯の外側だけ空いていても、時間帯の中がうまっていれば空きなしの日にまとめる", () => {
   const { reply } = setup();
-  assert.deepEqual(table(reply("#灘崎 土日")[0]).slice(1), ["11/14(土) | 10-14時 | —"]);
-  const all = table(reply("#灘崎")[0]);
-  assert.ok(all.includes("11/10(火) | 10-11, 12-13時 | 10-13時"), all.join("\n"));
-  assert.ok(all.includes("11/11(水) | 10-11, 12-13時, 11-12時※ | —"), all.join("\n"));
+  const rows = grid(reply("#灘崎 13-14")[0].contents);
+  assert.ok(rows.includes("11/10(火)〜11/11(水)　空きなし"), rows.join("\n"));
+  assert.ok(rows.includes("11/14(土) ❶ O"), rows.join("\n"));
+});
+
+test("#灘崎 土日 は土日の日だけ。#灘崎 だけなら受け付けている時間ぜんぶの列", () => {
+  const { reply } = setup();
+  assert.deepEqual(grid(reply("#灘崎 土日")[0].contents).filter((r) => /^\d.*(❶|❷)/.test(r)), ["11/14(土) ❶ OOOO", "11/14(土) ❷ xxxx"]);
+  const all = grid(reply("#灘崎")[0].contents);
+  assert.ok(all.includes("11/10(火) ❶ OxOx"), all.join("\n"));
+  assert.ok(all.includes("11/11(水) ❶ OvOx"), all.join("\n"));
+});
+
+test("2週間ずっと空いていても、LINE のカードの大きさの上限をこえない", () => {
+  const frames = Array.from({ length: 14 }, (_, i) => ({ usageTimeFrameId: i + 1, usageStartTime: `${7 + i}:00:00`, usageEndTime: `${8 + i}:00:00` }));
+  const dates = Array.from({ length: 14 }, (_, i) => `2026-11-${String(10 + i).padStart(2, "0")}`);
+  // 1時間おきに色がかわる（つなげても小さくならない、いちばん大きくなる形）
+  const books = (k) => dates.map((d) => day(d, frames.map((_, i) => ((i + k) % 2 ? "A01" : "A02"))));
+  const site = { timeFrames: [{ usageTimeFrames: frames }], rooms: [{ roomName: "フットサルコート", courts: [
+    { courtName: "コート1", dayBooks: books(0) }, { courtName: "コート2", dayBooks: books(1) }] }] };
+  const { reply } = setup((url) => (/GetDay/.test(url) ? res(200, site) : undefined));
+  const messages = reply("#灘崎");
+  assert.ok(messages.length >= 1 && messages.length <= 5, `${messages.length}通`);
+  const size = (x) => JSON.stringify(x).length;
+  const bubbles = [];
+  for (const m of messages) {
+    assert.equal(m.type, "flex");
+    if (m.contents.type === "carousel") {
+      assert.ok(size(m.contents) <= 50000, `束 ${size(m.contents)}`);
+      bubbles.push(...m.contents.contents);
+    } else {
+      bubbles.push(m.contents);
+    }
+  }
+  bubbles.forEach((b) => assert.ok(size(b) <= 30000, `1枚 ${size(b)}`));
+  // 分けても、どの日も1回ずつ出る。ボタンは最後の1枚だけ
+  assert.equal(bubbles.flatMap((b) => grid(b).filter((r) => /^\d.*❶/.test(r))).length, 14);
+  assert.equal(bubbles.filter((b) => b.footer).length, messages.length > 1 ? 1 : bubbles.filter((b) => b.footer).length);
 });
 
 test("予約サイトはボタン。読めない書き方には例を返し、ほかの # の言葉には反応しない", () => {
