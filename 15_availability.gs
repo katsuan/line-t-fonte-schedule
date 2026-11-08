@@ -16,7 +16,7 @@
  * - GAS_assistant（ひしょっと）30_domain/05_availability_service.gs … 元
  * - line-t-fonte-schedule（T-FONTE）15_availability.gs … 写し
  * 直すときは元を直して、写しにそのままコピーする（中身は同じにする）。
- * 入口は2つ: isAvailabilityText(text)（当てはまるか）と handleAvailabilityText(text)（返事）
+ * 入口: isAvailabilityText(text)（当てはまるか）・handleAvailabilityText(text)（返事）・handleAvailabilityDigest(text)（これからの空きを1通。なければなし）
  * ============================================================================
  */
 
@@ -32,6 +32,9 @@ const AVAILABILITY_FACILITIES = Object.freeze([
 
 const AVAILABILITY_BASE_URL = 'https://yoyacool.e-harp.jp/okayamacity/FacilityAvailability';
 const AVAILABILITY_DAYS = 14;
+
+/** これからの空き（handleAvailabilityDigest）で見る日数。サイトは1回で90日ぶん返す（先は「受付前」のことが多い） */
+const AVAILABILITY_DIGEST_DAYS = 90;
 
 /** 空きとして出す状態 */
 const AVAILABILITY_OPEN_STATUSES = Object.freeze(['利用可能', '空き状況のみ']);
@@ -181,9 +184,31 @@ function handleAvailabilityText(text, now) {
 }
 
 /**
+ * これからの空き。「#灘崎 19-21」なら、今日から AVAILABILITY_DIGEST_DAYS 日ぶんで、19〜21時に空きのある日だけのカードを1通。
+ * 空きがない・取れないときは何も返さない（ほかの返事のうしろに足して使うので、じゃまをしない）。
+ * 名前の後ろに _ を付けないのは、ライブラリの外（親のボット）から呼べるようにするため。
+ *
+ * @param {string} text
+ * @param {Date=} now
+ * @returns {Object[]} 0通か1通
+ */
+function handleAvailabilityDigest(text, now) {
+  const request = detectAvailabilityFacility_(text);
+  if (!request || request.badOption) return [];
+  request.spanDays = AVAILABILITY_DIGEST_DAYS;
+  request.page = 0;
+  request.onlyOpen = true;
+  request.maxMessages = 1;
+  const messages = handleAvailabilityCommand_(request, now);
+  return messages.filter(function (m) { return m.type === 'flex'; }).slice(0, 1);
+}
+
+/**
  * 空き状況を取ってカードにする。時間帯・曜日があれば、そこだけにしぼる。
  *
- * @param {{facility: Object, window: ({start: number, end: number}|null), days: (number[]|null), badOption: boolean}} request
+ * @param {{facility: Object, window: ({start: number, end: number}|null), days: (number[]|null), page: number, badOption: boolean,
+ *   spanDays: (number|undefined), onlyOpen: (boolean|undefined), maxMessages: (number|undefined)}} request
+ *   spanDays … 何日ぶん見るか（ふだんは2週間）/ onlyOpen … 空きのある日だけ（なければ []）/ maxMessages … 何通までに分けてよいか
  * @param {Date=} now
  * @returns {Object[]}
  */
@@ -204,7 +229,7 @@ function handleAvailabilityCommand_(request, now) {
   }
 
   const at = now || new Date();
-  const range = getAvailabilityRange_(at, request.page);
+  const range = getAvailabilityRange_(at, request.page, request.spanDays);
   const pageUrl = buildAvailabilityPageUrl_(facility, range);
   const title = `${buildAvailabilityLabel_(request, range)}空き状況`;
 
@@ -218,6 +243,10 @@ function handleAvailabilityCommand_(request, now) {
     days = collectAvailabilityDays_(slots, request.window, holidays);
     days.activities = readAvailabilityActivities_(facility, range)
       .filter(function (a) { return isAvailabilityDay_(a.date, request.days, holidays); });
+    if (request.onlyOpen) {
+      days.days = days.days.filter(function (day) { return day.open; });
+      if (days.days.length === 0) return [];
+    }
   } catch (err) {
     // 中身はログにだけ残し、LINE にはやさしい言葉とリンクだけを返す
     logAvailabilityError_(err);
@@ -232,7 +261,8 @@ function handleAvailabilityCommand_(request, now) {
     title: title,
     asOf: Utilities.formatDate(at, 'Asia/Tokyo', 'M/d HH:mm'),
     window: request.window,
-    nextText: buildAvailabilityNextText_(request),
+    nextText: request.spanDays ? '' : buildAvailabilityNextText_(request),
+    maxMessages: request.maxMessages || 5,
     slots: slots,
     days: days,
     pageUrl: pageUrl,
@@ -288,7 +318,7 @@ function logAvailabilityError_(err) {
 /** 「11/22〜12/5 土日 19-21時の」「土曜の」「」（日付は次の2週間のときだけ） */
 function buildAvailabilityLabel_(request, range) {
   const labels = [];
-  if (request.page && range) {
+  if ((request.page || request.spanDays) && range) {
     const md = function (ymd) { const p = ymd.split('-').map(Number); return `${p[1]}/${p[2]}`; };
     labels.push(`${md(range.start)}〜${md(range.end)}`);
   }
@@ -306,12 +336,13 @@ function buildAvailabilityLabel_(request, range) {
  * @param {Date} now
  * @returns {{start: string, end: string}}
  */
-function getAvailabilityRange_(now, page) {
-  const first = (page || 0) * AVAILABILITY_DAYS;
+function getAvailabilityRange_(now, page, spanDays) {
+  const span = spanDays || AVAILABILITY_DAYS;
+  const first = (page || 0) * span;
   const day = function (offset) {
     return Utilities.formatDate(new Date(now.getTime() + (first + offset) * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
   };
-  return { start: day(0), end: day(AVAILABILITY_DAYS - 1) };
+  return { start: day(0), end: day(span - 1), days: span };
 }
 
 /** 空き状況ページ（人が見る方）の URL */
@@ -334,7 +365,7 @@ function fetchAvailability_(facility, range) {
       startDate: range.start,
       endDate: range.end,
       roomCode: facility.room,
-      period: AVAILABILITY_DAYS,
+      period: range.days || AVAILABILITY_DAYS,
     }),
     muteHttpExceptions: true,
   });
@@ -622,7 +653,7 @@ function buildAvailabilityCard_(card) {
   // 束にしても入らないときは、カードを何通かに分けて送る（1回の返事は5通まで）。ボタンは最後の1通だけ
   for (const per of [7, 5, 4, 3]) {
     const parts = split(per);
-    if (parts.length > 5) break;
+    if (parts.length > (card.maxMessages || 5)) break;
     const bubbles = parts.map(function (part, i) {
       return buildAvailabilityBubble_(card, part, false, `${i + 1}/${parts.length}`, true, i < parts.length - 1);
     });

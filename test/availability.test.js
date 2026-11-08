@@ -195,6 +195,25 @@ test("日付の文字は、土曜は青、日曜・祝日は赤。祝日は「(�
   assert.deepEqual(dates(reply("#灘崎 土日")[0].contents).map((d) => d.split(" ")[0]), ["11/14(土)"]);
 });
 
+test("handleAvailabilityDigest は90日ぶんを1回で取り、時間帯に空きのある日だけのカードを1通。なければ何も返さない", () => {
+  const asked = [];
+  const { gas } = setup((url, opt) => {
+    if (!/GetDay/.test(url)) return undefined;
+    asked.push(JSON.parse(opt.payload));
+    return res(200, SITE);
+  });
+  const [card, ...rest] = plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14"));
+  assert.equal(rest.length, 0);
+  assert.equal(asked.length, 1);
+  assert.deepEqual([asked[0].startDate, asked[0].endDate, asked[0].period], ["2026-11-10", "2027-02-07", 90]);
+  const rows = grid(card.contents).filter((r) => /^\d+\/\d+\(/.test(r));
+  // 13-14 に空きがあるのは 11/14 だけ（ほかの日は出さない・まとめた空きなしの行もない）
+  assert.deepEqual(rows, ["11/14(土) ① O", "11/14(土) ② x"]);
+  assert.equal(card.contents.footer.contents.length, 1); // 「次の2週間」ボタンは付けない
+  assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 20-21")), []);
+  assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 あした")), []);
+});
+
 test("予約サイトはボタン。読めない書き方には例を返し、ほかの # の言葉には反応しない", () => {
   const { reply, gas } = setup();
   const [card] = reply("#灘崎");
