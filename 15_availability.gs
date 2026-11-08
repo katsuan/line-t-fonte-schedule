@@ -249,7 +249,8 @@ function buildAvailabilityNextText_(request) {
  *
  * @param {Object} facility
  * @param {{start: string, end: string}} range
- * @returns {Array<{date: string, start: number, end: number}>} date は 'yyyy-MM-dd'、start・end は0時からの分
+ * @returns {Array<{date: string, start: number, end: number, courts: (number[]|undefined)}>}
+ *   date は 'yyyy-MM-dd'、start・end は0時からの分、courts はコートの番号（1 = ❶。わからなければなし）
  */
 function readAvailabilityActivities_(facility, range) {
   if (typeof listAvailabilityActivities_ !== 'function') return [];
@@ -261,6 +262,12 @@ function readAvailabilityActivities_(facility, range) {
     logAvailabilityError_(err);
     return [];
   }
+}
+
+/** 活動1つの「17-19時 ❶❷」（コートがわからなければ時間だけ） */
+function formatAvailabilityActivity_(activity) {
+  const courts = (activity.courts || []).map(function (n) { return AVAILABILITY_COURT_MARKS[n - 1] || String(n); }).join('');
+  return courts ? `${formatAvailabilityWindow_(activity)} ${courts}` : formatAvailabilityWindow_(activity);
 }
 
 /** 取れなかったわけを残す。Log に error がない環境でも止まらない */
@@ -547,7 +554,7 @@ function getAvailabilityCellState_(slots, start, end) {
 /**
  * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・❶・❷）。
  * 空いている時間がつながるところは、最初のマスに始まり、最後のマスに終わりの時刻を書く。
- * 活動の予定があれば、日付の行に「⚽ 15-17時」、その時間の空きなしのマスに ⚽ を入れる。
+ * 活動の予定があれば、日付の行に「⚽ 15-17時 ❶」、その時間・そのコートのマスに ⚽ を入れる（コートがわからなければ空きなしのマスに）。
  * マスの色：濃い緑 … ネットで予約できる / うすい緑 … 空き状況のみ・一部だけ / 灰色 … 空きなし。
  * 続けて空きなしの日は「11/16(月)〜11/21(土) 空きなし（設備保守）」の1行にまとめる。
  * 大きさの上限をこえるときは、何枚かに分けて横にめくれるようにする（それでもだめなら、何通かに分けて送る）。
@@ -673,7 +680,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
   const table = [gridRow('', scale, 'lg')];
 
   const roomLabel = shortAvailabilityRoomLabel_(card.days.rooms);
-  const cellsFor = function (date, court, dayActivities) {
+  const cellsFor = function (date, court, dayActivities, courtNumber) {
     const own = card.slots.filter(function (s) { return s.date === date && roomLabel(s.room) === court; });
     const states = hours.map(function (minutes) { return getAvailabilityCellState_(own, minutes, minutes + 60); });
     const runs = [];
@@ -692,9 +699,10 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
       const cell = { type: 'box', layout: 'vertical', backgroundColor: AVAILABILITY_CELL_COLORS[run.state], contents: [] };
       if (!square) cell.cornerRadius = '2px';
       if (run.count > 1) cell.flex = run.count;
-      // 活動の時間で、空きなしになっているマス（チームが押さえているコート）に ⚽
-      const playing = !joinRuns && run.state === 'closed' && (dayActivities || []).some(function (a) {
-        return a.start < hours[first] + 60 && a.end > hours[first];
+      // 活動の時間のマスに ⚽。どのコートかわかる予定（courts）はそのコートに、わからない予定は空きなしのマスに
+      const playing = !joinRuns && (dayActivities || []).some(function (a) {
+        if (!(a.start < hours[first] + 60 && a.end > hours[first])) return false;
+        return a.courts && a.courts.length ? a.courts.indexOf(courtNumber) >= 0 : run.state === 'closed';
       });
       if (playing) {
         cell.justifyContent = 'center';
@@ -732,14 +740,14 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
         type: 'box', layout: 'baseline', spacing: 'sm', margin: 'md',
         contents: [
           { type: 'text', text: day.label, size: 'xs', color: dark, weight: 'bold', flex: 0 },
-          { type: 'text', text: `⚽ ${dayActivities.map(formatAvailabilityWindow_).join(', ')}`, size: 'xxs', color: sub, flex: 0 },
+          { type: 'text', text: `⚽ ${dayActivities.map(formatAvailabilityActivity_).join(', ')}`, size: 'xxs', color: sub, flex: 0 },
         ],
       });
     } else {
       table.push({ type: 'text', text: day.label, size: 'xs', color: dark, weight: 'bold', margin: 'md' });
     }
     courtNames.forEach(function (court, i) {
-      table.push(gridRow(courtLabel(court, i), cellsFor(day.date, court, dayActivities), 'xs', '14px'));
+      table.push(gridRow(courtLabel(court, i), cellsFor(day.date, court, dayActivities, i + 1), 'xs', '14px'));
     });
   });
   if (days.length === 0) {

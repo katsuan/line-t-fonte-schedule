@@ -159,20 +159,26 @@ test("2週間ずっと空いていても、LINE のカードの大きさの上�
   assert.equal(bubbles.filter((b) => b.footer).length, messages.length > 1 ? 1 : bubbles.filter((b) => b.footer).length);
 });
 
-test("灘崎での活動の予定があれば、日付の行に ⚽ と時間、その時間の空きなしのマスに ⚽ を入れる", () => {
+test("灘崎での活動の予定があれば、日付の行に ⚽ と時間とコート、そのコートのその時間のマスに ⚽ を入れる", () => {
   const plans = [
-    planRow("2026-11-10", "11:00", "12:00", "灘崎総合公園", "⚽フットサル"), // ❶ の 11-12 がうまっている時間
-    planRow("2026-11-16", "10:00", "", "灘崎町総合公園", "⚽フットサル"),     // 終了が空 → 2時間。設備保守の日でもまとめない
-    planRow("2026-11-11", "10:00", "12:00", "体育館", "🏆大会"),            // ほかの場所は出さない
+    planRow("2026-11-10", "11:00", "12:00", "灘崎総合公園", "⚽フットサル", "①"),          // 登録の形：補足に ①
+    planRow("2026-11-11", "12:00", "14:00", "灘崎総合公園", "⚽フットサル コート①②"),     // 手で書いた形：内容に コート①②
+    planRow("2026-11-16", "10:00", "", "灘崎町総合公園", "⚽フットサル"),                    // コートなし・終了が空 → 2時間。設備保守の日でもまとめない
+    planRow("2026-11-14", "10:00", "12:00", "体育館", "🏆大会"),                            // ほかの場所は出さない
   ];
   const { reply } = setup(undefined, plans);
   const rows = grid(reply("#灘崎")[0].contents);
-  assert.ok(rows.includes("11/10(火) ⚽ 11-12時"), rows.join("\n"));
-  assert.ok(rows.includes("11/10(火) ❶ O⚽Ox"), rows.join("\n"));
-  assert.ok(rows.includes("11/10(火) ❷ OOOx"), rows.join("\n"));
-  assert.ok(rows.includes("11/16(月) ⚽ 10-12時"), rows.join("\n"));
-  assert.ok(rows.includes("11/16(月) ❶ ⚽⚽xx"), rows.join("\n"));
-  assert.ok(!rows.some((r) => /11\/11.*⚽/.test(r)), rows.join("\n"));
+  const has = (row) => assert.ok(rows.includes(row), `${row}\n---\n${rows.join("\n")}`);
+  has("11/10(火) ⚽ 11-12時 ❶");
+  has("11/10(火) ❶ O⚽Ox");
+  has("11/10(火) ❷ OOOx");
+  has("11/11(水) ⚽ 12-14時 ❶❷");
+  has("11/11(水) ❶ Ov⚽⚽");
+  has("11/11(水) ❷ xx⚽⚽");
+  // どのコートかわからない予定は、その時間の空きなしのマスに
+  has("11/16(月) ⚽ 10-12時");
+  has("11/16(月) ❶ ⚽⚽xx");
+  assert.ok(!rows.some((r) => /11\/14.*⚽/.test(r)), rows.join("\n"));
 });
 
 test("予約サイトはボタン。読めない書き方には例を返し、ほかの # の言葉には反応しない", () => {

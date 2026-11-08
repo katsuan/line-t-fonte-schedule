@@ -64,11 +64,12 @@ function createAvailabilityMessages_(text) {
 
 /**
  * 空き状況のカードに ⚽ で出す、その施設での活動の予定（15_availability.gs が名前で探して呼ぶ）。
- * Plan シートの場所に、施設の placeWords（「灘崎」など）が入っている予定。終了が空なら DEFAULT_PLAN_DURATION_HOURS 時間
+ * Plan シートの場所に、施設の placeWords（「灘崎」など）が入っている予定。終了が空なら DEFAULT_PLAN_DURATION_HOURS 時間。
+ * 内容・補足の丸数字（①②）をコートの番号にする（なければどのコートかわからない予定）
  *
  * @param {{placeWords: string[]}} facility
  * @param {{start: string, end: string}} range 'yyyy-MM-dd'
- * @returns {Array<{date: string, start: number, end: number}>} start・end は0時からの分
+ * @returns {Array<{date: string, start: number, end: number, courts: (number[]|undefined)}>} start・end は0時からの分
  */
 function listAvailabilityActivities_(facility, range) {
   const words = (facility && facility.placeWords) || [];
@@ -82,7 +83,13 @@ function listAvailabilityActivities_(facility, range) {
     if (date < range.start || date > range.end) return null;
     const start = minutes(startObj);
     const end = isValidDate(endObj) && minutes(endObj) > start ? minutes(endObj) : start + DEFAULT_PLAN_DURATION_HOURS * 60;
-    return { date: date, start: start, end: Math.min(end, 24 * 60) };
+    // どのコートか：内容・補足の丸数字（登録では補足に「②」、手で書くなら「コート①②」）
+    const courts = (String(row[4] || '') + ' ' + String(row[5] || '')).match(/[①-⑩]/g) || [];
+    const numbers = courts.map(function (c) { return c.charCodeAt(0) - 0x2460 + 1; })
+      .filter(function (n, i, all) { return all.indexOf(n) === i; });
+    const activity = { date: date, start: start, end: Math.min(end, 24 * 60) };
+    if (numbers.length) activity.courts = numbers;
+    return activity;
   }).filter(Boolean);
 }
 
