@@ -15,6 +15,8 @@ const TEXT_MESSAGE_HANDLERS = [
   { matches: function (text) { return isScheduleRegistrationTriggerText_(text); }, createMessages: function (text, event) { return createScheduleRegistrationMessages_(text, event); } },
   { matches: function (text) { return isFutureScheduleTriggerText_(text); }, createMessages: function () { return createAutoReminderFlexMessages_(); } },
   { matches: function (text) { return isAutoReminderTestTriggerText_(text); }, createMessages: function () { return createAutoReminderFlexMessages_(); } },
+  // 施設の空き状況（15_availability.gs。ひしょっとと同じもの）。「#灘崎」「#灘崎 19-21」「#灘崎 土日」
+  { matches: function (text) { return isAvailabilityText(text); }, createMessages: function (text) { return createAvailabilityMessages_(text); } },
   // 「#リマインドテスト」より後に見る（どちらも #リマインド で始まるため）
   { matches: function (text) { return isReminderTriggerText_(text); }, createMessages: function () { return createShareFlexMessages_(); } }
 ];
@@ -51,6 +53,13 @@ function routeTextMessage_(text, event) {
       sender: SENDERS.Error
     }];
   }
+}
+
+/** 施設の空き状況の返事に、T-FONTE の送り主を付ける */
+function createAvailabilityMessages_(text) {
+  return (handleAvailabilityText(text) || []).map(function (message) {
+    return Object.assign({ sender: SENDERS.Auto }, message);
+  });
 }
 
 // ---------- トリガーの言葉 ----------
