@@ -225,18 +225,18 @@ test("#灘崎 見張り：見る・入れかえ・足す・消す・全部消す
   let [card] = reply("#灘崎 見張り");
   assert.ok(lines(card).includes("まだありません"));
 
-  // 11/5 は過ぎた日（60日以内なので今年）、1/13 は来年
+  // 11/5 は過ぎた日（60日以内なので今年）なので入れない。1/13 は来年
   [card] = reply("#灘崎 見張り 11/5 12月11日 １２/１７ 1/13");
-  assert.equal(card.altText, "灘崎の見張る日: 11/5 12/11 12/17 1/13");
-  assert.ok(lines(card).includes("11/5(木)　過ぎました"), lines(card).join("\n"));
+  assert.equal(card.altText, "灘崎の見張る日: 12/11 12/17 1/13");
+  assert.ok(lines(card).some((l) => l.includes("11/5(木) は過ぎているので入れませんでした。")), lines(card).join("\n"));
   assert.ok(lines(card).includes("1/13(水)"), lines(card).join("\n"));
-  assert.deepEqual(copy(card), { type: "clipboard", label: "いまの日付をコピー", clipboardText: "#灘崎 見張り 11/5 12/11 12/17 1/13" });
-  assert.equal(gas.ctx.PropertiesService.getScriptProperties().getProperty("AVAILABILITY_WATCH_DATES_灘崎"), JSON.stringify(["2026-11-05", "2026-12-11", "2026-12-17", "2027-01-13"]));
+  assert.deepEqual(copy(card), { type: "clipboard", label: "いまの日付をコピー", clipboardText: "#灘崎 見張り 12/11 12/17 1/13" });
+  assert.equal(gas.ctx.PropertiesService.getScriptProperties().getProperty("AVAILABILITY_WATCH_DATES_灘崎"), JSON.stringify(["2026-12-11", "2026-12-17", "2027-01-13"]));
 
   [card] = reply("#灘崎 見張り + 12/24");
-  assert.equal(card.altText, "灘崎の見張る日: 11/5 12/11 12/17 12/24 1/13");
+  assert.equal(card.altText, "灘崎の見張る日: 12/11 12/17 12/24 1/13");
   [card] = reply("#灘崎 見張り -12/11");
-  assert.equal(card.altText, "灘崎の見張る日: 11/5 12/17 12/24 1/13");
+  assert.equal(card.altText, "灘崎の見張る日: 12/17 12/24 1/13");
   [card] = reply("#灘崎 見張り 削除 11/5 12/24");
   assert.equal(card.altText, "灘崎の見張る日: 12/17 1/13");
   // 読めない日付は書きかえない
@@ -246,6 +246,45 @@ test("#灘崎 見張り：見る・入れかえ・足す・消す・全部消す
   [card] = reply("#灘崎 見張り 全部消す");
   assert.equal(card.altText, "灘崎の見張る日: なし");
   assert.deepEqual(checkMessages([card]).filter((p) => p.level === "error"), []);
+});
+
+test("過ぎた見張る日は、日がたつと消えていく", () => {
+  const { gas } = setup();
+  const reply = (text) => plain(gas.call("handleAvailabilityText", text));
+  reply("#灘崎 見張り 11/11 11/14 12/11");
+  gas.setNow("2026-11-12T08:00:00+09:00");
+  assert.equal(reply("#灘崎 見張り")[0].altText, "灘崎の見張る日: 11/14 12/11");
+  gas.setNow("2026-11-15T08:00:00+09:00");
+  plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14")); // 毎日のカードを作るときにも消す
+  assert.equal(gas.ctx.PropertiesService.getScriptProperties().getProperty("AVAILABILITY_WATCH_DATES_灘崎"), JSON.stringify(["2026-12-11"]));
+});
+
+test("見張る日があれば、毎日のカードの上に「見張る日」の欄をいつも出す（空きがなくても返す）", () => {
+  const { gas } = setup();
+  const reply = (text) => plain(gas.call("handleAvailabilityText", text));
+  const watchRows = (card) => {
+    const box = card.contents.body.contents.find((x) => x.type === "box" && x.contents[0] && x.contents[0].text === "見張る日");
+    return box ? box.contents.slice(1).map((r) => r.contents.map((c) => c.text).join(" ")) : null;
+  };
+  // 20-21 はどの日も空きなし。見張る日がなければ何も返さない
+  assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 20-21")), []);
+  // 見張る日があれば、空きがなくてもカードを返して、その様子を見せる
+  reply("#灘崎 見張り 11/16");
+  let [card] = plain(gas.call("handleAvailabilityDigest", "#灘崎 20-21"));
+  assert.deepEqual(watchRows(card), ["11/16(月) この時間の枠がありません"]);
+  assert.ok(card.contents.body.contents.some((x) => x.text === "この時間の空きは、いまはありません"));
+  // 空きなし・設備保守・サイトにまだない先の日
+  reply("#灘崎 見張り 11/10 11/16 3/1");
+  [card] = plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14"));
+  assert.deepEqual(watchRows(card), [
+    "11/10(火) 空きなし",
+    "11/16(月) 空きなし（設備保守）",
+    "3/1(月) まだ見られません（サイトにまだない先の日）",
+  ]);
+  // 見張る日に空きがあれば「空きあり」
+  reply("#灘崎 見張り 11/14");
+  [card] = plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14"));
+  assert.deepEqual(watchRows(card), ["11/14(土) 空きあり"]);
 });
 
 test("これからの空きは見張る日以外も出す。見張る日に空きがあれば目立つ色にして、その日に「見張る日」の印", () => {
@@ -291,12 +330,44 @@ test("予約サイトはボタン。読めない書き方には例を返し、�
   assert.equal(gas.call("isAvailabilityText", "#今後の予定"), false);
 });
 
-test("サイトが取れないときは、エラーの中身を出さずリンクだけ返す", () => {
-  const { reply } = setup((url) => (/GetDay/.test(url) ? res(500, { secret: "x" }) : undefined));
-  const [msg] = reply("#灘崎");
+test("取れないときは、つながらないのか作りが変わったのかを分けて、エラーの中身を出さずにリンクと返す", () => {
+  const raw = (status, text) => ({ getResponseCode: () => status, getContentText: () => text });
+  const say = (fetch, text = "#灘崎") => {
+    const { reply } = setup((url) => (/GetDay/.test(url) ? fetch() : undefined));
+    return reply(text);
+  };
+  // つながらない（応答 500）
+  let [msg] = say(() => res(500, { secret: "x" }));
   assert.equal(msg.type, "text");
-  assert.match(msg.text, /いまは取れませんでした/);
+  assert.match(msg.text, /サイトにつながりませんでした/);
+  assert.match(msg.text, /FacilityAvailability\/Index/);
   assert.doesNotMatch(msg.text, /500|secret/);
+  // 作りが変わった：JSON でない（工事中のページなど）・rooms がない・枠が1つも読めない
+  for (const fetch of [() => raw(200, "<html>メンテナンス中</html>"), () => res(200, { items: [] }), () => res(200, { rooms: [], timeFrames: [] })]) {
+    [msg] = say(fetch);
+    assert.equal(msg.type, "text");
+    assert.match(msg.text, /サイトの作りが変わったようで/);
+  }
+});
+
+test("知らない状態のコードがあれば、カードでお知らせする（毎日のカードは空きがなくても知らせる）", () => {
+  const site = JSON.parse(JSON.stringify(SITE));
+  site.rooms[0].courts[1].dayBooks[1].usageTimes[3].statusType = "Z99"; // 11/11 ② 13-14
+  const { reply, gas } = setup((url) => (/GetDay/.test(url) ? res(200, site) : undefined));
+  const [card] = reply("#灘崎");
+  const texts = card.contents.body.contents.filter((x) => x.type === "text").map((x) => x.text);
+  assert.ok(texts.includes("見慣れない状態（Z99）があります。灰色にしているので、サイトで確かめてください。"), texts.join("\n"));
+  // 毎日のカード：その時間帯に空きがなくても、見慣れない状態があれば文で知らせる
+  const [notice] = plain(gas.call("handleAvailabilityDigest", "#灘崎 20-21"));
+  assert.equal(notice.type, "text");
+  assert.match(notice.text, /見慣れない状態（Z99）/);
+});
+
+test("毎日のカード（handleAvailabilityDigest）も、取れなかったら黙らずに文で知らせる", () => {
+  const { gas } = setup((url) => (/GetDay/.test(url) ? res(503, {}) : undefined));
+  const messages = plain(gas.call("handleAvailabilityDigest", "#灘崎 19-21"));
+  assert.equal(messages.length, 1);
+  assert.match(messages[0].text, /取れませんでした/);
 });
 
 test("ひしょっと（GAS_assistant）の元のファイルと中身が同じ", (t) => {
