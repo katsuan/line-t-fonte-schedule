@@ -17,7 +17,7 @@
  * - line-t-fonte-schedule（T-FONTE）15_availability.gs … 写し
  * 直すときは元を直して、写しにそのままコピーする（中身は同じにする）。
  * 入口: isAvailabilityText(text)（当てはまるか）・handleAvailabilityText(text)（返事）・handleAvailabilityDigest(text)（これからの空きを1通。なければなし）
- * 「#灘崎 見張り 12/11 12/17」で見張る日を登録すると、これからの空きはその日だけを見る（Script Properties にしまう）
+ * 「#灘崎 見張り 12/11 12/17」で見張る日を登録すると、これからの空きで、その日に空きがあればカードを目立たせる（Script Properties にしまう）
  * ============================================================================
  */
 
@@ -193,7 +193,7 @@ function handleAvailabilityText(text, now) {
 
 /**
  * これからの空き。「#灘崎 19-21」なら、今日から AVAILABILITY_DIGEST_DAYS 日ぶんで、19〜21時に空きのある日だけのカードを1通。
- * 「#灘崎 見張り」で見張る日を登録していれば、その日だけを見る。
+ * 「#灘崎 見張り」で見張る日を登録していれば、その日に空きがあるときはカードを目立つ色にし、その日に「見張る日」の印を付ける。
  * 空きがない・取れないときは何も返さない（ほかの返事のうしろに足して使うので、じゃまをしない）。
  * 名前の後ろに _ を付けないのは、ライブラリの外（親のボット）から呼べるようにするため。
  *
@@ -209,9 +209,9 @@ function handleAvailabilityDigest(text, now) {
   request.page = 0;
   request.onlyOpen = true;
   request.maxMessages = 1;
-  // 見張る日が登録されていれば、その日だけを見る（なければ全部の日）
+  // 見張る日が登録されていれば、その日に空きがあるときにカードを目立たせる（ほかの日も出す）
   const watched = readAvailabilityWatchDates_(request.facility);
-  if (watched.length) request.onlyDates = watched;
+  if (watched.length) request.watchDates = watched;
   const messages = handleAvailabilityCommand_(request, now);
   return messages.filter(function (m) { return m.type === 'flex'; }).slice(0, 1);
 }
@@ -222,6 +222,7 @@ function handleAvailabilityDigest(text, now) {
  * @param {{facility: Object, window: ({start: number, end: number}|null), days: (number[]|null), page: number, badOption: boolean,
  *   spanDays: (number|undefined), onlyOpen: (boolean|undefined), maxMessages: (number|undefined)}} request
  *   spanDays … 何日ぶん見るか（ふだんは2週間）/ onlyOpen … 空きのある日だけ（なければ []）/ maxMessages … 何通までに分けてよいか
+ *   watchDates … 見張る日（空きがあればカードを目立たせる）
  * @param {Date=} now
  * @returns {Object[]}
  */
@@ -258,9 +259,6 @@ function handleAvailabilityCommand_(request, now) {
     days = collectAvailabilityDays_(slots, request.window, holidays);
     days.activities = readAvailabilityActivities_(facility, range)
       .filter(function (a) { return isAvailabilityDay_(a.date, request.days, holidays); });
-    if (request.onlyDates) {
-      days.days = days.days.filter(function (day) { return request.onlyDates.indexOf(day.date) >= 0; });
-    }
     if (request.onlyOpen) {
       days.days = days.days.filter(function (day) { return day.open; });
       if (days.days.length === 0) return [];
@@ -281,8 +279,11 @@ function handleAvailabilityCommand_(request, now) {
     window: request.window,
     nextText: request.spanDays ? '' : buildAvailabilityNextText_(request),
     maxMessages: request.maxMessages || 5,
-    // 見張る日に空きがあるときは、カードを目立つ色にする（毎日のカードは空きがあるときしか出ない）
-    alert: Boolean(request.onlyDates),
+    // 見張る日に空きがあるときは、カードを目立つ色にする
+    watchDates: request.watchDates || [],
+    alert: (request.watchDates || []).some(function (date) {
+      return days.days.some(function (day) { return day.open && day.date === date; });
+    }),
     slots: slots,
     days: days,
     pageUrl: pageUrl,
@@ -433,7 +434,7 @@ function handleAvailabilityWatch_(request, now) {
   let note = '';
   if (op === 'clear') {
     next = [];
-    note = '見張る日を全部消しました。これからの空きは全部の日を見ます。';
+    note = '見張る日を全部消しました。';
   } else if (dates.length === 0) {
     return [buildAvailabilityWatchCard_(facility, current, now, '日付を書いてください（例: 12/11 12/17）。')];
   } else if (op === 'add') {
@@ -465,12 +466,12 @@ function buildAvailabilityWatchCard_(facility, dates, now, note) {
 
   const body = [
     { type: 'text', text: `${facility.key}の見張る日`, weight: 'bold', size: 'md', color: dark },
-    { type: 'text', text: 'これからの空き（毎日のカード）は、この日だけを見ます。', size: 'xs', color: sub, wrap: true, margin: 'sm' },
+    { type: 'text', text: '毎日の空きのカードで、この日に空きがあれば目立つ色で知らせます。', size: 'xs', color: sub, wrap: true, margin: 'sm' },
   ];
   if (note) body.push({ type: 'text', text: note, size: 'sm', color: dark, wrap: true, margin: 'md' });
   body.push({ type: 'separator', margin: 'md' });
   if (dates.length === 0) {
-    body.push({ type: 'text', text: 'まだありません（いまは全部の日を見ます）', size: 'sm', color: faint, wrap: true, margin: 'md' });
+    body.push({ type: 'text', text: 'まだありません', size: 'sm', color: faint, wrap: true, margin: 'md' });
   } else {
     dates.forEach(function (date) {
       const past = date < today;
@@ -514,7 +515,6 @@ function logAvailabilityError_(err) {
 /** 「11/22〜12/5 土日 19-21時の」「土曜の」「」（日付は次の2週間のときだけ） */
 function buildAvailabilityLabel_(request, range) {
   const labels = [];
-  if (request.onlyDates) labels.push('見張る日');
   if ((request.page || request.spanDays) && range) {
     const md = function (ymd) { const p = ymd.split('-').map(Number); return `${p[1]}/${p[2]}`; };
     labels.push(`${md(range.start)}〜${md(range.end)}`);
@@ -814,7 +814,7 @@ function getAvailabilityCellState_(slots, start, end) {
 /**
  * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・①・②）。日付の文字は、土曜は青、日曜・祝日は赤。
  * 空いている時間がつながるところは、最初のマスに始まり、最後のマスに終わりの時刻を書く。
- * 見張る日に空きがあるとき（card.alert）は、地をうすいオレンジにして、上に「見張る日に空きがあります」の帯。
+ * 見張る日に空きがあるとき（card.alert）は、地をうすいオレンジにして、上に「見張る日に空きがあります（12/11(金)）」の帯。見張る日の日付には「見張る日」の印。
  * 活動の予定があれば、日付の行に「⚽ 15-17時 ①」、その時間・そのコートのマスに ⚽ を入れる（コートがわからなければ空きなしのマスに）。
  * マスの色：濃い緑 … ネットで予約できる / うすい緑 … 空き状況のみ・一部だけ / 灰色 … 空きなし。
  * 続けて空きなしの日は「11/16(月)〜11/21(土) 空きなし（設備保守）」の1行にまとめる。
@@ -908,7 +908,11 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
     head.push({
       type: 'box', layout: 'vertical', backgroundColor: AVAILABILITY_ALERT_COLORS.band, cornerRadius: '4px',
       paddingAll: '8px', margin: 'none',
-      contents: [{ type: 'text', text: '見張る日に空きがあります', weight: 'bold', size: 'sm', color: '#FFFFFF', wrap: true }],
+      contents: [{
+        type: 'text', weight: 'bold', size: 'sm', color: '#FFFFFF', wrap: true,
+        text: `見張る日に空きがあります（${days.filter(function (day) { return day.open && card.watchDates.indexOf(day.date) >= 0; })
+          .map(function (day) { return day.label; }).join(' ')}）`,
+      }],
     });
   }
   head.push(
@@ -1005,15 +1009,15 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
       return;
     }
     const dayActivities = activitiesOn(day.date);
-    if (dayActivities.length) {
-      // 日付の行に「⚽ 15-17時」を添える
-      table.push({
-        type: 'box', layout: 'baseline', spacing: 'sm', margin: 'md',
-        contents: [
-          { type: 'text', text: day.label, size: 'xs', color: dayColor(day), weight: 'bold', flex: 0 },
-          { type: 'text', text: `⚽ ${dayActivities.map(formatAvailabilityActivity_).join(', ')}`, size: 'xxs', color: sub, flex: 0 },
-        ],
-      });
+    const watched = (card.watchDates || []).indexOf(day.date) >= 0;
+    if (dayActivities.length || watched) {
+      // 日付の行に「見張る日」の印と「⚽ 15-17時」を添える
+      const marks = [{ type: 'text', text: day.label, size: 'xs', color: dayColor(day), weight: 'bold', flex: 0 }];
+      if (watched) marks.push({ type: 'text', text: '見張る日', size: 'xxs', color: AVAILABILITY_ALERT_COLORS.band, weight: 'bold', flex: 0 });
+      if (dayActivities.length) {
+        marks.push({ type: 'text', text: `⚽ ${dayActivities.map(formatAvailabilityActivity_).join(', ')}`, size: 'xxs', color: sub, flex: 0 });
+      }
+      table.push({ type: 'box', layout: 'baseline', spacing: 'sm', margin: 'md', contents: marks });
     } else {
       table.push({ type: 'text', text: day.label, size: 'xs', color: dayColor(day), weight: 'bold', margin: 'md' });
     }
