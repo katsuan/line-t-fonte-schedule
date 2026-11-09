@@ -16,7 +16,8 @@ const TEXT_MESSAGE_HANDLERS = [
   { matches: function (text) { return isFutureScheduleTriggerText_(text); }, createMessages: function () { return createAutoReminderFlexMessages_(); } },
   { matches: function (text) { return isAutoReminderTestTriggerText_(text); }, createMessages: function () { return createAutoReminderFlexMessages_(); } },
   // 施設の空き状況（15_availability.gs。ひしょっとと同じもの）。「#灘崎」「#灘崎 19-21」「#灘崎 土日」
-  { matches: function (text) { return isAvailabilityText(text); }, createMessages: function (text) { return createAvailabilityMessages_(text); } },
+  // 「#灘崎 見張り」（毎日のカードで見る日）はひしょっとだけの機能なので、ここでは受けない
+  { matches: function (text) { return isAvailabilityText(text) && !/見張|みはり/.test(text); }, createMessages: function (text) { return createAvailabilityMessages_(text); } },
   // 「#リマインドテスト」より後に見る（どちらも #リマインド で始まるため）
   { matches: function (text) { return isReminderTriggerText_(text); }, createMessages: function () { return createShareFlexMessages_(); } }
 ];

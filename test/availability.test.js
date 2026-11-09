@@ -214,6 +214,53 @@ test("handleAvailabilityDigest は90日ぶんを1回で取り、時間帯に空�
   assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 あした")), []);
 });
 
+test("#灘崎 見張り：見る・入れかえ・足す・消す・全部消す。カードのボタンでいまの日付を写せる（ひしょっとの機能。T-FONTE のトークでは受けない）", () => {
+  const { gas } = setup();
+  assert.equal(gas.call("handleTextMessage", event("#灘崎 見張り")), undefined);
+  // 共通のファイルの入口を直接よぶ（ひしょっとと同じ動き）
+  const reply = (text) => plain(gas.call("handleAvailabilityText", text));
+  const lines = (card) => card.contents.body.contents.filter((x) => x.type === "text").map((x) => x.text);
+  const copy = (card) => card.contents.footer.contents[0].action;
+
+  let [card] = reply("#灘崎 見張り");
+  assert.ok(lines(card).includes("まだありません（いまは全部の日を見ます）"));
+
+  // 11/5 は過ぎた日（60日以内なので今年）、1/13 は来年
+  [card] = reply("#灘崎 見張り 11/5 12月11日 １２/１７ 1/13");
+  assert.equal(card.altText, "灘崎の見張る日: 11/5 12/11 12/17 1/13");
+  assert.ok(lines(card).includes("11/5(木)　過ぎました"), lines(card).join("\n"));
+  assert.ok(lines(card).includes("1/13(水)"), lines(card).join("\n"));
+  assert.deepEqual(copy(card), { type: "clipboard", label: "いまの日付をコピー", clipboardText: "#灘崎 見張り 11/5 12/11 12/17 1/13" });
+  assert.equal(gas.ctx.PropertiesService.getScriptProperties().getProperty("AVAILABILITY_WATCH_DATES_灘崎"), JSON.stringify(["2026-11-05", "2026-12-11", "2026-12-17", "2027-01-13"]));
+
+  [card] = reply("#灘崎 見張り + 12/24");
+  assert.equal(card.altText, "灘崎の見張る日: 11/5 12/11 12/17 12/24 1/13");
+  [card] = reply("#灘崎 見張り -12/11");
+  assert.equal(card.altText, "灘崎の見張る日: 11/5 12/17 12/24 1/13");
+  [card] = reply("#灘崎 見張り 削除 11/5 12/24");
+  assert.equal(card.altText, "灘崎の見張る日: 12/17 1/13");
+  // 読めない日付は書きかえない
+  [card] = reply("#灘崎 見張り + 2/30");
+  assert.match(lines(card).join("\n"), /「\+ 2\/30」|「2\/30」/);
+  assert.equal(card.altText, "灘崎の見張る日: 12/17 1/13");
+  [card] = reply("#灘崎 見張り 全部消す");
+  assert.equal(card.altText, "灘崎の見張る日: なし");
+  assert.deepEqual(checkMessages([card]).filter((p) => p.level === "error"), []);
+});
+
+test("見張る日があれば、これからの空き（handleAvailabilityDigest）はその日だけを見る", () => {
+  const { gas } = setup();
+  const reply = (text) => plain(gas.call("handleAvailabilityText", text));
+  // 11/14 は 13-14 に空きがある日。11/10 は空きがない
+  reply("#灘崎 見張り 11/10 11/14");
+  let rows = grid(plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14"))[0].contents);
+  assert.ok(rows[1].startsWith("見張る日 "), rows[1]);
+  assert.deepEqual(rows.filter((r) => /^\d+\/\d+\(/.test(r)), ["11/14(土) ① O", "11/14(土) ② x"]);
+  // 見張る日に空きがなければ、何も足さない
+  reply("#灘崎 見張り 11/10");
+  assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14")), []);
+});
+
 test("予約サイトはボタン。読めない書き方には例を返し、ほかの # の言葉には反応しない", () => {
   const { reply, gas } = setup();
   const [card] = reply("#灘崎");
