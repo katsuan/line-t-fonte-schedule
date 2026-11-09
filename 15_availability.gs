@@ -281,6 +281,8 @@ function handleAvailabilityCommand_(request, now) {
     window: request.window,
     nextText: request.spanDays ? '' : buildAvailabilityNextText_(request),
     maxMessages: request.maxMessages || 5,
+    // 見張る日に空きがあるときは、カードを目立つ色にする（毎日のカードは空きがあるときしか出ない）
+    alert: Boolean(request.onlyDates),
     slots: slots,
     days: days,
     pageUrl: pageUrl,
@@ -752,6 +754,9 @@ const AVAILABILITY_CELL_COLORS = Object.freeze({
   none: '#F7F7F7',   // 受け付けている時間の外
 });
 
+/** 見張る日に空きがあるときのカードの色（地はうすいオレンジ、上の帯は濃いオレンジ） */
+const AVAILABILITY_ALERT_COLORS = Object.freeze({ background: '#FFF4E5', band: '#D9480F' });
+
 /** LINE のカードの大きさの上限（1枚 30KB・横にめくる束で 50KB）より少し小さく */
 const AVAILABILITY_BUBBLE_MAX_BYTES = 28000;
 const AVAILABILITY_CAROUSEL_MAX_BYTES = 48000;
@@ -809,6 +814,7 @@ function getAvailabilityCellState_(slots, start, end) {
 /**
  * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・①・②）。日付の文字は、土曜は青、日曜・祝日は赤。
  * 空いている時間がつながるところは、最初のマスに始まり、最後のマスに終わりの時刻を書く。
+ * 見張る日に空きがあるとき（card.alert）は、地をうすいオレンジにして、上に「見張る日に空きがあります」の帯。
  * 活動の予定があれば、日付の行に「⚽ 15-17時 ①」、その時間・そのコートのマスに ⚽ を入れる（コートがわからなければ空きなしのマスに）。
  * マスの色：濃い緑 … ネットで予約できる / うすい緑 … 空き状況のみ・一部だけ / 灰色 … 空きなし。
  * 続けて空きなしの日は「11/16(月)〜11/21(土) 空きなし（設備保守）」の1行にまとめる。
@@ -868,7 +874,7 @@ function buildAvailabilityCard_(card) {
 /** カードを LINE のメッセージにする。通知の文には空きのある日を並べる */
 function availabilityFlex_(card, contents) {
   const openDays = card.days.days.filter(function (day) { return day.open; }).map(function (day) { return day.label; });
-  const altText = `【${card.facility.name}】${card.title}` +
+  const altText = `${card.alert ? '【見張る日に空き】' : ''}【${card.facility.name}】${card.title}` +
     (openDays.length ? `　空きのある日: ${openDays.join(' ')}` : '　空きなし');
   return { type: 'flex', altText: altText.slice(0, 400), contents: contents };
 }
@@ -897,8 +903,16 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
     };
   };
 
-  const head = [
-    { type: 'text', text: card.facility.name, weight: 'bold', size: 'md', color: dark, wrap: true },
+  const head = [];
+  if (card.alert) {
+    head.push({
+      type: 'box', layout: 'vertical', backgroundColor: AVAILABILITY_ALERT_COLORS.band, cornerRadius: '4px',
+      paddingAll: '8px', margin: 'none',
+      contents: [{ type: 'text', text: '見張る日に空きがあります', weight: 'bold', size: 'sm', color: '#FFFFFF', wrap: true }],
+    });
+  }
+  head.push(
+    { type: 'text', text: card.facility.name, weight: 'bold', size: 'md', color: dark, wrap: true, margin: card.alert ? 'md' : 'none' },
     { type: 'text', text: `${card.title}${part ? `・${part}` : ''}（${card.asOf} 時点）`, size: 'xs', color: sub, wrap: true, margin: 'sm' },
     {
       type: 'box', layout: 'horizontal', spacing: 'md', margin: 'md',
@@ -908,7 +922,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
         legendItem(AVAILABILITY_CELL_COLORS.closed, '空きなし'),
       ],
     },
-  ];
+  );
   // 行の左の名前。「コート1」「コート2」なら ① ②
   const courtLabel = function (court, i) {
     const mark = AVAILABILITY_COURT_MARKS[i];
@@ -1031,6 +1045,9 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
       }] : []),
     },
   };
+  if (card.alert) {
+    bubble.styles = { body: { backgroundColor: AVAILABILITY_ALERT_COLORS.background }, footer: { backgroundColor: AVAILABILITY_ALERT_COLORS.background } };
+  }
   if (noButtons) delete bubble.footer;
   return bubble;
 }

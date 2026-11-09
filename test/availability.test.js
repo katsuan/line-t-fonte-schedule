@@ -252,8 +252,19 @@ test("見張る日があれば、これからの空き（handleAvailabilityDiges
   const { gas } = setup();
   const reply = (text) => plain(gas.call("handleAvailabilityText", text));
   // 11/14 は 13-14 に空きがある日。11/10 は空きがない
+  // 見張る日がないときは、ふつうの色
+  const plainCard = plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14"))[0];
+  assert.equal(plainCard.contents.styles, undefined);
+  assert.doesNotMatch(plainCard.altText, /見張る日に空き/);
+
   reply("#灘崎 見張り 11/10 11/14");
-  let rows = grid(plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14"))[0].contents);
+  const [alert] = plain(gas.call("handleAvailabilityDigest", "#灘崎 13-14"));
+  // 見張る日に空きがあれば、目立つ色（地はうすいオレンジ・上に帯）と、通知の文の頭に【見張る日に空き】
+  assert.match(alert.altText, /^【見張る日に空き】/);
+  assert.equal(alert.contents.styles.body.backgroundColor, "#FFF4E5");
+  assert.equal(alert.contents.body.contents[0].contents[0].text, "見張る日に空きがあります");
+  assert.deepEqual(checkMessages([alert]).filter((p) => p.level === "error"), []);
+  let rows = grid(alert.contents);
   assert.ok(rows[1].startsWith("見張る日 "), rows[1]);
   assert.deepEqual(rows.filter((r) => /^\d+\/\d+\(/.test(r)), ["11/14(土) ① O", "11/14(土) ② x"]);
   // 見張る日に空きがなければ、何も足さない
