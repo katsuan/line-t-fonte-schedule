@@ -239,6 +239,15 @@ test("#灘崎 見張り：見る・入れかえ・足す・消す・全部消す
   assert.equal(card.altText, "灘崎の見張る日: 12/17 12/24 1/13");
   [card] = reply("#灘崎 見張り 削除 11/5 12/24");
   assert.equal(card.altText, "灘崎の見張る日: 12/17 1/13");
+  assert.ok(lines(card).some((l) => l.includes("11/5(木) はもともと入っていません。")), lines(card).join("\n"));
+  // 前に付けた + - は、その日付だけに効く（1つの文で足して消せる）
+  [card] = reply("#灘崎 見張り +1/3 +12/24");
+  assert.equal(card.altText, "灘崎の見張る日: 12/17 12/24 1/3 1/13");
+  [card] = reply("#灘崎 見張り -1/3 +12/25");
+  assert.equal(card.altText, "灘崎の見張る日: 12/17 12/24 12/25 1/13");
+  assert.ok(lines(card).some((l) => l.includes("12/25(金) を足しました。\n1/3(日) を消しました。")), lines(card).join("\n"));
+  [card] = reply("#灘崎 見張り - 12/24 12/25");
+  assert.equal(card.altText, "灘崎の見張る日: 12/17 1/13");
   // 読めない日付は書きかえない
   [card] = reply("#灘崎 見張り + 2/30");
   assert.match(lines(card).join("\n"), /「\+ 2\/30」|「2\/30」/);

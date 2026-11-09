@@ -461,6 +461,7 @@ function formatAvailabilityDate_(date) {
  * - 「#灘崎 見張り 11/5 12/11」… 入れかえる
  * - 「#灘崎 見張り + 12/24」「#灘崎 見張り 追加 12/24」… 足す
  * - 「#灘崎 見張り - 12/11」「#灘崎 見張り 削除 12/11」… 消す
+ * - 「#灘崎 見張り -1/3 +1/13」… 日付ごとに足す・消す（前に付けた + - はその日だけに効く）
  * - 「#灘崎 見張り 全部消す」… 見張るのをやめる（全部の日を見る）
  *
  * @param {Object} request
@@ -469,55 +470,64 @@ function formatAvailabilityDate_(date) {
  */
 function handleAvailabilityWatch_(request, now) {
   const facility = request.facility;
-  let op = 'replace';
-  const dates = [];
+  // 日付ごとに、足すか消すかを見る。「+」「-」を前に付けた日付はその日だけ、
+  // 「+」「追加」「-」「削除」だけの言葉は、そのあとの日付ぜんぶに効く。どれもなければ入れかえ
+  let mode = null;
+  let clear = false;
+  const entries = [];
   const bad = [];
   request.watch.tokens.forEach(function (token) {
-    if (['+', '＋', '追加', '足す'].indexOf(token) >= 0) { op = 'add'; return; }
-    if (['-', '－', '−', 'ー', '削除', '消す'].indexOf(token) >= 0) { op = 'remove'; return; }
-    if (['全部消す', 'クリア', 'やめる'].indexOf(token) >= 0) { op = 'clear'; return; }
+    if (['+', '＋', '追加', '足す'].indexOf(token) >= 0) { mode = 'add'; return; }
+    if (['-', '－', '−', 'ー', '削除', '消す'].indexOf(token) >= 0) { mode = 'remove'; return; }
+    if (['全部消す', 'クリア', 'やめる'].indexOf(token) >= 0) { clear = true; return; }
     let t = token;
+    let op = mode;
     if (/^[+＋]/.test(t)) { op = 'add'; t = t.slice(1); }
     else if (/^[-－−]/.test(t)) { op = 'remove'; t = t.slice(1); }
     const date = parseAvailabilityDate_(t, now);
-    if (date) dates.push(date);
+    if (date) entries.push({ date: date, op: op });
     else bad.push(token);
   });
 
   const current = pruneAvailabilityWatchDates_(facility, now);
-  // 過ぎた日は入れない（消すときは、そもそもないので何もしない）
-  const today = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
-  const past = dates.filter(function (d) { return d < today; });
-  const pastNote = past.length && op !== 'remove'
-    ? `${past.map(formatAvailabilityDate_).join(' ')} は過ぎているので入れませんでした。`
-    : '';
-  for (let i = dates.length - 1; i >= 0; i--) if (dates[i] < today) dates.splice(i, 1);
   if (bad.length) {
-    return [buildAvailabilityWatchCard_(facility, current, now, `「${bad.join(' ')}」は日付として読めませんでした。`)];
+    return [buildAvailabilityWatchCard_(facility, current, now, `「${bad.join(' ')}」は日付として読めませんでした。何も変えていません。`)];
   }
   if (request.watch.tokens.length === 0) {
     return [buildAvailabilityWatchCard_(facility, current, now, '')];
   }
-
-  let next = current;
-  let note = '';
-  if (op === 'clear') {
-    next = [];
-    note = '見張る日を全部消しました。';
-  } else if (dates.length === 0) {
-    return [buildAvailabilityWatchCard_(facility, current, now, pastNote || '日付を書いてください（例: 12/11 12/17）。')];
-  } else if (op === 'add') {
-    next = current.concat(dates);
-    note = `${dates.map(formatAvailabilityDate_).join(' ')} を足しました。`;
-  } else if (op === 'remove') {
-    next = current.filter(function (d) { return dates.indexOf(d) < 0; });
-    note = `${dates.map(formatAvailabilityDate_).join(' ')} を消しました。`;
-  } else {
-    next = dates;
-    note = '見張る日を入れかえました。';
+  if (clear) {
+    const cleared = saveAvailabilityWatchDates_(facility, []);
+    return [buildAvailabilityWatchCard_(facility, cleared, now, '見張る日を全部消しました。')];
   }
+  if (entries.length === 0) {
+    return [buildAvailabilityWatchCard_(facility, current, now, '日付を書いてください（例: 12/11 12/17）。')];
+  }
+
+  const today = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
+  const notes = [];
+  const replace = entries.every(function (e) { return e.op === null; });
+  // 入れかえと足すときは、過ぎた日は入れない
+  const adding = entries.filter(function (e) { return e.op !== 'remove'; }).map(function (e) { return e.date; });
+  const past = adding.filter(function (d) { return d < today; });
+  const added = adding.filter(function (d) { return d >= today; });
+  const removing = entries.filter(function (e) { return e.op === 'remove'; }).map(function (e) { return e.date; });
+
+  let next;
+  if (replace) {
+    next = added;
+    notes.push('見張る日を入れかえました。');
+  } else {
+    const missing = removing.filter(function (d) { return current.indexOf(d) < 0; });
+    const removed = removing.filter(function (d) { return current.indexOf(d) >= 0; });
+    next = current.filter(function (d) { return removing.indexOf(d) < 0; }).concat(added);
+    if (added.length) notes.push(`${added.map(formatAvailabilityDate_).join(' ')} を足しました。`);
+    if (removed.length) notes.push(`${removed.map(formatAvailabilityDate_).join(' ')} を消しました。`);
+    if (missing.length) notes.push(`${missing.map(formatAvailabilityDate_).join(' ')} はもともと入っていません。`);
+  }
+  if (past.length) notes.push(`${past.map(formatAvailabilityDate_).join(' ')} は過ぎているので入れませんでした。`);
   next = saveAvailabilityWatchDates_(facility, next);
-  return [buildAvailabilityWatchCard_(facility, next, now, [note, pastNote].filter(Boolean).join('\n'))];
+  return [buildAvailabilityWatchCard_(facility, next, now, notes.join('\n'))];
 }
 
 /**
