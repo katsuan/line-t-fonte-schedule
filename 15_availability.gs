@@ -1,25 +1,29 @@
-// ==========[ 施設の空き状況：「#灘崎」「#灘崎 19-21」「#灘崎 土日」にカードで返す ]==========
+// ==========[ 施設の空き状況：「#灘崎」に、草グラフのような表のカードで返す ]==========
 
 /**
  * ============================================================================
  * Availability Service（施設の空き状況）
  * ----------------------------------------------------------------------------
- * 役割:
- * - 「#灘崎」のようなメッセージに、施設の2週間分の空き状況をカードで返す
- * - 「#灘崎 19-21」で時間帯、「#灘崎 土日」で曜日をしぼる。「#灘崎 次」で次の2週間（組み合わせられる）
- * - 岡山市施設予約サービスの空き状況ページが裏で使っている API（GetDay）から取る
- * - 予約サイトはカードの下のボタンで開く
+ * 岡山市施設予約サービスの空き状況ページが裏で使っている API（GetDay）から取って、LINE のカードで返す。
+ * - 「#灘崎」… 2週間。「19-21」で時間帯、「土日」「土日祝」で曜日、「次」で次の2週間（組み合わせられる）
+ * - 「#灘崎 これから 19-21」… 90日先までで空きのある日だけ（ひしょっとは毎日 OURA のうしろに足す: handleAvailabilityDigest）
+ * - 「#灘崎 見張り 12/11 12/17」… 見張る日。その日に空きがあれば、これからの空きのカードを目立つ色にする（Script Properties）
+ * - 取れないときは「つながらない」「作りが変わった」を分けて返す（エラーの中身は LINE に出さない）
  *
  * このファイルだけで動く（ほかのファイルからは Log だけを使う）。
  * ボットに listAvailabilityActivities_(facility, range) があれば、その施設での活動の予定を ⚽ で出す（T-FONTE だけが置いている）。
+ * 入口: isAvailabilityText(text)・handleAvailabilityText(text)・handleAvailabilityDigest(text)
+ *
  * 同じものを2か所に置いている:
  * - GAS_assistant（ひしょっと）30_domain/05_availability_service.gs … 元
  * - line-t-fonte-schedule（T-FONTE）15_availability.gs … 写し
- * 直すときは元を直して、写しにそのままコピーする（中身は同じにする）。
- * 入口: isAvailabilityText(text)（当てはまるか）・handleAvailabilityText(text)（返事）・handleAvailabilityDigest(text)（これからの空きを1通。なければなし）
- * 「#灘崎 見張り 12/11 12/17」で見張る日を登録すると、これからの空きで、その日に空きがあればカードを目立たせる（Script Properties にしまう）
+ * 直すときは元を直して、写しにそのままコピーする（中身は同じにする。T-FONTE のテストが確かめる）。
+ *
+ * 並び: 設定 → 見た目の決まり → 入口 → 返事を選ぶ → 書き方を読む → サイトから取る → まとめる → カード → 見張る日の登録 → 小さな道具
  * ============================================================================
  */
+
+// ---------- 設定（施設・サイト・決まり） ----------
 
 /**
  * 「#灘崎」のように送ると空き状況を返す施設。
@@ -33,10 +37,14 @@ const AVAILABILITY_FACILITIES = Object.freeze([
 ]);
 
 const AVAILABILITY_BASE_URL = 'https://yoyacool.e-harp.jp/okayamacity/FacilityAvailability';
+
 const AVAILABILITY_DAYS = 14;
 
 /** これからの空き（handleAvailabilityDigest）で見る日数。サイトは1回で90日ぶん返す（先は「受付前」のことが多い） */
 const AVAILABILITY_DIGEST_DAYS = 90;
+
+/** 先の2週間を何回まで出すか（サイトは先の予約をまだ受け付けていないことが多い） */
+const AVAILABILITY_MAX_PAGE = 4;
 
 /** 空きとして出す状態 */
 const AVAILABILITY_OPEN_STATUSES = Object.freeze(['利用可能', '空き状況のみ']);
@@ -63,113 +71,45 @@ const AVAILABILITY_STATUS_LABELS = Object.freeze({
 
 const AVAILABILITY_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
-/**
- * 「#灘崎」「＃ 灘崎」「#灘崎 19-21」「#灘崎 土日」「#灘崎 次」「#灘崎 次 土日 19-21」から施設・時間帯・曜日・何回先の2週間かを取り出す。
- * 「#灘崎 見張り …」なら watch（見張る日の登録。tokens は「見張り」のあとの言葉）を付けて返す。
- * 「#灘崎 これから 19-21」なら digest（これからの空き。毎日のカードと同じもの）を付ける。
- * 当てはまらなければ null。施設のあとが読めないときは badOption を true にする（書き方を返すため）。
- *
- * @param {string} text
- * @returns {{facility: Object, window: ({start: number, end: number}|null), days: (number[]|null), page: number, badOption: boolean}|null}
- */
-function detectAvailabilityFacility_(text) {
-  const match = String(text || '').trim().match(/^[#＃]\s*(\S+)(?:[\s　]+(.+))?$/u);
-  if (!match) return null;
-  const facility = AVAILABILITY_FACILITIES.find(function (f) { return f.key === match[1]; });
-  if (!facility) return null;
-
-  const request = { facility: facility, window: null, days: null, page: 0, badOption: false };
-  const tokens = String(match[2] || '').split(/[\s　、,]+/).filter(Boolean);
-  // 「#灘崎 見張り …」は見張る日の登録（日付の読み取りは今日がわかってから）
-  if (tokens.length && AVAILABILITY_WATCH_WORDS.indexOf(tokens[0]) >= 0) {
-    request.watch = { tokens: tokens.slice(1) };
-    return request;
-  }
-  tokens.forEach(function (token) {
-    if (token === 'これから' && !request.digest) { request.digest = true; return; }
-    const page = parseAvailabilityPage_(token);
-    const days = page ? null : parseAvailabilityDays_(token);
-    const window = page || days ? null : parseAvailabilityWindow_(token);
-    if (page && !request.page) request.page = page;
-    else if (days && !request.days) request.days = days;
-    else if (window && !request.window) request.window = window;
-    else request.badOption = true;
-  });
-  return request;
-}
-
 /** 曜日の番号のほかに、祝日を表す番号（日=0〜土=6 のつぎ） */
 const AVAILABILITY_HOLIDAY = 7;
 
-/** 先の2週間を何回まで出すか（サイトは先の予約をまだ受け付けていないことが多い） */
-const AVAILABILITY_MAX_PAGE = 4;
+/** 「#灘崎 見張り …」の「見張り」にあたる言葉 */
+const AVAILABILITY_WATCH_WORDS = Object.freeze(['見張り', '見張る', 'みはり']);
+
+// ---------- 見た目の決まり（色・大きさの上限・コートの印） ----------
+
+/** マスの色（草グラフのように、濃い緑ほど使いやすい） */
+const AVAILABILITY_CELL_COLORS = Object.freeze({
+  open: '#2DA44E',   // ネットで予約できる
+  view: '#A8DFB8',   // 空き状況のみ（ネットでは予約できない）・一部だけ空き
+  closed: '#E3E5E8', // 空きなし・設備保守など
+  none: '#F7F7F7',   // 受け付けている時間の外
+});
 
 /**
- * 「次」「次の2週間」→ 1（次の2週間）、「次の次」→ 2。読めなければ 0。
- *
- * @param {string} text
- * @returns {number}
+ * カードの文字の色：濃い（日付・見出し）・ふつう（説明）・うすい（空きなし・目もり）・土曜・日曜と祝日・
+ * 濃い色の上（帯・濃い緑のマス）・うすい緑のマスの上
  */
-function parseAvailabilityPage_(text) {
-  const t = String(text || '').replace(/の?2週間$/, '');
-  if (!/^次(の次)*$/.test(t)) return 0;
-  return Math.min(t.split('次').length - 1, AVAILABILITY_MAX_PAGE);
-}
+const AVAILABILITY_TEXT_COLORS = Object.freeze({
+  dark: '#111111', sub: '#666666', faint: '#999999', saturday: '#0969DA', holiday: '#CF222E',
+  onDark: '#FFFFFF', onLight: '#1F6B3A',
+});
 
-/** 1 → 「次」、2 → 「次の次」（ボタンで送る文に使う） */
-function formatAvailabilityPage_(page) {
-  return Array(page).fill('次').join('の');
-}
+/** 見張る日の欄の地の色（ふだん・目立つ色のカードの上） */
+const AVAILABILITY_PANEL_COLORS = Object.freeze({ normal: '#F6F6F6', onAlert: '#FFFFFF' });
 
-/**
- * 「土日」「土日祝」「土」「月水金」「火曜」「平日」「週末」「休日」を曜日の番号（日=0〜土=6、祝日=7）にする。読めなければ null。
- *
- * @param {string} text
- * @returns {number[]|null}
- */
-function parseAvailabilityDays_(text) {
-  const t = String(text || '').replace(/曜日?/g, '');
-  if (t === '平日') return [1, 2, 3, 4, 5];
-  if (t === '週末') return [0, 6];
-  if (t === '休日') return [0, 6, AVAILABILITY_HOLIDAY];
-  if (!/^[月火水木金土日祝]+$/u.test(t)) return null;
-  return t.split('').map(function (c) { return c === '祝' ? AVAILABILITY_HOLIDAY : AVAILABILITY_WEEKDAYS.indexOf(c); })
-    .filter(function (n, i, all) { return all.indexOf(n) === i; });
-}
+/** 見張る日に空きがあるときのカードの色（地はうすいオレンジ、上の帯は濃いオレンジ） */
+const AVAILABILITY_ALERT_COLORS = Object.freeze({ background: '#FFF4E5', band: '#D9480F' });
 
-/** [0, 6] → 「土日」、[0, 6, 7] → 「土日祝」、平日5つ → 「平日」 */
-function formatAvailabilityDays_(days) {
-  if (days.length === 5 && [1, 2, 3, 4, 5].every(function (d) { return days.indexOf(d) >= 0; })) return '平日';
-  const order = function (d) { return d === 0 ? 7 : d === AVAILABILITY_HOLIDAY ? 8 : d; };
-  return days.slice().sort(function (x, y) { return order(x) - order(y); })
-    .map(function (d) { return d === AVAILABILITY_HOLIDAY ? '祝' : AVAILABILITY_WEEKDAYS[d]; }).join('');
-}
+/** LINE のカードの大きさの上限（1枚 30KB・横にめくる束で 50KB）より少し小さく */
+const AVAILABILITY_BUBBLE_MAX_BYTES = 28000;
 
-/** その日が、しぼった曜日に入るか（しぼっていなければいつも true）。「祝」をしぼったときは、祝日も入る */
-function isAvailabilityDay_(date, days, holidays) {
-  if (!days) return true;
-  if (days.indexOf(new Date(`${date}T00:00:00Z`).getUTCDay()) >= 0) return true;
-  return days.indexOf(AVAILABILITY_HOLIDAY) >= 0 && Boolean(holidays && holidays[date]);
-}
+const AVAILABILITY_CAROUSEL_MAX_BYTES = 48000;
 
-/**
- * 「19-21」「19〜21時」「19時-21時」「１９－２１」「19:30-21」を、0時からの分にする。読めなければ null。
- *
- * @param {string} text
- * @returns {{start: number, end: number}|null}
- */
-function parseAvailabilityWindow_(text) {
-  const normalized = String(text || '')
-    .replace(/[０-９：]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
-    .replace(/[〜～ー－−–—]/g, '-')
-    .replace(/[時\s　]/g, '');
-  const m = normalized.match(/^(\d{1,2})(?::(\d{2}))?-(\d{1,2})(?::(\d{2}))?$/);
-  if (!m) return null;
-  const start = Number(m[1]) * 60 + Number(m[2] || 0);
-  const end = Number(m[3]) * 60 + Number(m[4] || 0);
-  if (start >= end || end > 24 * 60) return null;
-  return { start: start, end: end };
-}
+const AVAILABILITY_COURT_MARKS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
+
+// ---------- 入口（ボットから呼ぶ） ----------
 
 /**
  * 登録済みの施設の「#灘崎」なら true。
@@ -209,8 +149,33 @@ function handleAvailabilityText(text, now) {
 function handleAvailabilityDigest(text, now) {
   const request = detectAvailabilityFacility_(text);
   if (!request || request.badOption || request.watch) return [];
-  // 空きのカードか、取れなかった・見慣れない状態のお知らせの文を1通（空きがなければ何もなし）
-  return handleAvailabilityCommand_(asAvailabilityDigest_(request, now || new Date()), now).slice(0, 1);
+  const at = now || new Date();
+  return respondAvailability_(asAvailabilityDigest_(request, at), at).slice(0, 1);
+}
+
+// ---------- 返事を選ぶ ----------
+
+/**
+ * 「#灘崎 …」への返事を選ぶ：見張る日の登録・書き方の例・これからの空き・ふつうの空き状況
+ *
+ * @param {Object} request detectAvailabilityFacility_ の戻り値
+ * @param {Date=} now
+ * @returns {Object[]}
+ */
+function handleAvailabilityCommand_(request, now) {
+  const at = now || new Date();
+  if (request.watch) return handleAvailabilityWatch_(request, at);
+  if (request.badOption) return [buildAvailabilityHelpMessage_(request.facility)];
+  if (request.digest) {
+    const messages = respondAvailability_(asAvailabilityDigest_(request, at), at).slice(0, 1);
+    if (messages.length) return messages;
+    // 送ってきた人には、空きがないことも返す（毎日のカードでは何も足さない）
+    return [{
+      type: 'text',
+      text: `【${request.facility.name}】これから${AVAILABILITY_DIGEST_DAYS}日の${formatAvailabilityWindow_(request.window)}に、空きのある日はありません。`,
+    }];
+  }
+  return respondAvailability_(request, at);
 }
 
 /**
@@ -232,103 +197,43 @@ function asAvailabilityDigest_(request, now) {
 /**
  * 空き状況を取ってカードにする。時間帯・曜日があれば、そこだけにしぼる。
  *
- * @param {{facility: Object, window: ({start: number, end: number}|null), days: (number[]|null), page: number, badOption: boolean,
- *   spanDays: (number|undefined), onlyOpen: (boolean|undefined), maxMessages: (number|undefined)}} request
+ * @param {{facility: Object, window: ({start: number, end: number}|null), days: (number[]|null), page: number,
+ *   spanDays: (number|undefined), onlyOpen: (boolean|undefined), maxMessages: (number|undefined), watchDates: (string[]|undefined)}} request
  *   spanDays … 何日ぶん見るか（ふだんは2週間）/ onlyOpen … 空きのある日だけ（なければ []）/ maxMessages … 何通までに分けてよいか
  *   watchDates … 見張る日（空きがあればカードを目立たせる）
- * @param {Date=} now
+ * @param {Date} at
  * @returns {Object[]}
  */
-function handleAvailabilityCommand_(request, now) {
+function respondAvailability_(request, at) {
   const facility = request.facility;
-  if (request.watch) return handleAvailabilityWatch_(request, now || new Date());
-  if (request.digest) {
-    request.digest = false;
-    const messages = handleAvailabilityCommand_(asAvailabilityDigest_(request, now || new Date()), now).slice(0, 1);
-    if (messages.length) return messages;
-    // 送ってきた人には、空きがないことも返す（毎日のカードでは何も足さない）
-    return [{ type: 'text', text: `【${facility.name}】これから${AVAILABILITY_DIGEST_DAYS}日の${formatAvailabilityWindow_(request.window)}に、空きのある日はありません。` }];
-  }
-  if (request.badOption) {
-    return [{
-      type: 'text',
-      text: [
-        '書き方の例:',
-        `#${facility.key} … 2週間の空き`,
-        `#${facility.key} 19-21 … 19〜21時の空き`,
-        `#${facility.key} 土日 … 土日の空き（土日祝・平日・月水金 なども）`,
-        `#${facility.key} 土日 19-21 … 両方でしぼる`,
-        `#${facility.key} 次 … 次の2週間（次の次 も）`,
-        `#${facility.key} これから 19-21 … ${AVAILABILITY_DIGEST_DAYS}日先までの空きのある日`,
-        `#${facility.key} 見張り … 見張る日（見る・入れかえ・足す・消す）`,
-      ].join('\n'),
-    }];
-  }
-
-  const at = now || new Date();
   const range = getAvailabilityRange_(at, request.page, request.spanDays);
   const pageUrl = buildAvailabilityPageUrl_(facility, range);
   const title = `${buildAvailabilityLabel_(request, range)}空き状況`;
 
-  let slots;
-  let days;
-  let unknownStatuses = [];
-  let watchStatus = null;
-  let allSlots = [];
+  let view;
   try {
-    const data = fetchAvailability_(facility, range);
-    const holidays = toAvailabilityHolidays_(data);
-    allSlots = toAvailabilitySlots_(data);
-    // 応答の形はそれらしくても、枠が1つも読めなければ、サイトの作りが変わったとみなす
-    if (allSlots.length === 0) throw availabilityError_('changed', '枠が1つも読めません');
-    unknownStatuses = allSlots.filter(function (slot) { return slot.unknown; })
-      .map(function (slot) { return slot.status; })
-      .filter(function (x, i, all) { return all.indexOf(x) === i; });
-    if (unknownStatuses.length) logAvailabilityError_(new Error(`知らない状態のコード: ${unknownStatuses.join(',')}`));
-    slots = allSlots
-      .filter(function (slot) { return isAvailabilityDay_(slot.date, request.days, holidays); });
-    days = collectAvailabilityDays_(slots, request.window, holidays);
-    days.activities = readAvailabilityActivities_(facility, range)
-      .filter(function (a) { return isAvailabilityDay_(a.date, request.days, holidays); });
-    // 見張る日（今日から先）の今の様子。毎日のカードの上にいつも出す
-    if (request.watchDates && request.watchDates.length) {
-      const today = Utilities.formatDate(at, 'Asia/Tokyo', 'yyyy-MM-dd');
-      const known = allSlots.map(function (slot) { return slot.date; });
-      watchStatus = request.watchDates.filter(function (date) { return date >= today; }).map(function (date) {
-        const day = days.days.find(function (d) { return d.date === date; });
-        let text = 'まだ見られません（サイトにまだない先の日）';
-        if (day) text = day.open ? '空きあり' : day.reason;
-        else if (known.indexOf(date) >= 0) text = 'この時間の枠がありません';
-        return {
-          date: date,
-          label: day ? day.label : formatAvailabilityDate_(date),
-          tone: day ? day.tone : '',
-          open: Boolean(day && day.open),
-          text: text,
-        };
-      });
-    }
-    if (request.onlyOpen) {
-      days.days = days.days.filter(function (day) { return day.open; });
-      // 空きのある日がなくても、見張る日があればその様子を返す
-      if (days.days.length === 0 && !(watchStatus && watchStatus.length)) {
-        // 知らない状態があるときは、それが空きかもしれないので知らせる
-        if (!unknownStatuses.length) return [];
-        return [{
-          type: 'text',
-          text: `【${facility.name}】${title}に、見慣れない状態（${unknownStatuses.join('・')}）がありました。\nサイトの作りが変わったかもしれないので、サイトで見てください:\n${pageUrl}`,
-        }];
-      }
-    }
+    view = loadAvailabilityView_(request, range, at);
   } catch (err) {
     // 中身はログにだけ残し、LINE にはやさしい言葉とリンクだけを返す
     logAvailabilityError_(err);
-    const why = err && err.availabilityKind === 'changed'
-      ? 'サイトの作りが変わったようで、読めませんでした。直すまでのあいだはサイトで見てください:'
-      : 'サイトにつながりませんでした。少しあとでもう一度ためすか、サイトで見てください:';
-    return [{ type: 'text', text: `【${facility.name}】${title}を取れませんでした。\n${why}\n${pageUrl}` }];
+    return [buildAvailabilityErrorMessage_(facility, title, pageUrl, err)];
   }
 
+  const days = view.days;
+  if (request.onlyOpen) {
+    days.days = days.days.filter(function (day) { return day.open; });
+    // 空きのある日がなくても、見張る日があればその様子を返す
+    if (days.days.length === 0 && !(view.watchStatus && view.watchStatus.length)) {
+      if (!view.unknownStatuses.length) return [];
+      // 知らない状態があるときは、それが空きかもしれないので知らせる
+      return [{
+        type: 'text',
+        text: `【${facility.name}】${title}に、見慣れない状態（${view.unknownStatuses.join('・')}）がありました。\nサイトの作りが変わったかもしれないので、サイトで見てください:\n${pageUrl}`,
+      }];
+    }
+  }
+
+  const watchDates = request.watchDates || [];
   return buildAvailabilityCard_({
     facility: facility,
     title: title,
@@ -336,17 +241,55 @@ function handleAvailabilityCommand_(request, now) {
     window: request.window,
     nextText: request.spanDays ? '' : buildAvailabilityNextText_(request),
     maxMessages: request.maxMessages || 5,
+    watchDates: watchDates,
+    unknownStatuses: view.unknownStatuses,
+    watchStatus: view.watchStatus,
     // 見張る日に空きがあるときは、カードを目立つ色にする
-    watchDates: request.watchDates || [],
-    unknownStatuses: unknownStatuses,
-    watchStatus: watchStatus,
-    alert: (request.watchDates || []).some(function (date) {
-      return days.days.some(function (day) { return day.open && day.date === date; });
-    }),
-    slots: slots,
+    alert: days.days.some(function (day) { return day.open && watchDates.indexOf(day.date) >= 0; }),
+    slots: view.slots,
     days: days,
     pageUrl: pageUrl,
   });
+}
+
+/** 読めない書き方への返事：書き方の例 */
+function buildAvailabilityHelpMessage_(facility) {
+  return {
+    type: 'text',
+    text: [
+      '書き方の例:',
+      `#${facility.key} … 2週間の空き`,
+      `#${facility.key} 19-21 … 19〜21時の空き`,
+      `#${facility.key} 土日 … 土日の空き（土日祝・平日・月水金 なども）`,
+      `#${facility.key} 土日 19-21 … 両方でしぼる`,
+      `#${facility.key} 次 … 次の2週間（次の次 も）`,
+      `#${facility.key} これから 19-21 … ${AVAILABILITY_DIGEST_DAYS}日先までの空きのある日`,
+      `#${facility.key} 見張り … 見張る日（見る・入れかえ・足す・消す）`,
+    ].join('\n'),
+  };
+}
+
+/** 取れなかったときの返事。つながらないのか、作りが変わったのかを分ける（エラーの中身は出さない） */
+function buildAvailabilityErrorMessage_(facility, title, pageUrl, err) {
+  const why = err && err.availabilityKind === 'changed'
+    ? 'サイトの作りが変わったようで、読めませんでした。直すまでのあいだはサイトで見てください:'
+    : 'サイトにつながりませんでした。少しあとでもう一度ためすか、サイトで見てください:';
+  return { type: 'text', text: `【${facility.name}】${title}を取れませんでした。\n${why}\n${pageUrl}` };
+}
+
+/** 「11/22〜12/5 土日 19-21時の」「土曜の」「」（日付は次の2週間のときだけ） */
+function buildAvailabilityLabel_(request, range) {
+  const labels = [];
+  if ((request.page || request.spanDays) && range) {
+    const md = function (ymd) { const p = ymd.split('-').map(Number); return `${p[1]}/${p[2]}`; };
+    labels.push(`${md(range.start)}〜${md(range.end)}`);
+  }
+  if (request.days) {
+    const days = formatAvailabilityDays_(request.days);
+    labels.push(days.length === 1 ? `${days}曜` : days);
+  }
+  if (request.window) labels.push(formatAvailabilityWindow_(request.window));
+  return labels.length ? `${labels.join(' ')}の` : '';
 }
 
 /**
@@ -361,79 +304,89 @@ function buildAvailabilityNextText_(request) {
   return parts.join(' ');
 }
 
+// ---------- 書き方を読む ----------
+
 /**
- * その施設での活動の予定（ボットに listAvailabilityActivities_ があるときだけ）。
- * 予定が読めなくても空き状況は返したいので、失敗したら記録して空にする。
+ * 「#灘崎」「＃ 灘崎」「#灘崎 19-21」「#灘崎 土日」「#灘崎 次」「#灘崎 次 土日 19-21」から施設・時間帯・曜日・何回先の2週間かを取り出す。
+ * 「#灘崎 見張り …」なら watch（見張る日の登録。tokens は「見張り」のあとの言葉）を付けて返す。
+ * 「#灘崎 これから 19-21」なら digest（これからの空き。毎日のカードと同じもの）を付ける。
+ * 当てはまらなければ null。施設のあとが読めないときは badOption を true にする（書き方を返すため）。
  *
- * @param {Object} facility
- * @param {{start: string, end: string}} range
- * @returns {Array<{date: string, start: number, end: number, courts: (number[]|undefined)}>}
- *   date は 'yyyy-MM-dd'、start・end は0時からの分、courts はコートの番号（1 = ①。わからなければなし）
+ * @param {string} text
+ * @returns {{facility: Object, window: ({start: number, end: number}|null), days: (number[]|null), page: number, badOption: boolean}|null}
  */
-function readAvailabilityActivities_(facility, range) {
-  if (typeof listAvailabilityActivities_ !== 'function') return [];
-  try {
-    return (listAvailabilityActivities_(facility, range) || []).filter(function (a) {
-      return a && a.date >= range.start && a.date <= range.end && a.start < a.end;
-    });
-  } catch (err) {
-    logAvailabilityError_(err);
-    return [];
+function detectAvailabilityFacility_(text) {
+  const match = String(text || '').trim().match(/^[#＃]\s*(\S+)(?:[\s　]+(.+))?$/u);
+  if (!match) return null;
+  const facility = AVAILABILITY_FACILITIES.find(function (f) { return f.key === match[1]; });
+  if (!facility) return null;
+
+  const request = { facility: facility, window: null, days: null, page: 0, badOption: false };
+  const tokens = String(match[2] || '').split(/[\s　、,]+/).filter(Boolean);
+  // 「#灘崎 見張り …」は見張る日の登録（日付の読み取りは今日がわかってから）
+  if (tokens.length && AVAILABILITY_WATCH_WORDS.indexOf(tokens[0]) >= 0) {
+    request.watch = { tokens: tokens.slice(1) };
+    return request;
   }
-}
-
-/** 活動1つの「17-19時 ①②」（コートがわからなければ時間だけ） */
-function formatAvailabilityActivity_(activity) {
-  const courts = (activity.courts || []).map(function (n) { return AVAILABILITY_COURT_MARKS[n - 1] || String(n); }).join('');
-  return courts ? `${formatAvailabilityWindow_(activity)} ${courts}` : formatAvailabilityWindow_(activity);
-}
-
-/** 「#灘崎 見張り …」の「見張り」にあたる言葉 */
-const AVAILABILITY_WATCH_WORDS = Object.freeze(['見張り', '見張る', 'みはり']);
-
-/** 見張る日をしまう Script Property の名前（施設ごと） */
-function availabilityWatchKey_(facility) {
-  return `AVAILABILITY_WATCH_DATES_${facility.key}`;
-}
-
-/** 見張る日（'yyyy-MM-dd' の並び。古い順） */
-function readAvailabilityWatchDates_(facility) {
-  try {
-    const raw = PropertiesService.getScriptProperties().getProperty(availabilityWatchKey_(facility));
-    const list = JSON.parse(raw || '[]');
-    return Array.isArray(list) ? list.filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }).sort() : [];
-  } catch (err) {
-    logAvailabilityError_(err);
-    return [];
-  }
-}
-
-/** 見張る日をしまう（同じ日は1つ、古い順） */
-function saveAvailabilityWatchDates_(facility, dates) {
-  const list = dates.filter(function (d, i, all) { return all.indexOf(d) === i; }).sort();
-  PropertiesService.getScriptProperties().setProperty(availabilityWatchKey_(facility), JSON.stringify(list));
-  return list;
+  tokens.forEach(function (token) {
+    if (token === 'これから' && !request.digest) { request.digest = true; return; }
+    const page = parseAvailabilityPage_(token);
+    const days = page ? null : parseAvailabilityDays_(token);
+    const window = page || days ? null : parseAvailabilityWindow_(token);
+    if (page && !request.page) request.page = page;
+    else if (days && !request.days) request.days = days;
+    else if (window && !request.window) request.window = window;
+    else request.badOption = true;
+  });
+  return request;
 }
 
 /**
- * 見張る日から過ぎた日（今日より前）を消して、しまい直す。残った日を返す
+ * 「19-21」「19〜21時」「19時-21時」「１９－２１」「19:30-21」を、0時からの分にする。読めなければ null。
  *
- * @param {Object} facility
- * @param {Date} now
- * @returns {string[]}
+ * @param {string} text
+ * @returns {{start: number, end: number}|null}
  */
-function pruneAvailabilityWatchDates_(facility, now) {
-  const today = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
-  const all = readAvailabilityWatchDates_(facility);
-  const future = all.filter(function (date) { return date >= today; });
-  if (future.length !== all.length) {
-    try {
-      saveAvailabilityWatchDates_(facility, future);
-    } catch (err) {
-      logAvailabilityError_(err);
-    }
-  }
-  return future;
+function parseAvailabilityWindow_(text) {
+  const normalized = String(text || '')
+    .replace(/[０-９：]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/[〜～ー－−–—]/g, '-')
+    .replace(/[時\s　]/g, '');
+  const m = normalized.match(/^(\d{1,2})(?::(\d{2}))?-(\d{1,2})(?::(\d{2}))?$/);
+  if (!m) return null;
+  const start = Number(m[1]) * 60 + Number(m[2] || 0);
+  const end = Number(m[3]) * 60 + Number(m[4] || 0);
+  if (start >= end || end > 24 * 60) return null;
+  return { start: start, end: end };
+}
+
+/**
+ * 「土日」「土日祝」「土」「月水金」「火曜」「平日」「週末」「休日」を曜日の番号（日=0〜土=6、祝日=7）にする。読めなければ null。
+ *
+ * @param {string} text
+ * @returns {number[]|null}
+ */
+function parseAvailabilityDays_(text) {
+  const t = String(text || '').replace(/曜日?/g, '');
+  if (t === '平日') return [1, 2, 3, 4, 5];
+  if (t === '週末') return [0, 6];
+  if (t === '休日') return [0, 6, AVAILABILITY_HOLIDAY];
+  if (!/^[月火水木金土日祝]+$/u.test(t)) return null;
+  return uniqueAvailabilityValues_(t.split('').map(function (c) {
+    return c === '祝' ? AVAILABILITY_HOLIDAY : AVAILABILITY_WEEKDAYS.indexOf(c);
+  }));
+}
+
+/**
+ * 「次」「次の2週間」→ 1（次の2週間）、「次の次」→ 2。読めなければ 0。
+ *
+ * @param {string} text
+ * @returns {number}
+ */
+function parseAvailabilityPage_(text) {
+  const t = String(text || '').replace(/の?2週間$/, '');
+  if (!/^次(の次)*$/.test(t)) return 0;
+  return Math.min(t.split('次').length - 1, AVAILABILITY_MAX_PAGE);
 }
 
 /**
@@ -467,161 +420,14 @@ function parseAvailabilityDate_(text, now) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/** '2026-12-11' → 「12/11(金)」 */
-function formatAvailabilityDate_(date) {
-  const d = new Date(`${date}T00:00:00Z`);
-  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${AVAILABILITY_WEEKDAYS[d.getUTCDay()]})`;
+/** その日が、しぼった曜日に入るか（しぼっていなければいつも true）。「祝」をしぼったときは、祝日も入る */
+function isAvailabilityDay_(date, days, holidays) {
+  if (!days) return true;
+  if (days.indexOf(new Date(`${date}T00:00:00Z`).getUTCDay()) >= 0) return true;
+  return days.indexOf(AVAILABILITY_HOLIDAY) >= 0 && Boolean(holidays && holidays[date]);
 }
 
-/**
- * 「#灘崎 見張り …」：見張る日を見る・入れかえる・足す・消す。過ぎた日は消していく（書いても入れない）。
- * - 「#灘崎 見張り」… いまの見張る日のカード
- * - 「#灘崎 見張り 11/5 12/11」… 入れかえる
- * - 「#灘崎 見張り + 12/24」「#灘崎 見張り 追加 12/24」… 足す
- * - 「#灘崎 見張り - 12/11」「#灘崎 見張り 削除 12/11」… 消す
- * - 「#灘崎 見張り -1/3 +1/13」… 日付ごとに足す・消す（前に付けた + - はその日だけに効く）
- * - 「#灘崎 見張り 全部消す」… 見張るのをやめる（全部の日を見る）
- *
- * @param {Object} request
- * @param {Date} now
- * @returns {Object[]}
- */
-function handleAvailabilityWatch_(request, now) {
-  const facility = request.facility;
-  // 日付ごとに、足すか消すかを見る。「+」「-」を前に付けた日付はその日だけ、
-  // 「+」「追加」「-」「削除」だけの言葉は、そのあとの日付ぜんぶに効く。どれもなければ入れかえ
-  let mode = null;
-  let clear = false;
-  const entries = [];
-  const bad = [];
-  request.watch.tokens.forEach(function (token) {
-    if (['+', '＋', '追加', '足す'].indexOf(token) >= 0) { mode = 'add'; return; }
-    if (['-', '－', '−', 'ー', '削除', '消す'].indexOf(token) >= 0) { mode = 'remove'; return; }
-    if (['全部消す', 'クリア', 'やめる'].indexOf(token) >= 0) { clear = true; return; }
-    let t = token;
-    let op = mode;
-    if (/^[+＋]/.test(t)) { op = 'add'; t = t.slice(1); }
-    else if (/^[-－−]/.test(t)) { op = 'remove'; t = t.slice(1); }
-    const date = parseAvailabilityDate_(t, now);
-    if (date) entries.push({ date: date, op: op });
-    else bad.push(token);
-  });
-
-  const current = pruneAvailabilityWatchDates_(facility, now);
-  if (bad.length) {
-    return [buildAvailabilityWatchCard_(facility, current, now, `「${bad.join(' ')}」は日付として読めませんでした。何も変えていません。`)];
-  }
-  if (request.watch.tokens.length === 0) {
-    return [buildAvailabilityWatchCard_(facility, current, now, '')];
-  }
-  if (clear) {
-    const cleared = saveAvailabilityWatchDates_(facility, []);
-    return [buildAvailabilityWatchCard_(facility, cleared, now, '見張る日を全部消しました。')];
-  }
-  if (entries.length === 0) {
-    return [buildAvailabilityWatchCard_(facility, current, now, '日付を書いてください（例: 12/11 12/17）。')];
-  }
-
-  const today = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
-  const notes = [];
-  const replace = entries.every(function (e) { return e.op === null; });
-  // 入れかえと足すときは、過ぎた日は入れない
-  const adding = entries.filter(function (e) { return e.op !== 'remove'; }).map(function (e) { return e.date; });
-  const past = adding.filter(function (d) { return d < today; });
-  const added = adding.filter(function (d) { return d >= today; });
-  const removing = entries.filter(function (e) { return e.op === 'remove'; }).map(function (e) { return e.date; });
-
-  let next;
-  if (replace) {
-    next = added;
-    notes.push('見張る日を入れかえました。');
-  } else {
-    const missing = removing.filter(function (d) { return current.indexOf(d) < 0; });
-    const removed = removing.filter(function (d) { return current.indexOf(d) >= 0; });
-    next = current.filter(function (d) { return removing.indexOf(d) < 0; }).concat(added);
-    if (added.length) notes.push(`${added.map(formatAvailabilityDate_).join(' ')} を足しました。`);
-    if (removed.length) notes.push(`${removed.map(formatAvailabilityDate_).join(' ')} を消しました。`);
-    if (missing.length) notes.push(`${missing.map(formatAvailabilityDate_).join(' ')} はもともと入っていません。`);
-  }
-  if (past.length) notes.push(`${past.map(formatAvailabilityDate_).join(' ')} は過ぎているので入れませんでした。`);
-  next = saveAvailabilityWatchDates_(facility, next);
-  return [buildAvailabilityWatchCard_(facility, next, now, notes.join('\n'))];
-}
-
-/**
- * 見張る日のカード。日付の一覧（過ぎた日は消してある）と、いまの日付をそのまま写せるボタン・いま空きを見るボタン。
- * ボタンはあとで押されても困らない（写すだけ）。
- */
-function buildAvailabilityWatchCard_(facility, dates, now, note) {
-  const dark = '#111111';
-  const sub = '#666666';
-  const faint = '#999999';
-  const short = function (date) { const p = date.split('-').map(Number); return `${p[1]}/${p[2]}`; };
-  const command = `#${facility.key} 見張り`;
-  const copyText = dates.length ? `${command} ${dates.map(short).join(' ')}` : `${command} `;
-
-  const body = [
-    { type: 'text', text: `${facility.key}の見張る日`, weight: 'bold', size: 'md', color: dark },
-    { type: 'text', text: '毎日の空きのカードで、この日に空きがあれば目立つ色で知らせます。', size: 'xs', color: sub, wrap: true, margin: 'sm' },
-  ];
-  if (note) body.push({ type: 'text', text: note, size: 'sm', color: dark, wrap: true, margin: 'md' });
-  body.push({ type: 'separator', margin: 'md' });
-  if (dates.length === 0) {
-    body.push({ type: 'text', text: 'まだありません', size: 'sm', color: faint, wrap: true, margin: 'md' });
-  } else {
-    dates.forEach(function (date) {
-      body.push({ type: 'text', size: 'sm', margin: 'sm', color: dark, weight: 'bold', text: formatAvailabilityDate_(date) });
-    });
-  }
-  body.push({
-    type: 'text', size: 'xxs', color: faint, wrap: true, margin: 'lg',
-    text: [`入れかえ: ${command} 12/11 12/17`, `足す: ${command} + 12/24`, `消す: ${command} - 12/11`, `やめる: ${command} 全部消す`].join('\n'),
-  });
-
-  const listText = dates.length ? dates.map(short).join(' ') : 'なし';
-  return {
-    type: 'flex',
-    altText: `${facility.key}の見張る日: ${listText}`.slice(0, 400),
-    contents: {
-      type: 'bubble',
-      body: { type: 'box', layout: 'vertical', contents: body },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [{
-          type: 'button', style: 'link', height: 'sm',
-          action: { type: 'clipboard', label: 'いまの日付をコピー', clipboardText: copyText.slice(0, 1000) },
-        }].concat(facility.digestWindow ? [{
-          // 書きかえたあと、そのまま空きを確かめる（押されるたびにその時の空きを取るので、あとで押されても困らない）
-          type: 'button', style: 'link', height: 'sm',
-          action: { type: 'message', label: 'いま空きを見る', text: `#${facility.key} これから ${facility.digestWindow}` },
-        }] : []),
-      },
-    },
-  };
-}
-
-/** 取れなかったわけを残す。Log に error がない環境でも止まらない */
-function logAvailabilityError_(err) {
-  const detail = { where: 'availability', detail: String((err && err.stack) || err) };
-  if (typeof Log !== 'undefined' && Log && typeof Log.error === 'function') Log.error(detail);
-  else console.error(JSON.stringify(detail));
-}
-
-/** 「11/22〜12/5 土日 19-21時の」「土曜の」「」（日付は次の2週間のときだけ） */
-function buildAvailabilityLabel_(request, range) {
-  const labels = [];
-  if ((request.page || request.spanDays) && range) {
-    const md = function (ymd) { const p = ymd.split('-').map(Number); return `${p[1]}/${p[2]}`; };
-    labels.push(`${md(range.start)}〜${md(range.end)}`);
-  }
-  if (request.days) {
-    const days = formatAvailabilityDays_(request.days);
-    labels.push(days.length === 1 ? `${days}曜` : days);
-  }
-  if (request.window) labels.push(formatAvailabilityWindow_(request.window));
-  return labels.length ? `${labels.join(' ')}の` : '';
-}
+// ---------- サイトから取る ----------
 
 /**
  * 日本時間の今日から2週間。page が 1 なら次の2週間（15日目から）、2 ならその次。
@@ -745,46 +551,49 @@ function toAvailabilitySlots_(data) {
   return slots;
 }
 
-/** 「19:30」→ 1170（0時からの分） */
-function toAvailabilityMinutes_(hhmm) {
-  const parts = hhmm.split(':').map(Number);
-  return parts[0] * 60 + (parts[1] || 0);
-}
-
-/** 1170 → 「19:30」、1140 → 「19」 */
-function formatAvailabilityMinutes_(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h}:${String(m).padStart(2, '0')}` : `${h}`;
-}
-
-/** {start: 1140, end: 1260} → 「19-21時」 */
-function formatAvailabilityWindow_(window) {
-  return `${formatAvailabilityMinutes_(window.start)}-${formatAvailabilityMinutes_(window.end)}時`;
-}
-
 /**
- * 1行を短くするため、どのコートにも付いている部屋の名前（「フットサルコート 」）を省く。
+ * サイトから取って、カードに使う形にまとめる。取れない・作りが変わったときは availabilityError_ を投げる
  *
- * @param {string[]} rooms
- * @returns {function(string): string}
+ * @returns {{slots: Object[], days: Object, unknownStatuses: string[], watchStatus: (Object[]|null)}}
  */
-function shortAvailabilityRoomLabel_(rooms) {
-  const head = rooms.length ? rooms[0].split(' ')[0] + ' ' : '';
-  const shared = head.trim() && rooms.every(function (r) { return r.indexOf(head) === 0 && r.length > head.length; });
-  return function (room) { return shared ? room.slice(head.length) : room; };
+function loadAvailabilityView_(request, range, at) {
+  const data = fetchAvailability_(request.facility, range);
+  const holidays = toAvailabilityHolidays_(data);
+  const allSlots = toAvailabilitySlots_(data);
+  // 応答の形はそれらしくても、枠が1つも読めなければ、サイトの作りが変わったとみなす
+  if (allSlots.length === 0) throw availabilityError_('changed', '枠が1つも読めません');
+
+  const unknownStatuses = uniqueAvailabilityValues_(allSlots
+    .filter(function (slot) { return slot.unknown; })
+    .map(function (slot) { return slot.status; }));
+  if (unknownStatuses.length) logAvailabilityError_(new Error(`知らない状態のコード: ${unknownStatuses.join(',')}`));
+
+  const inDays = function (date) { return isAvailabilityDay_(date, request.days, holidays); };
+  const slots = allSlots.filter(function (slot) { return inDays(slot.date); });
+  const days = collectAvailabilityDays_(slots, request.window, holidays);
+  days.activities = readAvailabilityActivities_(request.facility, range).filter(function (a) { return inDays(a.date); });
+
+  return {
+    slots: slots,
+    days: days,
+    unknownStatuses: unknownStatuses,
+    watchStatus: request.watchDates && request.watchDates.length
+      ? buildAvailabilityWatchStatus_(request.watchDates, days.days, allSlots, at)
+      : null,
+  };
 }
 
+// ---------- まとめる（日ごと・マス・活動・見張る日の様子） ----------
+
 /**
- * 日ごと・コートごとに、空いている時間をまとめる。
- * 時間帯があれば、その中だけを見て、まるごと空いているか（whole）も調べる。
- * 「空き状況のみ」（ネットからは予約できない枠）は、ふつうの空きと分けて viewOnly を付ける。
+ * 日ごとにまとめる：その日に（時間帯があればその中に）空きがあるか・空きなしのわけ・日付の名前と色。
+ * マスの色は、カードを作るときに枠（slots）から決める（getAvailabilityCellState_）。
  *
  * @param {Object[]} slots toAvailabilitySlots_ の戻り値
  * @param {{start: number, end: number}|null} window
  * @param {Object<string, string>=} holidays toAvailabilityHolidays_ の戻り値
- * @returns {{courts: string[], rooms: string[], days: Array<{date: string, label: string, open: boolean, cells: Object, reason: string}>}}
- *   cells は コート名 → {whole: boolean, spans: Array<{start: number, end: number, viewOnly: boolean}>}
+ * @returns {{courts: string[], rooms: string[], days: Array<{date: string, label: string, tone: string, open: boolean, reason: string}>}}
+ *   rooms はサイトの部屋の名前、courts はカードに出す短い名前（「コート1」）
  */
 function collectAvailabilityDays_(slots, window, holidays) {
   const from = window ? window.start : 0;
@@ -793,49 +602,26 @@ function collectAvailabilityDays_(slots, window, holidays) {
   const rooms = [];
   slots.forEach(function (s) {
     if (rooms.indexOf(s.room) < 0) rooms.push(s.room);
-    const start = Math.max(toAvailabilityMinutes_(s.start), from);
-    const end = Math.min(toAvailabilityMinutes_(s.end), to);
-    if (start >= end) return;
-    (byDate[s.date] = byDate[s.date] || []).push({ room: s.room, start: start, end: end, status: s.status });
+    // 時間帯の外の枠は見ない
+    if (Math.max(toAvailabilityMinutes_(s.start), from) >= Math.min(toAvailabilityMinutes_(s.end), to)) return;
+    (byDate[s.date] = byDate[s.date] || []).push(s.status);
   });
   rooms.sort();
-  const label = shortAvailabilityRoomLabel_(rooms);
 
   const days = Object.keys(byDate).sort().map(function (date) {
-    const rows = byDate[date];
-    const d = new Date(`${date}T00:00:00Z`);
-    const cells = {};
-    rooms.forEach(function (room) {
-      const open = rows
-        .filter(function (r) { return r.room === room && AVAILABILITY_OPEN_STATUSES.includes(r.status); })
-        .sort(function (a, b) { return a.start - b.start; });
-      if (open.length === 0) return;
-
-      const spans = [];
-      open.forEach(function (r) {
-        const viewOnly = r.status !== '利用可能';
-        const last = spans[spans.length - 1];
-        if (last && last.end === r.start && last.viewOnly === viewOnly) last.end = r.end;
-        else spans.push({ start: r.start, end: r.end, viewOnly: viewOnly });
-      });
-      let covered = from;
-      spans.forEach(function (sp) { if (sp.start <= covered) covered = Math.max(covered, sp.end); });
-      cells[label(room)] = { whole: Boolean(window) && covered >= to, spans: spans };
-    });
-
-    const reasons = rows.map(function (r) { return r.status; })
-      .filter(function (x, i, a) { return x !== '空きなし' && !AVAILABILITY_OPEN_STATUSES.includes(x) && a.indexOf(x) === i; });
+    const statuses = byDate[date];
+    const reasons = uniqueAvailabilityValues_(statuses.filter(function (x) {
+      return x !== '空きなし' && !AVAILABILITY_OPEN_STATUSES.includes(x);
+    }));
     return {
       date: date,
-      label: `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${AVAILABILITY_WEEKDAYS[d.getUTCDay()]}${holidays && holidays[date] ? '・祝' : ''})`,
-      // 日付の文字の色の種類：日曜・祝日は red、土曜は blue
-      tone: (holidays && holidays[date]) || d.getUTCDay() === 0 ? 'red' : d.getUTCDay() === 6 ? 'blue' : '',
-      open: Object.keys(cells).length > 0,
-      cells: cells,
+      label: formatAvailabilityDate_(date, holidays),
+      tone: availabilityDayTone_(date, holidays),
+      open: statuses.some(function (x) { return AVAILABILITY_OPEN_STATUSES.includes(x); }),
       reason: reasons.length ? `空きなし（${reasons.join('・')}）` : '空きなし',
     };
   });
-  return { courts: rooms.map(label), rooms: rooms, days: days };
+  return { courts: rooms.map(shortAvailabilityRoomLabel_(rooms)), rooms: rooms, days: days };
 }
 
 /**
@@ -861,23 +647,6 @@ function groupClosedAvailabilityDays_(days, activeDates) {
   });
   return out;
 }
-
-/** マスの色（草グラフのように、濃い緑ほど使いやすい） */
-const AVAILABILITY_CELL_COLORS = Object.freeze({
-  open: '#2DA44E',   // ネットで予約できる
-  view: '#A8DFB8',   // 空き状況のみ（ネットでは予約できない）・一部だけ空き
-  closed: '#E3E5E8', // 空きなし・設備保守など
-  none: '#F7F7F7',   // 受け付けている時間の外
-});
-
-/** 見張る日に空きがあるときのカードの色（地はうすいオレンジ、上の帯は濃いオレンジ） */
-const AVAILABILITY_ALERT_COLORS = Object.freeze({ background: '#FFF4E5', band: '#D9480F' });
-
-/** LINE のカードの大きさの上限（1枚 30KB・横にめくる束で 50KB）より少し小さく */
-const AVAILABILITY_BUBBLE_MAX_BYTES = 28000;
-const AVAILABILITY_CAROUSEL_MAX_BYTES = 48000;
-
-const AVAILABILITY_COURT_MARKS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
 
 /**
  * 表の列にする時間（1時間ずつ）。時間帯があればその中、なければ受け付けている時間ぜんぶ（灘崎は 7〜21時）。
@@ -926,6 +695,52 @@ function getAvailabilityCellState_(slots, start, end) {
   const bookable = open.every(function (s) { return s.status === '利用可能'; });
   return whole && bookable ? 'open' : 'view';
 }
+
+/**
+ * その施設での活動の予定（ボットに listAvailabilityActivities_ があるときだけ）。
+ * 予定が読めなくても空き状況は返したいので、失敗したら記録して空にする。
+ *
+ * @param {Object} facility
+ * @param {{start: string, end: string}} range
+ * @returns {Array<{date: string, start: number, end: number, courts: (number[]|undefined)}>}
+ *   date は 'yyyy-MM-dd'、start・end は0時からの分、courts はコートの番号（1 = ①。わからなければなし）
+ */
+function readAvailabilityActivities_(facility, range) {
+  if (typeof listAvailabilityActivities_ !== 'function') return [];
+  try {
+    return (listAvailabilityActivities_(facility, range) || []).filter(function (a) {
+      return a && a.date >= range.start && a.date <= range.end && a.start < a.end;
+    });
+  } catch (err) {
+    logAvailabilityError_(err);
+    return [];
+  }
+}
+
+/**
+ * 見張る日（今日から先）の今の様子。毎日のカードの上の「見張る日」の欄に出す
+ *
+ * @returns {Array<{date: string, label: string, tone: string, open: boolean, text: string}>}
+ */
+function buildAvailabilityWatchStatus_(watchDates, days, allSlots, at) {
+  const today = Utilities.formatDate(at, 'Asia/Tokyo', 'yyyy-MM-dd');
+  const known = allSlots.map(function (slot) { return slot.date; });
+  return watchDates.filter(function (date) { return date >= today; }).map(function (date) {
+    const day = days.find(function (d) { return d.date === date; });
+    let text = 'まだ見られません（サイトにまだない先の日）';
+    if (day) text = day.open ? '空きあり' : day.reason;
+    else if (known.indexOf(date) >= 0) text = 'この時間の枠がありません';
+    return {
+      date: date,
+      label: day ? day.label : formatAvailabilityDate_(date),
+      tone: day ? day.tone : availabilityDayTone_(date),
+      open: Boolean(day && day.open),
+      text: text,
+    };
+  });
+}
+
+// ---------- カード ----------
 
 /**
  * 空き状況のカード。草グラフのように、横に1時間ずつのマス。1日3行（日付・①・②）。日付の文字は、土曜は青、日曜・祝日は赤。
@@ -1001,9 +816,9 @@ function availabilityFlex_(card, contents) {
  * square が true なら、マスの角を丸めない（カードを小さくするため）。noButtons が true ならボタンを付けない
  */
 function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons) {
-  const dark = '#111111';
-  const sub = '#666666';
-  const faint = '#999999';
+  const dark = AVAILABILITY_TEXT_COLORS.dark;
+  const sub = AVAILABILITY_TEXT_COLORS.sub;
+  const faint = AVAILABILITY_TEXT_COLORS.faint;
   const labelWidth = '16px';
   const courtNames = card.days.courts;
   const hours = getAvailabilityHours_(card.slots, card.window);
@@ -1019,14 +834,16 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
   };
 
   // 日付の文字の色：土曜は青、日曜・祝日は赤
-  const dayColor = function (day) { return day.tone === 'red' ? '#CF222E' : day.tone === 'blue' ? '#0969DA' : dark; };
+  const dayColor = function (day) {
+    return day.tone === 'red' ? AVAILABILITY_TEXT_COLORS.holiday : day.tone === 'blue' ? AVAILABILITY_TEXT_COLORS.saturday : dark;
+  };
   const head = [];
   if (card.alert) {
     head.push({
       type: 'box', layout: 'vertical', backgroundColor: AVAILABILITY_ALERT_COLORS.band, cornerRadius: '4px',
       paddingAll: '8px', margin: 'none',
       contents: [{
-        type: 'text', weight: 'bold', size: 'sm', color: '#FFFFFF', wrap: true,
+        type: 'text', weight: 'bold', size: 'sm', color: AVAILABILITY_TEXT_COLORS.onDark, wrap: true,
         text: `見張る日に空きがあります（${days.filter(function (day) { return day.open && card.watchDates.indexOf(day.date) >= 0; })
           .map(function (day) { return day.label; }).join(' ')}）`,
       }],
@@ -1063,7 +880,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
     });
     head.push({
       type: 'box', layout: 'vertical', spacing: 'xs', margin: 'md', paddingAll: '8px', cornerRadius: '4px',
-      backgroundColor: card.alert ? '#FFFFFF' : '#F6F6F6',
+      backgroundColor: card.alert ? AVAILABILITY_PANEL_COLORS.onAlert : AVAILABILITY_PANEL_COLORS.normal,
       contents: [{ type: 'text', text: '見張る日', size: 'xxs', color: sub, weight: 'bold' }].concat(rows),
     });
   }
@@ -1130,7 +947,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
           cell.justifyContent = 'center';
           cell.contents.push({
             type: 'text', text: formatAvailabilityMinutes_(label), size: 'xxs', align: 'center',
-            color: run.state === 'open' ? '#FFFFFF' : '#1F6B3A',
+            color: run.state === 'open' ? AVAILABILITY_TEXT_COLORS.onDark : AVAILABILITY_TEXT_COLORS.onLight,
           });
         }
       }
@@ -1197,4 +1014,256 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
   }
   if (noButtons) delete bubble.footer;
   return bubble;
+}
+
+// ---------- 見張る日の登録 ----------
+
+/** 見張る日をしまう Script Property の名前（施設ごと） */
+function availabilityWatchKey_(facility) {
+  return `AVAILABILITY_WATCH_DATES_${facility.key}`;
+}
+
+/** 見張る日（'yyyy-MM-dd' の並び。古い順） */
+function readAvailabilityWatchDates_(facility) {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty(availabilityWatchKey_(facility));
+    const list = JSON.parse(raw || '[]');
+    return Array.isArray(list) ? list.filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }).sort() : [];
+  } catch (err) {
+    logAvailabilityError_(err);
+    return [];
+  }
+}
+
+/** 見張る日をしまう（同じ日は1つ、古い順） */
+function saveAvailabilityWatchDates_(facility, dates) {
+  const list = uniqueAvailabilityValues_(dates).sort();
+  PropertiesService.getScriptProperties().setProperty(availabilityWatchKey_(facility), JSON.stringify(list));
+  return list;
+}
+
+/**
+ * 見張る日から過ぎた日（今日より前）を消して、しまい直す。残った日を返す
+ *
+ * @param {Object} facility
+ * @param {Date} now
+ * @returns {string[]}
+ */
+function pruneAvailabilityWatchDates_(facility, now) {
+  const today = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
+  const all = readAvailabilityWatchDates_(facility);
+  const future = all.filter(function (date) { return date >= today; });
+  if (future.length !== all.length) {
+    try {
+      saveAvailabilityWatchDates_(facility, future);
+    } catch (err) {
+      logAvailabilityError_(err);
+    }
+  }
+  return future;
+}
+
+/**
+ * 「#灘崎 見張り …」：見張る日を見る・入れかえる・足す・消す。過ぎた日は消していく（書いても入れない）。
+ * - 「#灘崎 見張り」… いまの見張る日のカード
+ * - 「#灘崎 見張り 11/5 12/11」… 入れかえる
+ * - 「#灘崎 見張り + 12/24」「#灘崎 見張り 追加 12/24」… 足す
+ * - 「#灘崎 見張り - 12/11」「#灘崎 見張り 削除 12/11」… 消す
+ * - 「#灘崎 見張り -1/3 +1/13」… 日付ごとに足す・消す（前に付けた + - はその日だけに効く）
+ * - 「#灘崎 見張り 全部消す」… 見張るのをやめる（全部の日を見る）
+ *
+ * @param {Object} request
+ * @param {Date} now
+ * @returns {Object[]}
+ */
+function handleAvailabilityWatch_(request, now) {
+  const facility = request.facility;
+  // 日付ごとに、足すか消すかを見る。「+」「-」を前に付けた日付はその日だけ、
+  // 「+」「追加」「-」「削除」だけの言葉は、そのあとの日付ぜんぶに効く。どれもなければ入れかえ
+  let mode = null;
+  let clear = false;
+  const entries = [];
+  const bad = [];
+  request.watch.tokens.forEach(function (token) {
+    if (['+', '＋', '追加', '足す'].indexOf(token) >= 0) { mode = 'add'; return; }
+    if (['-', '－', '−', 'ー', '削除', '消す'].indexOf(token) >= 0) { mode = 'remove'; return; }
+    if (['全部消す', 'クリア', 'やめる'].indexOf(token) >= 0) { clear = true; return; }
+    let t = token;
+    let op = mode;
+    if (/^[+＋]/.test(t)) { op = 'add'; t = t.slice(1); }
+    else if (/^[-－−]/.test(t)) { op = 'remove'; t = t.slice(1); }
+    const date = parseAvailabilityDate_(t, now);
+    if (date) entries.push({ date: date, op: op });
+    else bad.push(token);
+  });
+
+  const current = pruneAvailabilityWatchDates_(facility, now);
+  if (bad.length) {
+    return [buildAvailabilityWatchCard_(facility, current, now, `「${bad.join(' ')}」は日付として読めませんでした。何も変えていません。`)];
+  }
+  if (request.watch.tokens.length === 0) {
+    return [buildAvailabilityWatchCard_(facility, current, now, '')];
+  }
+  if (clear) {
+    const cleared = saveAvailabilityWatchDates_(facility, []);
+    return [buildAvailabilityWatchCard_(facility, cleared, now, '見張る日を全部消しました。')];
+  }
+  if (entries.length === 0) {
+    return [buildAvailabilityWatchCard_(facility, current, now, '日付を書いてください（例: 12/11 12/17）。')];
+  }
+
+  const today = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
+  const notes = [];
+  const replace = entries.every(function (e) { return e.op === null; });
+  // 入れかえと足すときは、過ぎた日は入れない
+  const adding = entries.filter(function (e) { return e.op !== 'remove'; }).map(function (e) { return e.date; });
+  const past = adding.filter(function (d) { return d < today; });
+  const added = adding.filter(function (d) { return d >= today; });
+  const removing = entries.filter(function (e) { return e.op === 'remove'; }).map(function (e) { return e.date; });
+
+  let next;
+  if (replace) {
+    next = added;
+    notes.push('見張る日を入れかえました。');
+  } else {
+    const missing = removing.filter(function (d) { return current.indexOf(d) < 0; });
+    const removed = removing.filter(function (d) { return current.indexOf(d) >= 0; });
+    next = current.filter(function (d) { return removing.indexOf(d) < 0; }).concat(added);
+    if (added.length) notes.push(`${added.map(formatAvailabilityDate_).join(' ')} を足しました。`);
+    if (removed.length) notes.push(`${removed.map(formatAvailabilityDate_).join(' ')} を消しました。`);
+    if (missing.length) notes.push(`${missing.map(formatAvailabilityDate_).join(' ')} はもともと入っていません。`);
+  }
+  if (past.length) notes.push(`${past.map(formatAvailabilityDate_).join(' ')} は過ぎているので入れませんでした。`);
+  next = saveAvailabilityWatchDates_(facility, next);
+  return [buildAvailabilityWatchCard_(facility, next, now, notes.join('\n'))];
+}
+
+/**
+ * 見張る日のカード。日付の一覧（過ぎた日は消してある）と、いまの日付をそのまま写せるボタン・いま空きを見るボタン。
+ * ボタンはあとで押されても困らない（写すだけ）。
+ */
+function buildAvailabilityWatchCard_(facility, dates, now, note) {
+  const dark = AVAILABILITY_TEXT_COLORS.dark;
+  const sub = AVAILABILITY_TEXT_COLORS.sub;
+  const faint = AVAILABILITY_TEXT_COLORS.faint;
+  const short = function (date) { const p = date.split('-').map(Number); return `${p[1]}/${p[2]}`; };
+  const command = `#${facility.key} 見張り`;
+  const copyText = dates.length ? `${command} ${dates.map(short).join(' ')}` : `${command} `;
+
+  const body = [
+    { type: 'text', text: `${facility.key}の見張る日`, weight: 'bold', size: 'md', color: dark },
+    { type: 'text', text: '毎日の空きのカードで、この日に空きがあれば目立つ色で知らせます。', size: 'xs', color: sub, wrap: true, margin: 'sm' },
+  ];
+  if (note) body.push({ type: 'text', text: note, size: 'sm', color: dark, wrap: true, margin: 'md' });
+  body.push({ type: 'separator', margin: 'md' });
+  if (dates.length === 0) {
+    body.push({ type: 'text', text: 'まだありません', size: 'sm', color: faint, wrap: true, margin: 'md' });
+  } else {
+    dates.forEach(function (date) {
+      body.push({ type: 'text', size: 'sm', margin: 'sm', color: dark, weight: 'bold', text: formatAvailabilityDate_(date) });
+    });
+  }
+  body.push({
+    type: 'text', size: 'xxs', color: faint, wrap: true, margin: 'lg',
+    text: [`入れかえ: ${command} 12/11 12/17`, `足す: ${command} + 12/24`, `消す: ${command} - 12/11`, `やめる: ${command} 全部消す`].join('\n'),
+  });
+
+  const listText = dates.length ? dates.map(short).join(' ') : 'なし';
+  return {
+    type: 'flex',
+    altText: `${facility.key}の見張る日: ${listText}`.slice(0, 400),
+    contents: {
+      type: 'bubble',
+      body: { type: 'box', layout: 'vertical', contents: body },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [{
+          type: 'button', style: 'link', height: 'sm',
+          action: { type: 'clipboard', label: 'いまの日付をコピー', clipboardText: copyText.slice(0, 1000) },
+        }].concat(facility.digestWindow ? [{
+          // 書きかえたあと、そのまま空きを確かめる（押されるたびにその時の空きを取るので、あとで押されても困らない）
+          type: 'button', style: 'link', height: 'sm',
+          action: { type: 'message', label: 'いま空きを見る', text: `#${facility.key} これから ${facility.digestWindow}` },
+        }] : []),
+      },
+    },
+  };
+}
+
+// ---------- 小さな道具（書き方・時刻・日付） ----------
+
+/** 1 → 「次」、2 → 「次の次」（ボタンで送る文に使う） */
+function formatAvailabilityPage_(page) {
+  return Array(page).fill('次').join('の');
+}
+
+/** [0, 6] → 「土日」、[0, 6, 7] → 「土日祝」、平日5つ → 「平日」 */
+function formatAvailabilityDays_(days) {
+  if (days.length === 5 && [1, 2, 3, 4, 5].every(function (d) { return days.indexOf(d) >= 0; })) return '平日';
+  const order = function (d) { return d === 0 ? 7 : d === AVAILABILITY_HOLIDAY ? 8 : d; };
+  return days.slice().sort(function (x, y) { return order(x) - order(y); })
+    .map(function (d) { return d === AVAILABILITY_HOLIDAY ? '祝' : AVAILABILITY_WEEKDAYS[d]; }).join('');
+}
+
+/** '2026-12-11' → 「12/11(金)」。祝日なら「11/23(月・祝)」 */
+function formatAvailabilityDate_(date, holidays) {
+  const d = new Date(`${date}T00:00:00Z`);
+  const holiday = holidays && holidays[date] ? '・祝' : '';
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${AVAILABILITY_WEEKDAYS[d.getUTCDay()]}${holiday})`;
+}
+
+/** 日付の文字の色の種類：日曜・祝日は red、土曜は blue、ほかは '' */
+function availabilityDayTone_(date, holidays) {
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  if ((holidays && holidays[date]) || weekday === 0) return 'red';
+  return weekday === 6 ? 'blue' : '';
+}
+
+/** 活動1つの「17-19時 ①②」（コートがわからなければ時間だけ） */
+function formatAvailabilityActivity_(activity) {
+  const courts = (activity.courts || []).map(function (n) { return AVAILABILITY_COURT_MARKS[n - 1] || String(n); }).join('');
+  return courts ? `${formatAvailabilityWindow_(activity)} ${courts}` : formatAvailabilityWindow_(activity);
+}
+
+/** 「19:30」→ 1170（0時からの分） */
+function toAvailabilityMinutes_(hhmm) {
+  const parts = hhmm.split(':').map(Number);
+  return parts[0] * 60 + (parts[1] || 0);
+}
+
+/** 1170 → 「19:30」、1140 → 「19」 */
+function formatAvailabilityMinutes_(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}:${String(m).padStart(2, '0')}` : `${h}`;
+}
+
+/** {start: 1140, end: 1260} → 「19-21時」 */
+function formatAvailabilityWindow_(window) {
+  return `${formatAvailabilityMinutes_(window.start)}-${formatAvailabilityMinutes_(window.end)}時`;
+}
+
+/**
+ * 1行を短くするため、どのコートにも付いている部屋の名前（「フットサルコート 」）を省く。
+ *
+ * @param {string[]} rooms
+ * @returns {function(string): string}
+ */
+function shortAvailabilityRoomLabel_(rooms) {
+  const head = rooms.length ? rooms[0].split(' ')[0] + ' ' : '';
+  const shared = head.trim() && rooms.every(function (r) { return r.indexOf(head) === 0 && r.length > head.length; });
+  return function (room) { return shared ? room.slice(head.length) : room; };
+}
+
+/** 同じ値を1つにする（並びは最初に出た順） */
+function uniqueAvailabilityValues_(list) {
+  return list.filter(function (x, i, all) { return all.indexOf(x) === i; });
+}
+
+/** 取れなかったわけを残す。Log に error がない環境でも止まらない */
+function logAvailabilityError_(err) {
+  const detail = { where: 'availability', detail: String((err && err.stack) || err) };
+  if (typeof Log !== 'undefined' && Log && typeof Log.error === 'function') Log.error(detail);
+  else console.error(JSON.stringify(detail));
 }
