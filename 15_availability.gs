@@ -23,12 +23,13 @@
 
 /**
  * 「#灘崎」のように送ると空き状況を返す施設。
+ * digestWindow は、これからの空き（毎日のカード・見張る日のカードの「いま空きを見る」）で見る時間帯。
  * placeWords は、活動の予定の場所にこの言葉が入っていればこの施設とみなす言葉（listAvailabilityActivities_ を置いたボットだけが使う）。
  * facility と room は岡山市施設予約サービスの空き状況ページの URL
  * （/FacilityAvailability/Index/<facility>?...&rc=<room>）から取る。
  */
 const AVAILABILITY_FACILITIES = Object.freeze([
-  { key: '灘崎', name: '灘崎町総合公園 フットサルコート', facility: '331007/0029', room: '121', placeWords: ['灘崎'] },
+  { key: '灘崎', name: '灘崎町総合公園 フットサルコート', facility: '331007/0029', room: '121', placeWords: ['灘崎'], digestWindow: '19-21' },
 ]);
 
 const AVAILABILITY_BASE_URL = 'https://yoyacool.e-harp.jp/okayamacity/FacilityAvailability';
@@ -65,6 +66,7 @@ const AVAILABILITY_WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 /**
  * 「#灘崎」「＃ 灘崎」「#灘崎 19-21」「#灘崎 土日」「#灘崎 次」「#灘崎 次 土日 19-21」から施設・時間帯・曜日・何回先の2週間かを取り出す。
  * 「#灘崎 見張り …」なら watch（見張る日の登録。tokens は「見張り」のあとの言葉）を付けて返す。
+ * 「#灘崎 これから 19-21」なら digest（これからの空き。毎日のカードと同じもの）を付ける。
  * 当てはまらなければ null。施設のあとが読めないときは badOption を true にする（書き方を返すため）。
  *
  * @param {string} text
@@ -84,6 +86,7 @@ function detectAvailabilityFacility_(text) {
     return request;
   }
   tokens.forEach(function (token) {
+    if (token === 'これから' && !request.digest) { request.digest = true; return; }
     const page = parseAvailabilityPage_(token);
     const days = page ? null : parseAvailabilityDays_(token);
     const window = page || days ? null : parseAvailabilityWindow_(token);
@@ -205,18 +208,25 @@ function handleAvailabilityText(text, now) {
  */
 function handleAvailabilityDigest(text, now) {
   const request = detectAvailabilityFacility_(text);
-  if (!request || request.badOption) return [];
-  if (request.watch) return [];
+  if (!request || request.badOption || request.watch) return [];
+  // 空きのカードか、取れなかった・見慣れない状態のお知らせの文を1通（空きがなければ何もなし）
+  return handleAvailabilityCommand_(asAvailabilityDigest_(request, now || new Date()), now).slice(0, 1);
+}
+
+/**
+ * これからの空きの決まり：今日から AVAILABILITY_DIGEST_DAYS 日・空きのある日だけ・1通・見張る日を目立たせる。
+ * 時間帯がなければ施設の digestWindow（灘崎は 19-21）
+ */
+function asAvailabilityDigest_(request, now) {
   request.spanDays = AVAILABILITY_DIGEST_DAYS;
   request.page = 0;
   request.onlyOpen = true;
   request.maxMessages = 1;
+  if (!request.window && request.facility.digestWindow) request.window = parseAvailabilityWindow_(request.facility.digestWindow);
   // 見張る日が登録されていれば、その日に空きがあるときにカードを目立たせる（ほかの日も出す）
-  const watched = pruneAvailabilityWatchDates_(request.facility, now || new Date());
+  const watched = pruneAvailabilityWatchDates_(request.facility, now);
   if (watched.length) request.watchDates = watched;
-  const messages = handleAvailabilityCommand_(request, now);
-  // 空きのカードか、取れなかった・見慣れない状態のお知らせの文を1通（空きがなければ何もなし）
-  return messages.slice(0, 1);
+  return request;
 }
 
 /**
@@ -232,6 +242,13 @@ function handleAvailabilityDigest(text, now) {
 function handleAvailabilityCommand_(request, now) {
   const facility = request.facility;
   if (request.watch) return handleAvailabilityWatch_(request, now || new Date());
+  if (request.digest) {
+    request.digest = false;
+    const messages = handleAvailabilityCommand_(asAvailabilityDigest_(request, now || new Date()), now).slice(0, 1);
+    if (messages.length) return messages;
+    // 送ってきた人には、空きがないことも返す（毎日のカードでは何も足さない）
+    return [{ type: 'text', text: `【${facility.name}】これから${AVAILABILITY_DIGEST_DAYS}日の${formatAvailabilityWindow_(request.window)}に、空きのある日はありません。` }];
+  }
   if (request.badOption) {
     return [{
       type: 'text',
@@ -242,7 +259,8 @@ function handleAvailabilityCommand_(request, now) {
         `#${facility.key} 土日 … 土日の空き（土日祝・平日・月水金 なども）`,
         `#${facility.key} 土日 19-21 … 両方でしぼる`,
         `#${facility.key} 次 … 次の2週間（次の次 も）`,
-        `#${facility.key} 見張り … 毎日のカードで見る日（見る・入れかえ・足す・消す）`,
+        `#${facility.key} これから 19-21 … ${AVAILABILITY_DIGEST_DAYS}日先までの空きのある日`,
+        `#${facility.key} 見張り … 見張る日（見る・入れかえ・足す・消す）`,
       ].join('\n'),
     }];
   }
@@ -531,7 +549,7 @@ function handleAvailabilityWatch_(request, now) {
 }
 
 /**
- * 見張る日のカード。日付の一覧（過ぎた日は消してある）と、いまの日付をそのまま写せるボタン。
+ * 見張る日のカード。日付の一覧（過ぎた日は消してある）と、いまの日付をそのまま写せるボタン・いま空きを見るボタン。
  * ボタンはあとで押されても困らない（写すだけ）。
  */
 function buildAvailabilityWatchCard_(facility, dates, now, note) {
@@ -573,7 +591,11 @@ function buildAvailabilityWatchCard_(facility, dates, now, note) {
         contents: [{
           type: 'button', style: 'link', height: 'sm',
           action: { type: 'clipboard', label: 'いまの日付をコピー', clipboardText: copyText.slice(0, 1000) },
-        }],
+        }].concat(facility.digestWindow ? [{
+          // 書きかえたあと、そのまま空きを確かめる（押されるたびにその時の空きを取るので、あとで押されても困らない）
+          type: 'button', style: 'link', height: 'sm',
+          action: { type: 'message', label: 'いま空きを見る', text: `#${facility.key} これから ${facility.digestWindow}` },
+        }] : []),
       },
     },
   };

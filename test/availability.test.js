@@ -257,6 +257,23 @@ test("#灘崎 見張り：見る・入れかえ・足す・消す・全部消す
   assert.deepEqual(checkMessages([card]).filter((p) => p.level === "error"), []);
 });
 
+test("見張る日のカードの「いま空きを見る」ボタンで、毎日のカードと同じものがすぐ返る", () => {
+  const { gas } = setup();
+  const reply = (text) => plain(gas.call("handleAvailabilityText", text));
+  const [watch] = reply("#灘崎 見張り 11/14");
+  const check = watch.contents.footer.contents.find((b) => b.action.type === "message");
+  assert.deepEqual(check.action, { type: "message", label: "いま空きを見る", text: "#灘崎 これから 19-21" });
+  // 手で時間帯を変えても同じ（13-14 なら 11/14 に空き。見張る日なので目立つ色）
+  const [card] = reply("#灘崎 これから 13-14");
+  assert.match(card.altText, /^【見張る日に空き】/);
+  assert.deepEqual(grid(card.contents).filter((r) => /^\d+\/\d+\(/.test(r)), ["11/14(土) 見張る日", "11/14(土) ① O", "11/14(土) ② x"]);
+  // 見張る日がなく空きもないときは、送ってきた人にはそう返す
+  reply("#灘崎 見張り 全部消す");
+  const [none] = reply("#灘崎 これから");
+  assert.equal(none.type, "text");
+  assert.match(none.text, /19-21時に、空きのある日はありません/);
+});
+
 test("過ぎた見張る日は、日がたつと消えていく", () => {
   const { gas } = setup();
   const reply = (text) => plain(gas.call("handleAvailabilityText", text));
