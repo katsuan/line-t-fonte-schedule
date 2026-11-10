@@ -111,7 +111,7 @@ test("#灘崎 次 は次の2週間を取る。カードは直近2週間に、予
   });
   const [card] = reply("#灘崎 土日 19-21");
   assert.deepEqual(card.contents.footer.contents.map((b) => [b.action.type, b.action.label]), [
-    ["uri", "予約サイトで見る"], ["uri", "90日の表を見る（管理ページ）"],
+    ["uri", "予約サイトで見る"], ["uri", "90日の表を見る"],
   ]);
   reply("#灘崎 次 土日 19-21"); // 手で書けば次の2週間も見られる
   assert.deepEqual(asked.map((a) => [a.startDate, a.endDate]), [["2026-11-10", "2026-11-23"], ["2026-11-24", "2026-12-07"]]);
@@ -217,7 +217,7 @@ test("handleAvailabilityDigest は90日ぶんを1回で取り、時間帯に空�
   // 13-14 に空きがあるのは 11/14 だけ（ほかの日は出さない・まとめた空きなしの行もない）
   assert.deepEqual(rows, ["11/14(土) ① O", "11/14(土) ② x"]);
   // 「次の2週間」ボタンは付けない。予約サイトと、管理ページの90日の表（T-FONTE だけ）
-  assert.deepEqual(card.contents.footer.contents.map((b) => b.action.label), ["予約サイトで見る", "90日の表を見る（管理ページ）"]);
+  assert.deepEqual(card.contents.footer.contents.map((b) => b.action.label), ["予約サイトで見る", "90日の表を見る"]);
   assert.match(card.contents.footer.contents[1].action.uri, /^https:\/\/liff\.line\.me\/[^/]+\/admin\.html\?view=field$/);
   assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 20-21")), []);
   assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 あした")), []);

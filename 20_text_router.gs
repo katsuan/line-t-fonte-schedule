@@ -70,7 +70,7 @@ function createAvailabilityMessages_(text) {
  * 管理者でない人が開くと、管理者に頼むボタンが出る
  */
 function availabilityExtraLinks_() {
-  return [{ label: '90日の表を見る（管理ページ）', uri: `${LIFF_URLS.Admin}?view=field` }];
+  return [{ label: '90日の表を見る', uri: `${LIFF_URLS.Admin}?view=field` }];
 }
 
 /**
