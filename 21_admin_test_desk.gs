@@ -172,6 +172,7 @@ function buildAdminTestAutoReminder_() {
   const records = buildAdminTestRecords_();
   return buildReminderFlexMessages_(records, {
     forceRefresh: false,
+    noWeather: true, // 見本は外に問い合わせない
     includeGuideBubble: true,
     reminderText: buildReminderTextMessageTextFromRecords_(records)
   });
@@ -179,7 +180,7 @@ function buildAdminTestAutoReminder_() {
 
 /** 見本：#リマインド の予定カード */
 function buildAdminTestShareCards_() {
-  return buildReminderFlexMessages_(buildAdminTestRecords_(), { forceRefresh: false });
+  return buildReminderFlexMessages_(buildAdminTestRecords_(), { forceRefresh: false, noWeather: true });
 }
 
 /** 見本：#予定登録 の確認カード（ボタンは見本の返事へ） */

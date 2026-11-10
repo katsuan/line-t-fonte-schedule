@@ -133,14 +133,15 @@ function buildReminderFlexMessages_(records, options) {
 
 /** カードに使うもの（月ごとのまとまり・カード）を作る。予定がなければ errorMessage を返す */
 function buildReminderFlexViewModel_(records, options) {
-  const { forceRefresh, includeGuideBubble, reminderText } = options || {};
+  const { forceRefresh, includeGuideBubble, reminderText, noWeather } = options || {};
   const now = new Date();
 
   if (!records.length) {
     return { errorMessage: createSheetErrorMessage_() };
   }
 
-  const nearTermWeatherSummaryMap = getNearTermWeatherSummaryMap_(
+  // noWeather … #テスト の見本など、外に問い合わせないとき
+  const nearTermWeatherSummaryMap = noWeather ? {} : getNearTermWeatherSummaryMap_(
     records,
     now,
     FLEX_CONFIG.nearTermDays,

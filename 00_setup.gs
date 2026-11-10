@@ -66,23 +66,22 @@ const GROUP_LINK = "line://ti/g/hwc5nRC7mS"
 // 終了時刻が無い予定は、開始の何時間後までとみなすか（管理ページ・まとめて追加・カレンダー同期で共通）
 const DEFAULT_PLAN_DURATION_HOURS = 2;
 
-/** 天気（Open-Meteo）の設定。いまは Enabled: false で止めている */
+/**
+ * 天気（Open-Meteo）の設定。場所の名前で位置を探すと公園などは見つからないので、場所の言葉ごとに位置を決めておく。
+ * どれにも当たらない場所は Default（岡山市）の天気にする。予報は予定の時間（開始〜終了）の1時間ごとのものから作る
+ */
 const WEATHER_CONFIG = {
-  Enabled: false, // 天気の取得・表示を止めている（戻すときは true）
+  Enabled: true, // 天気の取得・表示（止めるときは false）
   TimeZone: "Asia/Tokyo",
   ForecastApiBaseUrl: "https://api.open-meteo.com/v1/forecast",
-  GeocodeApiBaseUrl: "https://geocoding-api.open-meteo.com/v1/search",
-  ForecastModels: "jma_seamless",
-  GeocodeCount: 1,
-  GeocodeLanguage: "ja",
-  GeocodeCountryCode: "JP",
-  GeocodeCachePrefix: "WEATHER_GEOCODE_V1_",
-  ForecastCacheDateKey: "WEATHER_FORECAST_CACHE_DATE_V1",
-  ForecastCacheIndexKey: "WEATHER_FORECAST_CACHE_KEYS_V1",
-  ForecastCachePrefix: "WEATHER_FORECAST_V1_",
-  AreaHint: "岡山",
-  QueryAliases: {
-    "灘崎総合公園": "灘崎総合公園 岡山",
-    "ニッショク岡山": "ニッショク岡山"
-  }
+  // models を付けない（best_match）。日本では気象庁などのモデルをまぜ、16日先まで・降水確率もある
+  ForecastDays: 16,
+  CacheMinutes: 180, // 予報を CacheService にしまう時間
+  CachePrefix: "weather-forecast-v2-",
+  Places: [
+    { words: ["灘崎"], name: "灘崎町総合公園", latitude: 34.5446, longitude: 133.8679 }
+  ],
+  Default: { name: "岡山市", latitude: 34.65, longitude: 133.9333 },
+  // 前に Script Properties にしまっていた控え（見つけたら消す）
+  OldPropertyPrefixes: ["WEATHER_GEOCODE_V1_", "WEATHER_FORECAST_V1_", "WEATHER_FORECAST_CACHE_DATE_V1", "WEATHER_FORECAST_CACHE_KEYS_V1"]
 }
