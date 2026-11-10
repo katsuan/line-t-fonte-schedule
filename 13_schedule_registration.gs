@@ -308,7 +308,7 @@ function buildScheduleConfirmBodyContents_(rows, notes) {
   if (notes.errors && notes.errors.length) noteTexts.push(`⚠️ 読み取れなかった行（登録しません）:\n${formatScheduleErrors_(notes.errors)}`);
 
   const minutes = Math.round(SCHEDULE_PENDING_CACHE_CONFIG.ttlSeconds / 60);
-  const bodyContents = items.concat(noteTexts.map(createScheduleNoteText_));
+  const bodyContents = items.concat(noteTexts.map(createScheduleNoteText_), createScheduleLinkButtons_(rows));
   bodyContents.push({
     type: 'text',
     text: notes.actions
@@ -320,6 +320,26 @@ function buildScheduleConfirmBodyContents_(rows, notes) {
     margin: 'md'
   });
   return bodyContents;
+}
+
+/**
+ * 登録する予定の参加リンクを開くボタン（ちがうリンクごとに1つ・3つまで）。開くだけなので、あとで押されても困らない
+ */
+function createScheduleLinkButtons_(rows) {
+  const links = [];
+  rows.forEach(function (row) {
+    const link = String(row.record.link || '').trim();
+    if (row.tag === 'new' && /^https?:\/\//.test(link) && link.length <= 1000 && links.indexOf(link) < 0) links.push(link);
+  });
+  return links.slice(0, 3).map(function (link, index) {
+    return {
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      margin: index === 0 ? 'md' : 'sm',
+      action: { type: 'uri', label: links.length > 1 ? `参加リンク${index + 1}を開く` : '参加リンクを開く', uri: link }
+    };
+  });
 }
 
 /** シートの予定（listPlanRecords_ の形）を、確認カードの行に出せる形（Date を持つ）にする */

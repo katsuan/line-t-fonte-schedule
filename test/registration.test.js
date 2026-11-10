@@ -289,6 +289,9 @@ test("#予定登録の札：シートにある予定と同じ日・開始・場�
   assert.match(JSON.stringify(rows[5]), /体育館/);
   assert.doesNotMatch(JSON.stringify(reply[0].contents), /11\/20/);
 
+  const opens = reply[0].contents.body.contents.filter((b) => b.type === "button").map((b) => b.action);
+  assert.deepEqual(opens, [{ type: "uri", label: "参加リンクを開く", uri: "https://example.com/form" }]);
+
   const done = plain(gas.call("handleTextMessage", event("#予定確定")));
   assert.equal(done[0].text, "✅ 3件登録しました。");
   assert.equal(gas.plan.rows.length - 1, 6); // 元の3件 + 新規3件
