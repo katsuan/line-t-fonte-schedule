@@ -37,6 +37,7 @@ async function start() {
     show("loading");
     try {
         await liff.init({ liffId: LIFF_ID });
+        applyViewFromUrl();
         if (!liff.isLoggedIn()) {
             liff.login({ redirectUri: location.href });
             return;
@@ -55,6 +56,29 @@ async function start() {
     } catch (err) {
         console.error(err);
         fail("読み込みに失敗しました。通信状況を確認してください。");
+    }
+}
+
+/** 「?view=field」などで開いたら、そのタブを出す（LINE の空き状況のカードの「90日の表を見る」から来たとき） */
+function applyViewFromUrl() {
+    try {
+        const params = new URLSearchParams(location.search);
+        let next = params.get("view");
+        // LIFF の入口を通ると、行き先が liff.state に入っていることがある
+        if (!next && params.get("liff.state")) next = new URLSearchParams(params.get("liff.state").split("?")[1] || "").get("view");
+        if (next === "calendar" || next === "list" || next === "field") view = next;
+    } catch (err) { /* 読めなければいつものタブ */ }
+}
+
+/** 管理者でない人が、管理者に自分の ID を送る（LINE の送り先を選ぶ画面。送るのは本人） */
+function askAdmin() {
+    const text = `予定の管理ページを使えるようにしてください。\nID: ${$("userId").textContent}\n（管理者の方：Script Property の ADMIN_USER_IDS に足してください）`;
+    const url = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
+    try {
+        if (window.liff && liff.isInClient()) liff.openWindow({ url, external: false });
+        else window.open(url, "_blank", "noopener");
+    } catch (err) {
+        location.href = url;
     }
 }
 
@@ -954,6 +978,7 @@ $("bulkSubmit").addEventListener("click", submitBulk);
 $("reloadBtn").addEventListener("click", async () => {
     try { await loadRecords(); showToast("最新にしました"); } catch (err) { showToast("読み込みに失敗しました", true); }
 });
+$("askAdmin").addEventListener("click", askAdmin);
 $("copyUserId").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText($("userId").textContent); showToast("コピーしました"); } catch (err) { showToast("コピーできませんでした", true); }
 });

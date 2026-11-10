@@ -209,7 +209,9 @@ test("handleAvailabilityDigest は90日ぶんを1回で取り、時間帯に空�
   const rows = grid(card.contents).filter((r) => /^\d+\/\d+\(/.test(r));
   // 13-14 に空きがあるのは 11/14 だけ（ほかの日は出さない・まとめた空きなしの行もない）
   assert.deepEqual(rows, ["11/14(土) ① O", "11/14(土) ② x"]);
-  assert.equal(card.contents.footer.contents.length, 1); // 「次の2週間」ボタンは付けない
+  // 「次の2週間」ボタンは付けない。予約サイトと、管理ページの90日の表（T-FONTE だけ）
+  assert.deepEqual(card.contents.footer.contents.map((b) => b.action.label), ["予約サイトで見る", "90日の表を見る（管理ページ）"]);
+  assert.match(card.contents.footer.contents[1].action.uri, /^https:\/\/liff\.line\.me\/[^/]+\/admin\.html\?view=field$/);
   assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 20-21")), []);
   assert.deepEqual(plain(gas.call("handleAvailabilityDigest", "#灘崎 あした")), []);
 });

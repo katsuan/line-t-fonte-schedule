@@ -64,6 +64,14 @@ function createAvailabilityMessages_(text) {
 }
 
 /**
+ * 空き状況のカードの下に足すリンク（15_availability.gs が読む）：管理ページの「⚽ 空き」タブ（今日から90日の表）。
+ * 管理者でない人が開くと、管理者に頼むボタンが出る
+ */
+function availabilityExtraLinks_() {
+  return [{ label: '90日の表を見る（管理ページ）', uri: `${LIFF_URLS.Admin}?view=field` }];
+}
+
+/**
  * 空き状況のカードに ⚽ で出す、その施設での活動の予定（15_availability.gs が名前で探して呼ぶ）。
  * Plan シートの場所に、施設の placeWords（「灘崎」など）が入っている予定。終了が空なら DEFAULT_PLAN_DURATION_HOURS 時間。
  * 内容・補足の丸数字（①②）をコートの番号にする（なければどのコートかわからない予定）

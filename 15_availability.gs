@@ -876,6 +876,22 @@ function readAvailabilityActivities_(facility, range) {
 }
 
 /**
+ * カードの下に足すリンクのボタン（置いたボットだけ。T-FONTE は管理ページの空きの表）。
+ * availabilityExtraLinks_(facility) が [{label, uri}] を返せば、そのボタンを足す
+ */
+function readAvailabilityExtraButtons_(facility) {
+  if (typeof availabilityExtraLinks_ !== 'function') return [];
+  try {
+    return (availabilityExtraLinks_(facility) || [])
+      .filter(function (link) { return link && link.label && /^https:\/\//.test(link.uri || ''); })
+      .map(function (link) { return { type: 'button', style: 'link', height: 'sm', action: { type: 'uri', label: link.label, uri: link.uri } }; });
+  } catch (err) {
+    logAvailabilityError_(err);
+    return [];
+  }
+}
+
+/**
  * 見張る日（今日から先）の今の様子。毎日のカードの上の「見張る日」の欄に出す
  *
  * @returns {Array<{date: string, label: string, tone: string, open: boolean, text: string}>}
@@ -1159,7 +1175,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
         style: 'link',
         height: 'sm',
         action: { type: 'uri', label: '予約サイトで見る', uri: card.pageUrl },
-      }].concat(card.nextText ? [{
+      }].concat(readAvailabilityExtraButtons_(card.facility)).concat(card.nextText ? [{
         type: 'button',
         style: 'link',
         height: 'sm',

@@ -8,8 +8,8 @@
     <title>T-FONTE 予定の管理</title>
     <link rel="icon" href="data:," />
 
-    <link rel="stylesheet" href="css/month-calendar.css?v=202611102205" />
-    <link rel="stylesheet" href="admin.css?v=202611102205" />
+    <link rel="stylesheet" href="css/month-calendar.css?v=202611102330" />
+    <link rel="stylesheet" href="admin.css?v=202611102330" />
 </head>
 
 <body>
@@ -28,7 +28,11 @@
             <strong>管理者として登録されていません</strong>
             <p>管理者に、下のIDを Script Property <b>ADMIN_USER_IDS</b>（複数はカンマ区切り）へ追加してもらってください。</p>
             <code id="userId"></code>
-            <button id="copyUserId" class="btn" type="button">IDをコピー</button>
+            <div class="toolbar-actions">
+                <button id="askAdmin" class="btn btn-primary" type="button">管理者に送る</button>
+                <button id="copyUserId" class="btn" type="button">IDをコピー</button>
+            </div>
+            <p class="link-note">「管理者に送る」は LINE の送り先を選ぶ画面を開きます（ID と頼む文が入っています）。</p>
         </section>
 
         <section id="fatal" class="panel" hidden>
@@ -125,8 +129,8 @@
 
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-    <script src="js/month-calendar.js?v=202611102205"></script>
-    <script src="admin.js?v=202611102205"></script>
+    <script src="js/month-calendar.js?v=202611102330"></script>
+    <script src="admin.js?v=202611102330"></script>
 </body>
 
 </html>
