@@ -46,7 +46,7 @@ const CLIPBOARD_TEXT_MAX_CHARS = 1000;
 const AUTO_REMINDER_GUIDE_CONFIG = {
   headerTitle: "リマインド送信ガイド",
   bodyLabel: "これまでのテキスト文面",
-  copyButtonLabel: "文章をコピー",
+  copyButtonLabel: "コピー", // 見出しの右の小さなピル
   adminButtonLabel: "予定を管理",
   groupButtonLabel: "グループへ",
   richButtonLabel: "リッチに送る",
@@ -323,7 +323,7 @@ function createFlexTwoLineHeader_(subText, titleText, wrapTitle) {
   };
 }
 
-/** 通知カードの先頭の「リマインド送信ガイド」（文面・コピー・管理・グループ・リッチに送る） */
+/** 通知カードの先頭の「リマインド送信ガイド」（文面とコピーのピル・管理・グループ・リッチに送る） */
 function createAutoReminderGuideBubble_(reminderText, altText) {
   const clipboardText = trimClipboardText_(reminderText);
   return {
@@ -346,9 +346,6 @@ function createAutoReminderGuideBubble_(reminderText, altText) {
       layout: "vertical",
       spacing: "sm",
       contents: [
-        createGuideButtonRow_([
-          createGuideButton_({ type: "clipboard", label: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel, clipboardText: clipboardText })
-        ]),
         createGuideButtonRow_([
           createGuideButton_({ type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.adminButtonLabel, uri: LIFF_URLS.Admin }),
           createGuideButton_({ type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.groupButtonLabel, uri: GROUP_LINK })
@@ -373,11 +370,20 @@ function createGuideReminderTextBox_(text) {
     backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.cardBackgroundColor,
     contents: [
       {
-        type: "text",
-        text: AUTO_REMINDER_GUIDE_CONFIG.bodyLabel,
-        size: "xs",
-        weight: "bold",
-        color: AUTO_REMINDER_GUIDE_CONFIG.guideAccentColor
+        type: "box",
+        layout: "horizontal",
+        alignItems: "center",
+        contents: [
+          {
+            type: "text",
+            text: AUTO_REMINDER_GUIDE_CONFIG.bodyLabel,
+            size: "xs",
+            weight: "bold",
+            color: AUTO_REMINDER_GUIDE_CONFIG.guideAccentColor,
+            flex: 1
+          },
+          createGuideCopyPill_(text)
+        ]
       },
       {
         type: "box",
@@ -389,6 +395,27 @@ function createGuideReminderTextBox_(text) {
           { type: "text", text: text, size: "xs", color: AUTO_REMINDER_GUIDE_CONFIG.bodyTextColor, wrap: true }
         ]
       }
+    ]
+  };
+}
+
+/** 見出しの右の小さな「コピー」のピル（押すと文面をコピー。いつ押しても困らない） */
+function createGuideCopyPill_(text) {
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 0,
+    paddingTop: "4px",
+    paddingBottom: "4px",
+    paddingStart: "12px",
+    paddingEnd: "12px",
+    cornerRadius: "20px",
+    borderWidth: "1px",
+    borderColor: AUTO_REMINDER_GUIDE_CONFIG.guideAccentColor,
+    backgroundColor: AUTO_REMINDER_GUIDE_CONFIG.bodyBackgroundColor,
+    action: { type: "clipboard", label: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel, clipboardText: text },
+    contents: [
+      { type: "text", text: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel, size: "xxs", weight: "bold", color: AUTO_REMINDER_GUIDE_CONFIG.guideAccentColor, align: "center" }
     ]
   };
 }

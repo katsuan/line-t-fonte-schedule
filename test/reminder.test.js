@@ -128,6 +128,12 @@ test("カード：自動リマインド・#リマインド・画面用の中身�
   const auto = gas.call("createAutoReminderFlexMessages_");
   assert.deepEqual(errorsOf(auto), []);
   assert.deepEqual(auto[auto.length - 1].quickReply.items.map((it) => it.action.label), ["リッチに送る", "予定を管理", "カレンダー", "予定"]);
+  // 送信ガイド：文面の見出しの右に「コピー」のピル。下のボタンは 予定を管理・グループへ・リッチに送る
+  const guide = auto[0].contents.contents[0];
+  const pill = guide.hero.contents[0].contents[1];
+  assert.deepEqual([pill.action.type, pill.contents[0].text], ["clipboard", "コピー"]);
+  const footerLabels = JSON.stringify(guide.footer).match(/"label":"[^"]+"/g);
+  assert.deepEqual(footerLabels, ['"label":"予定を管理"', '"label":"グループへ"', '"label":"リッチに送る"']);
   // シートはサイト作成者だけ（通知・カードにシートのリンクを出さない）
   assert.doesNotMatch(JSON.stringify(auto), /docs\.google\.com\/spreadsheets/);
 
