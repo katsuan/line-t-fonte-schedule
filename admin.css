@@ -217,6 +217,15 @@ a.chip {
     line-height: 1.7;
 }
 
+#askText {
+    white-space: pre-wrap;
+}
+
+.ask-steps {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
 .panel code {
     display: block;
     margin: 8px 0;

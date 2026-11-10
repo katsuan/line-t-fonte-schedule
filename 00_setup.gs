@@ -9,7 +9,7 @@
 //   3. installCalendarSyncTrigger … 1日1回の Google カレンダー同期のトリガーを作る
 //   4. installPlanChangeTrigger  … シートを手で直したときに、公開カレンダーとカレンダー同期に反映するトリガーを作る
 //
-// Script Properties: SHEET_ID（予定のシート）・GROUP_ID・ADMIN_USER_IDS（管理者の userId をカンマ区切り）・CALENDAR_ID（同期先）
+// Script Properties: SHEET_ID（予定のシート）・GROUP_ID・ADMIN_USER_IDS（管理者の userId をカンマ区切り）・OWNER_USER_IDS（サイト作成者。管理者の申請を承認できる）・CALENDAR_ID（同期先）
 // このプロジェクトは、親の LINE ボットからライブラリ（開発モード）として読まれる。clasp push するとすぐ親に反映される
 
 // ---------- 人が実行する関数 ----------

@@ -212,3 +212,28 @@ test("「⚽ 空き」：サイトの返事は1時間しまって使う。「読
   assert.equal(stale.stale, true);
   assert.match(stale.asOf, /^2026-10-23T08:50/);
 });
+
+test("管理者の申請：サイト作成者がボットに送ると「承認する」が出て、押すと ADMIN_USER_IDS に足す。ほかの人は足せない", () => {
+  const OWNER = "U" + "a".repeat(32);
+  const NEWBIE = "U" + "b".repeat(32);
+  const gas = make({ properties: { ADMIN_USER_IDS: ADMIN, OWNER_USER_IDS: OWNER } });
+  const say = (text, userId) => require("./helpers").plain(gas.call("handleTextMessage", { type: "message", source: { type: "user", userId }, message: { type: "text", text } }));
+  const ask = `#管理者申請 ${NEWBIE}\n名前: 山田\n（サイト作成者の方へ：この文をそのままボットに送ると、承認のボタンが出ます）`;
+
+  // 管理者でもサイト作成者でない人は足せない
+  assert.match(say(ask, ADMIN)[0].text, /サイト作成者だけ/);
+  assert.match(say(`#管理者承認 ${NEWBIE}`, ADMIN)[0].text, /サイト作成者だけ/);
+  assert.equal(gas.properties.ADMIN_USER_IDS, ADMIN);
+
+  const reply = say(ask, OWNER);
+  assert.match(reply[0].text, /管理者にしますか/);
+  assert.match(reply[0].text, /名前: 山田/);
+  assert.deepEqual(reply[0].quickReply.items.map((i) => [i.action.label, i.action.text]), [["承認する", `#管理者承認 ${NEWBIE}`]]);
+  assert.match(say(reply[0].quickReply.items[0].action.text, OWNER)[0].text, /管理者にしました/);
+  assert.equal(gas.properties.ADMIN_USER_IDS, `${ADMIN},${NEWBIE}`);
+  // もう一度押しても、2回は足さない
+  assert.match(say(`#管理者承認 ${NEWBIE}`, OWNER)[0].text, /もう管理者です/);
+  assert.equal(gas.properties.ADMIN_USER_IDS, `${ADMIN},${NEWBIE}`);
+  // ID が読めないときは例を返す
+  assert.match(say("#管理者申請 だれか", OWNER)[0].text, /例:\n#管理者申請 U/);
+});

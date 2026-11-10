@@ -313,6 +313,10 @@ function collectAdminSelfChecks_() {
       const count = (props.getProperty(ADMIN_API_CONFIG.adminUserIdsProperty) || "").split(",").filter(function (id) { return id.trim(); }).length;
       return count ? { value: `${count}人` } : { level: "ng", value: "ADMIN_USER_IDS が空です" };
     }),
+    check("サイト作成者", function () {
+      const count = (props.getProperty(ADMIN_REQUEST_CONFIG.ownerUserIdsProperty) || "").split(",").filter(function (id) { return id.trim(); }).length;
+      return count ? { value: `${count}人（#管理者申請 を承認できる）` } : { level: "warn", value: "OWNER_USER_IDS が空です（管理者の申請を承認できません）" };
+    }),
     check("Google カレンダー同期", function () {
       const calendarId = getCalendarSyncId_();
       if (!calendarId) return { level: "warn", value: "CALENDAR_ID が未設定（同期しません）" };

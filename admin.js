@@ -47,6 +47,7 @@ async function start() {
         if (!who.ok) return fail(who.message);
         if (!who.isAdmin) {
             $("userId").textContent = who.userId;
+            $("askText").textContent = buildAskText(who.userId, await readDisplayName());
             return show("forbidden");
         }
 
@@ -70,9 +71,23 @@ function applyViewFromUrl() {
     } catch (err) { /* 読めなければいつものタブ */ }
 }
 
-/** 管理者でない人が、管理者に自分の ID を送る（LINE の送り先を選ぶ画面。送るのは本人） */
+/** サイト作成者に送る文（ボットの「#管理者申請」。サイト作成者がボットに送ると、承認のクイックリプライが出る） */
+function buildAskText(userId, name) {
+    return [
+        `#管理者申請 ${userId}`,
+        name ? `名前: ${name}` : "",
+        "（サイト作成者の方へ：この文をそのままボットに送ると、承認のボタンが出ます）"
+    ].filter(Boolean).join("\n");
+}
+
+/** LINE の表示名（読めなければ空） */
+async function readDisplayName() {
+    try { return (await liff.getProfile()).displayName || ""; } catch (err) { return ""; }
+}
+
+/** 管理者でない人が、サイト作成者に頼む文を送る（LINE の送り先を選ぶ画面。送るのは本人） */
 function askAdmin() {
-    const text = `予定の管理ページを使えるようにしてください。\nID: ${$("userId").textContent}\n（管理者の方：Script Property の ADMIN_USER_IDS に足してください）`;
+    const text = $("askText").textContent;
     const url = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
     try {
         if (window.liff && liff.isInClient()) liff.openWindow({ url, external: false });
@@ -980,7 +995,7 @@ $("reloadBtn").addEventListener("click", async () => {
 });
 $("askAdmin").addEventListener("click", askAdmin);
 $("copyUserId").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText($("userId").textContent); showToast("コピーしました"); } catch (err) { showToast("コピーできませんでした", true); }
+    try { await navigator.clipboard.writeText($("askText").textContent); showToast("コピーしました"); } catch (err) { showToast("コピーできませんでした", true); }
 });
 
 start();

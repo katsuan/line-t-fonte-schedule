@@ -8,6 +8,8 @@
  * 関数は呼ばれたときに名前で探すよう、どれも function で包む（あとのファイルの関数も使えるように）
  */
 const TEXT_MESSAGE_HANDLERS = [
+  // 管理者にしてほしい人の申請（35_admin_request.gs）。承認できるのはサイト作成者だけ
+  { matches: function (text) { return isAdminRequestText_(text); }, createMessages: function (text, event) { return createAdminRequestMessages_(text, event); } },
   // 管理者だけ（21_admin_test_desk.gs）。ふつうの人には何も返さない
   { matches: function (text) { return isAdminTestTriggerText_(text); }, createMessages: function (text, event) { return createAdminTestMessages_(text, event); } },
   { matches: function (text) { return isScheduleConfirmTriggerText_(text); }, createMessages: function (text, event) { return createScheduleConfirmMessages_(text, event); } },
