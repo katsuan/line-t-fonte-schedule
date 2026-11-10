@@ -424,6 +424,25 @@ test("ウィジェット用の中身（buildAvailabilityApiPayload）：表の�
   assert.equal(plain(changed.gas.call("buildAvailabilityApiPayload", "#灘崎")).status, "changed");
 });
 
+test("管理ページ用（spanDays）：今日から90日・空きのない日も・見張る日の印と様子・活動の日", () => {
+  const plans = [planRow("2026-11-14", "10:00", "12:00", "灘崎総合公園", "⚽フットサル", "①")];
+  const { gas } = setup(undefined, plans);
+  plain(gas.call("handleAvailabilityText", "#灘崎 見張り 11/14 11/16"));
+  const p = plain(gas.call("buildAvailabilityApiPayload", "#灘崎", undefined, { spanDays: 90 }));
+  assert.equal(p.status, "ok");
+  assert.equal(p.digest, false);
+  assert.equal(p.nextQuery, "");
+  assert.match(p.title, /^11\/10〜2\/7の空き状況$/);
+  assert.match(p.pageUrl, /ed=2027-02-07/);
+  assert.deepEqual(p.days.map((d) => [d.date, d.open, d.watched]), [
+    ["2026-11-10", true, false], ["2026-11-11", true, false], ["2026-11-14", true, true], ["2026-11-16", false, true],
+  ]);
+  assert.deepEqual(p.days.find((d) => d.date === "2026-11-14").activities, [{ start: 600, end: 720, courts: [1] }]);
+  assert.deepEqual(p.watch.map((w) => [w.date, w.open]), [["2026-11-14", true], ["2026-11-16", false]]);
+  // 90日より長くは読まない
+  assert.match(plain(gas.call("buildAvailabilityApiPayload", "#灘崎", undefined, { spanDays: 365 })).pageUrl, /ed=2027-02-07/);
+});
+
 test("ひしょっと（GAS_assistant）の元のファイルと中身が同じ", (t) => {
   const original = path.join(process.env.HOME, "GitHub/GAS_assistant/30_domain/05_availability_service.gs");
   if (!fs.existsSync(original)) return t.skip("GAS_assistant が手元にない");

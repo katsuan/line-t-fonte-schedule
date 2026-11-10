@@ -512,3 +512,168 @@ dialog::backdrop {
 .toast.error {
     background: rgba(185, 28, 28, 0.95);
 }
+
+/* ---------- ⚽ 空き（灘崎の今日から90日） ---------- */
+
+.tabs.tabs-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field-view {
+    padding: 12px;
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: 0 4px 14px rgba(42, 72, 120, 0.08);
+}
+
+.field-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.field-asof {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.field-watch {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    background: #f6f6f6;
+    font-size: 13px;
+}
+
+.field-watch-row {
+    display: flex;
+    gap: 8px;
+}
+
+.field-watch-row.is-open {
+    color: #d9480f;
+    font-weight: 800;
+}
+
+.field-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.field-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.field-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.field-legend .field-cell {
+    width: 12px;
+    height: 12px;
+}
+
+.field-grid {
+    display: grid;
+    gap: 2px;
+}
+
+.field-row {
+    display: grid;
+    grid-template-columns: 80px repeat(var(--hours, 14), minmax(0, 1fr));
+    gap: 2px;
+    align-items: center;
+}
+
+.field-scale span {
+    color: var(--muted);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.field-month {
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.field-day {
+    display: grid;
+    gap: 2px;
+    padding: 2px 0;
+    border-top: 1px solid var(--line);
+}
+
+.field-day.is-watched .field-date {
+    box-shadow: inset 3px 0 0 #d9480f;
+    padding-left: 4px;
+}
+
+.field-date {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.field-mark {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.field-tone-red {
+    color: var(--sun);
+}
+
+.field-tone-blue {
+    color: var(--sat);
+}
+
+.field-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 16px;
+    border-radius: 3px;
+    font-size: 10px;
+    line-height: 1;
+}
+
+.field-cell.is-open {
+    background: #2da44e;
+}
+
+.field-cell.is-view {
+    background: #a8dfb8;
+}
+
+.field-cell.is-closed {
+    background: #e3e5e8;
+}
+
+.field-cell.is-none {
+    background: #f7f7f7;
+}
+
+.field-note {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+}

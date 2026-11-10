@@ -99,10 +99,11 @@ function isAdminUserId_(userId) {
 
 // ---------- 操作 ----------
 
-/** 管理ページの操作（一覧・読み取り・同期・追加・編集・削除・月のリンク）をして、最新の一覧を返す */
+/** 管理ページの操作（一覧・読み取り・同期・空き状況・追加・編集・削除・月のリンク）をして、最新の一覧を返す */
 function runAdminAction_(request) {
   if (request.action === "list") return { ok: true, records: listPlanRecords_() };
   if (request.action === "parseSchedule") return Object.assign({ ok: true }, previewAdminBulkText_(request.text));
+  if (request.action === "availability") return { ok: true, availability: readAdminAvailability_() };
   if (request.action === "syncCalendar") {
     return { ok: true, records: listPlanRecords_(), calendar: syncPlansToCalendarSafely_(true) };
   }
@@ -129,6 +130,11 @@ function runAdminAction_(request) {
 
   // 書き込みのロックを手放してから同期する（同期も同じロックを使うため）。同期に失敗しても、保存は成功のまま返す
   return { ok: true, records: listPlanRecords_(), calendar: syncPlansToCalendarSafely_(true) };
+}
+
+/** 「⚽ 空き」タブ：灘崎の今日から90日ぶんのマス（空きのない日も）・見張る日・活動の日（読むだけ。開くたびにサイトを読む） */
+function readAdminAvailability_() {
+  return buildAvailabilityApiPayload("#灘崎", new Date(), { spanDays: AVAILABILITY_DIGEST_DAYS });
 }
 
 /** 予定を1件足す（リンクがなければ同じ月のリンクで補う） */

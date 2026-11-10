@@ -8,8 +8,8 @@
     <title>T-FONTE 予定の管理</title>
     <link rel="icon" href="data:," />
 
-    <link rel="stylesheet" href="css/month-calendar.css?v=202611050757" />
-    <link rel="stylesheet" href="admin.css?v=202611050757" />
+    <link rel="stylesheet" href="css/month-calendar.css?v=202611102115" />
+    <link rel="stylesheet" href="admin.css?v=202611102115" />
 </head>
 
 <body>
@@ -37,11 +37,12 @@
         </section>
 
         <section id="main" hidden>
-            <div class="tabs" role="tablist">
+            <div class="tabs tabs-3" role="tablist">
                 <button id="tabCal" class="tab is-active" type="button" role="tab" aria-selected="true">🗓️ カレンダー</button>
                 <button id="tabList" class="tab" type="button" role="tab" aria-selected="false">📋 リスト</button>
+                <button id="tabField" class="tab" type="button" role="tab" aria-selected="false">⚽ 空き</button>
             </div>
-            <div class="toolbar">
+            <div id="toolbar" class="toolbar">
                 <label id="pastLabel"><input id="showPast" type="checkbox" /> 過去の予定も表示</label>
                 <div class="toolbar-actions">
                     <button id="bulkBtn" class="btn btn-small" type="button">📝 文章で追加</button>
@@ -51,6 +52,7 @@
             </div>
             <div id="list"></div>
             <div id="calendar" hidden></div>
+            <div id="field" class="field-view" hidden></div>
         </section>
     </main>
 
@@ -123,8 +125,8 @@
 
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-    <script src="js/month-calendar.js?v=202611050757"></script>
-    <script src="admin.js?v=202611050757"></script>
+    <script src="js/month-calendar.js?v=202611102115"></script>
+    <script src="admin.js?v=202611102115"></script>
 </body>
 
 </html>

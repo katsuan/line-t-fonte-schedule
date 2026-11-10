@@ -160,8 +160,12 @@ function handleAvailabilityDigest(text, now) {
  * 取れないときも投げずに status で返す（ウィジェットがやさしい言葉で出せるように）。
  * 名前の後ろに _ を付けないのは、ライブラリの外（親のボット）から呼べるようにするため。
  *
+ * T-FONTE の管理ページは options.spanDays（90）で、今日から90日ぶんのマスを全部（空きのない日も）読む。
+ * そのときは見張る日も添える（見張る日の印と様子）。
+ *
  * @param {string} text
  * @param {Date=} now
+ * @param {{spanDays: (number|undefined)}=} options
  * @returns {{status: string, message: (string|undefined), facility: (Object|undefined), title: (string|undefined),
  *   asOf: (string|undefined), digest: (boolean|undefined), hours: (number[]|undefined), courts: (string[]|undefined),
  *   days: (Object[]|undefined), watch: (Object[]|null|undefined), alert: (boolean|undefined),
@@ -169,14 +173,18 @@ function handleAvailabilityDigest(text, now) {
  *   status … ok / down（つながらない）/ changed（作りが変わった）/ bad（書き方がちがう）
  *   days[].cells … コートの名前 → 1時間ずつの状態（open・view・closed・none。hours と同じ並び）
  */
-function buildAvailabilityApiPayload(text, now) {
+function buildAvailabilityApiPayload(text, now, options) {
   const request = detectAvailabilityFacility_(text);
   if (!request || request.badOption || request.watch) {
     return { status: 'bad', message: '「#灘崎」「#灘崎 19-21」「#灘崎 これから」のように書いてください。' };
   }
   const at = now || new Date();
   const digest = Boolean(request.digest);
+  const spanDays = !digest && options && options.spanDays
+    ? Math.min(Math.max(1, Math.floor(options.spanDays)), AVAILABILITY_DIGEST_DAYS)
+    : 0;
   if (digest) asAvailabilityDigest_(request, at);
+  else if (spanDays) asAvailabilitySpan_(request, spanDays, at);
 
   const facility = request.facility;
   const range = getAvailabilityRange_(at, request.page, request.spanDays);
@@ -234,7 +242,7 @@ function buildAvailabilityApiPayload(text, now) {
     watch: view.watchStatus,
     alert: days.some(function (day) { return day.open && day.watched; }),
     unknownStatuses: view.unknownStatuses,
-    nextQuery: digest ? '' : buildAvailabilityNextText_(request),
+    nextQuery: digest || spanDays ? '' : buildAvailabilityNextText_(request),
   });
 }
 
@@ -274,6 +282,15 @@ function asAvailabilityDigest_(request, now) {
   request.maxMessages = 1;
   if (!request.window && request.facility.digestWindow) request.window = parseAvailabilityWindow_(request.facility.digestWindow);
   // 見張る日が登録されていれば、その日に空きがあるときにカードを目立たせる（ほかの日も出す）
+  const watched = pruneAvailabilityWatchDates_(request.facility, now);
+  if (watched.length) request.watchDates = watched;
+  return request;
+}
+
+/** 今日から spanDays 日の空き状況（空きのない日も出す）。見張る日があれば印と様子を添える */
+function asAvailabilitySpan_(request, spanDays, now) {
+  request.spanDays = spanDays;
+  request.page = 0;
   const watched = pruneAvailabilityWatchDates_(request.facility, now);
   if (watched.length) request.watchDates = watched;
   return request;
