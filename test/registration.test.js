@@ -106,7 +106,8 @@ test("#予定登録の確認カード：下書きIDつきの登録・キャン�
   assert.match(card, /ほか15件（新規はすべて登録します）/);
   assert.match(card, /読み取れなかった行/);
   assert.ok(card.length < 20000, `カードの大きさ ${card.length}`);
-  const buttons = reply[0].contents.footer.contents.map((b) => b.action);
+  assert.equal(reply[0].contents.footer, undefined); // 登録・キャンセルはクイックリプライだけ
+  const buttons = reply[0].quickReply.items.map((it) => it.action).reverse();
   assert.deepEqual(buttons.map((a) => a.label), ["キャンセル", "登録する"]);
   assert.match(buttons[1].text, /^#予定確定 [0-9a-z]{8}$/);
   assert.match(buttons[0].text, /^#予定キャンセル [0-9a-z]{8}$/);
@@ -116,7 +117,7 @@ test("#予定登録の確認カード：下書きIDつきの登録・キャン�
 /** #予定登録 を送り、確認カードのボタンの文字（登録する・キャンセル）を返す */
 function register(gas, text, userId) {
   const reply = plain(gas.call("handleTextMessage", event(`#予定登録\n${text}`, "G1", userId)));
-  const [cancel, confirm] = reply[0].contents.footer.contents.map((b) => b.action.text);
+  const [confirm, cancel] = reply[0].quickReply.items.map((it) => it.action.text);
   return { confirm, cancel };
 }
 

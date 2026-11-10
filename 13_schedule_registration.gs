@@ -276,7 +276,6 @@ function createScheduleConfirmFlexMessage_(rows, notes) {
       contents: buildScheduleConfirmBodyContents_(rows, notes)
     }
   };
-  if (notes.actions) bubble.footer = createScheduleConfirmFooter_(notes.actions);
   return {
     type: 'flex',
     altText: trimAltText_(`📝 予定登録の確認：新規${count}件${skipped ? `・重複${skipped}件` : ''}（${formatScheduleDateRange_(records)}）`),
@@ -313,7 +312,7 @@ function buildScheduleConfirmBodyContents_(rows, notes) {
   bodyContents.push({
     type: 'text',
     text: notes.actions
-      ? `下の「登録する」を押すと、新規の予定をシートに登録します（${minutes}分たつと取り消されます）。`
+      ? `下の「登録する」（クイックリプライ）を押すか「#予定確定」と送ると、新規の予定をシートに登録します。やめるときは「キャンセル」（${minutes}分たつと取り消されます）。`
       : 'どれもシートにあるので、登録はしません。',
     size: 'xs',
     color: FLEX_CONFIG.textSecondaryColor,
@@ -332,20 +331,6 @@ function toScheduleRecordFromPlan_(row) {
     return new Date(p[0], p[1] - 1, p[2], t[0], t[1]);
   };
   return { date: new Date(p[0], p[1] - 1, p[2]), start: at(row.start), end: at(row.end), place: row.place, memo1: row.memo1, memo2: row.memo2, link: row.link };
-}
-
-/** 確認カードの下の「キャンセル」「登録する」（下書きID つきの文字を送る） */
-function createScheduleConfirmFooter_(actions) {
-  return {
-    type: 'box',
-    layout: 'horizontal',
-    spacing: 'sm',
-    contents: [
-      // 幅は半分ずつ（1:2 だと、せまい画面で「キャンセル」が切れる）
-      { type: 'button', style: 'secondary', flex: 1, action: { type: 'message', label: 'キャンセル', text: actions.cancelText } },
-      { type: 'button', style: 'primary', flex: 1, action: { type: 'message', label: '登録する', text: actions.confirmText } }
-    ]
-  };
 }
 
 /** 確認カードの予定1件：日時（曜日に色）・札（新規・重複・元から）と、内容・場所・補足。重複と元からは字をうすく */
