@@ -231,7 +231,7 @@ test("管理者の申請：サイト作成者がボットに送ると「承認�
   const reply = say(ask, OWNER);
   assert.match(reply[0].text, /管理者にしますか/);
   assert.match(reply[0].text, /名前: 山田/);
-  assert.deepEqual(reply[0].quickReply.items.map((i) => [i.action.label, i.action.text]), [["承認する", `#管理者承認 ${NEWBIE}`]]);
+  assert.deepEqual(reply[0].quickReply.items.map((i) => [i.action.label, i.action.text]), [["🔑承認する", `#管理者承認 ${NEWBIE}`]]);
   assert.match(say(reply[0].quickReply.items[0].action.text, OWNER)[0].text, /管理者にしました/);
   assert.equal(gas.properties.ADMIN_USER_IDS, `${ADMIN},${NEWBIE}`);
   // もう一度押しても、2回は足さない
@@ -239,4 +239,21 @@ test("管理者の申請：サイト作成者がボットに送ると「承認�
   assert.equal(gas.properties.ADMIN_USER_IDS, `${ADMIN},${NEWBIE}`);
   // ID が読めないときは例を返す
   assert.match(say("#管理者申請 だれか", OWNER)[0].text, /例:\n#管理者申請 U/);
+});
+
+test("🔑 シートはサイト作成者だけ：作成者が送った返事にだけ「🔑シート」を足す。ほかの人・#テスト には出さない", () => {
+  const OWNER = "U" + "a".repeat(32);
+  const gas = make({ properties: { ADMIN_USER_IDS: `${ADMIN},${OWNER}`, OWNER_USER_IDS: OWNER } });
+  const say = (text, userId) => require("./helpers").plain(gas.call("handleTextMessage", { type: "message", source: { type: "group", groupId: "G1", userId }, message: { type: "text", text } }));
+  const labels = (reply) => reply[reply.length - 1].quickReply.items.map((i) => i.action.label);
+  assert.deepEqual(labels(say("#今後の予定", OWNER)), ["リッチに送る", "予定を管理", "カレンダー", "予定", "🔑シート"]);
+  assert.deepEqual(labels(say("#今後の予定", ADMIN)), ["リッチに送る", "予定を管理", "カレンダー", "予定"]);
+  assert.ok(!labels(say("#予定登録", OWNER)).includes("シート"));
+  assert.ok(labels(say("#予定登録", OWNER)).includes("🔑シート"));
+  assert.ok(!labels(say("#テスト", OWNER)).includes("🔑シート"));
+  // 予定がないときの文にも、シートのリンクを書かない
+  const empty = make({ plans: [], properties: { ADMIN_USER_IDS: ADMIN, OWNER_USER_IDS: OWNER } });
+  const none = require("./helpers").plain(empty.call("handleTextMessage", { type: "message", source: { type: "group", groupId: "G1", userId: ADMIN }, message: { type: "text", text: "#今後の予定" } }));
+  assert.match(none[0].text, /まだありません/);
+  assert.doesNotMatch(JSON.stringify(none), /docs\.google/);
 });

@@ -98,6 +98,12 @@ function _formatDate_(date, pattern) {
 
 // ---------- クイックリプライ・送り主 ----------
 
+/**
+ * サイト作成者（OWNER_USER_IDS）だけに出すものの印。ほかの人には出していないことが、作成者にわかるように
+ * （予定のシート・管理者の承認など）
+ */
+const OWNER_ONLY_MARK = '🔑';
+
 /** クイックリプライの部品 */
 const ACTIONS = {
   FlexSender: LINE_func.createQuickReply('リッチに送る', { type: 'uri', uri: LIFF_URLS.FlexSender }),
@@ -105,7 +111,7 @@ const ACTIONS = {
   Calendar: LINE_func.createQuickReply('カレンダー', { type: 'uri', uri: LIFF_URLS.Calendar }),
   /** @param {string} text コピーする文 */
   Copy: (text = '') => (LINE_func.createQuickReply('コピー', { type: 'clipboard', text: text, imageUrl: ICONS.Copy })),
-  SS: LINE_func.createQuickReply('シート', { type: 'uri', imageUrl: ICONS.SS, uri: SETTING.SheetLink }),
+  SS: LINE_func.createQuickReply(`${OWNER_ONLY_MARK}シート`, { type: 'uri', imageUrl: ICONS.SS, uri: SETTING.SheetLink }),
   Plan: LINE_func.createQuickReply('予定', { text: '#今後の予定', imageUrl: ICONS.Soccer })
 }
 
@@ -113,10 +119,12 @@ const ACTIONS = {
  * 返事のあとに出すクイックリプライのまとまり（同じような返事には同じものを出す）
  * - cards … 予定のカード（#今後の予定・通知など）のあと
  * - next  … 文の返事（登録の結果・断り・空き状況など）のあと。行き止まりにしない
+ * - owner … サイト作成者が送ったときだけ、最後に足す（20_text_router.gs。通知など送った人のいないものには出さない）
  */
 const QUICK_REPLY_SETS = {
-  cards: function () { return [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.Calendar, ACTIONS.SS, ACTIONS.Plan]; },
-  next: function () { return [ACTIONS.Plan, ACTIONS.Admin, ACTIONS.Calendar]; }
+  cards: function () { return [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.Calendar, ACTIONS.Plan]; },
+  next: function () { return [ACTIONS.Plan, ACTIONS.Admin, ACTIONS.Calendar]; },
+  owner: function () { return [ACTIONS.SS]; }
 };
 
 const createSender = (name, iconUrl) => {

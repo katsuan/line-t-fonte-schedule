@@ -9,9 +9,9 @@
  */
 const TEXT_MESSAGE_HANDLERS = [
   // 管理者にしてほしい人の申請（35_admin_request.gs）。承認できるのはサイト作成者だけ
-  { matches: function (text) { return isAdminRequestText_(text); }, createMessages: function (text, event) { return createAdminRequestMessages_(text, event); } },
+  { matches: function (text) { return isAdminRequestText_(text); }, createMessages: function (text, event) { return createAdminRequestMessages_(text, event); }, noOwnerItems: true },
   // 管理者だけ（21_admin_test_desk.gs）。ふつうの人には何も返さない
-  { matches: function (text) { return isAdminTestTriggerText_(text); }, createMessages: function (text, event) { return createAdminTestMessages_(text, event); } },
+  { matches: function (text) { return isAdminTestTriggerText_(text); }, createMessages: function (text, event) { return createAdminTestMessages_(text, event); }, noOwnerItems: true },
   { matches: function (text) { return isScheduleConfirmTriggerText_(text); }, createMessages: function (text, event) { return createScheduleConfirmMessages_(text, event); } },
   { matches: function (text) { return isScheduleCancelTriggerText_(text); }, createMessages: function (text, event) { return createScheduleCancelMessages_(text, event); } },
   { matches: function (text) { return isScheduleRegistrationTriggerText_(text); }, createMessages: function (text, event) { return createScheduleRegistrationMessages_(text, event); } },
@@ -36,7 +36,8 @@ function routeTextMessage_(text, event) {
   }
 
   try {
-    const messages = matchedHandler.createMessages(text, event);
+    let messages = matchedHandler.createMessages(text, event);
+    if (!matchedHandler.noOwnerItems) messages = appendOwnerQuickReply_(messages, event);
     logScheduleDebug_('routeTextMessage:success', {
       text: text,
       messageCount: Array.isArray(messages) ? messages.length : 0
@@ -57,6 +58,20 @@ function routeTextMessage_(text, event) {
       quickReply: { items: QUICK_REPLY_SETS.next() }
     }];
   }
+}
+
+/**
+ * サイト作成者が送ったときだけ、最後の返事のクイックリプライに 🔑 の項目（QUICK_REPLY_SETS.owner）を足す。
+ * もとの返事（使い回しの定数もある）は書きかえず、写しに足す
+ */
+function appendOwnerQuickReply_(messages, event) {
+  if (!Array.isArray(messages) || !messages.length || !isSiteOwnerUserId_(resolveScheduleUserId_(event))) return messages;
+  const copied = messages.slice();
+  const last = Object.assign({}, copied[copied.length - 1]);
+  const items = ((last.quickReply && last.quickReply.items) || []).concat(QUICK_REPLY_SETS.owner()).slice(0, 13);
+  last.quickReply = { items: items };
+  copied[copied.length - 1] = last;
+  return copied;
 }
 
 /** 返事を作れなかったときの文（#テスト の見本も同じものを出す） */

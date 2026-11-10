@@ -6,14 +6,14 @@
 // 入口（01_）の shouldSendRemindMessage・completeAutoReminderSend などから使う
 
 // これからの予定が1件もないとき（エラーではない）。名前は前のまま（親のボットから見えるため変えない）
-const SHEET_ERROR_TEXT = `📭 これからの予定は、まだありません。\n予定はシートか「予定を管理」から入れられます。\n${SETTING.SheetLink}`;
+const SHEET_ERROR_TEXT = '📭 これからの予定は、まだありません。\n予定は「#予定登録」か「予定を管理」から入れられます。';
 
 /** 予定が1件もないときの、文のリマインド（createMessage）の返事 */
 const errorMessage = [{
   type: 'text',
   text: SHEET_ERROR_TEXT,
   sender: SENDERS.Auto,
-  quickReply: { items: [ACTIONS.Admin, ACTIONS.SS, ACTIONS.Calendar] }
+  quickReply: { items: [ACTIONS.Admin, ACTIONS.Calendar] }
 }];
 
 /** リマインドの文面の、見出し・書き出し・しめの候補（毎回1つ選ぶ） */

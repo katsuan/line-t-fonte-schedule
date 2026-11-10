@@ -127,7 +127,9 @@ test("カード：自動リマインド・#リマインド・画面用の中身�
 
   const auto = gas.call("createAutoReminderFlexMessages_");
   assert.deepEqual(errorsOf(auto), []);
-  assert.deepEqual(auto[auto.length - 1].quickReply.items.map((it) => it.action.label), ["リッチに送る", "予定を管理", "カレンダー", "シート", "予定"]);
+  assert.deepEqual(auto[auto.length - 1].quickReply.items.map((it) => it.action.label), ["リッチに送る", "予定を管理", "カレンダー", "予定"]);
+  // シートはサイト作成者だけ（通知・カードにシートのリンクを出さない）
+  assert.doesNotMatch(JSON.stringify(auto), /docs\.google\.com\/spreadsheets/);
 
   const share = gas.call("createShareFlexMessages_");
   assert.deepEqual(errorsOf(share), []);

@@ -58,7 +58,7 @@ function createAdminRequestMessages_(text, event) {
 
   const name = (source.match(/名前[:：]\s*(.+)/) || [])[1];
   return [adminRequestReply_(
-    `この人を管理者にしますか？\n${name ? `名前: ${name.trim().slice(0, 40)}\n` : ""}ID: ${userId}\n\n管理者になると、予定の管理ページで予定を足す・直す・消すことができます。`,
+    `${OWNER_ONLY_MARK} この人を管理者にしますか？（${OWNER_ONLY_MARK} はサイト作成者だけに出しているもの）\n${name ? `名前: ${name.trim().slice(0, 40)}\n` : ""}ID: ${userId}\n\n管理者になると、予定の管理ページで予定を足す・直す・消すことができます。`,
     [approveQuickReplyItem_(userId)]
   )];
 }
@@ -76,12 +76,12 @@ function approveAdminRequest_(userId) {
   } finally {
     lock.releaseLock();
   }
-  return adminRequestReply_(`✅ 管理者にしました（${maskAdminRequestUserId_(userId)}）。\n本人が管理ページを開き直すと使えます。`, [ACTIONS.Admin]);
+  return adminRequestReply_(`${OWNER_ONLY_MARK} ✅ 管理者にしました（${maskAdminRequestUserId_(userId)}）。\n本人が管理ページを開き直すと使えます。`, [ACTIONS.Admin]);
 }
 
 /** クイックリプライの「承認する」 */
 function approveQuickReplyItem_(userId) {
-  return LINE_func.createQuickReply("承認する", { text: `${ADMIN_REQUEST_CONFIG.approveWord} ${userId}` });
+  return LINE_func.createQuickReply(`${OWNER_ONLY_MARK}承認する`, { text: `${ADMIN_REQUEST_CONFIG.approveWord} ${userId}` });
 }
 
 /** 「もう管理者です」 */

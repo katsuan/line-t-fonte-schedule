@@ -47,7 +47,6 @@ const AUTO_REMINDER_GUIDE_CONFIG = {
   headerTitle: "リマインド送信ガイド",
   bodyLabel: "これまでのテキスト文面",
   copyButtonLabel: "文章をコピー",
-  sheetButtonLabel: "シート",
   adminButtonLabel: "予定を管理",
   groupButtonLabel: "グループへ",
   richButtonLabel: "リッチに送る",
@@ -175,7 +174,7 @@ function createSheetErrorMessage_() {
   };
 }
 
-/** 最後のメッセージに、送り主とクイックリプライ（リッチに送る・予定を管理・シート・予定）をつける */
+/** 最後のメッセージに、送り主とクイックリプライ（QUICK_REPLY_SETS.cards）をつける */
 function attachReminderQuickReply_(messages) {
   if (!Array.isArray(messages) || !messages.length) {
     return messages;
@@ -214,7 +213,7 @@ function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
   return Array.from(groupsByMonth.values()).map(group => ({
     monthLabel: buildMonthLabel_(group.monthDate),
     records: group.records,
-    link: usableCardLink_(findFirstLink_(group.records)) || SETTING.SheetLink,
+    link: usableCardLink_(findFirstLink_(group.records)), // なければボタンを出さない（シートはサイト作成者だけ）
     now,
     nearTermWeatherSummaryMap
   }));
@@ -324,7 +323,7 @@ function createFlexTwoLineHeader_(subText, titleText, wrapTitle) {
   };
 }
 
-/** 通知カードの先頭の「リマインド送信ガイド」（文面・コピー・シート・管理・グループ・リッチに送る） */
+/** 通知カードの先頭の「リマインド送信ガイド」（文面・コピー・管理・グループ・リッチに送る） */
 function createAutoReminderGuideBubble_(reminderText, altText) {
   const clipboardText = trimClipboardText_(reminderText);
   return {
@@ -348,8 +347,7 @@ function createAutoReminderGuideBubble_(reminderText, altText) {
       spacing: "sm",
       contents: [
         createGuideButtonRow_([
-          createGuideButton_({ type: "clipboard", label: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel, clipboardText: clipboardText }),
-          createGuideButton_({ type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.sheetButtonLabel, uri: SETTING.SheetLink })
+          createGuideButton_({ type: "clipboard", label: AUTO_REMINDER_GUIDE_CONFIG.copyButtonLabel, clipboardText: clipboardText })
         ]),
         createGuideButtonRow_([
           createGuideButton_({ type: "uri", label: AUTO_REMINDER_GUIDE_CONFIG.adminButtonLabel, uri: LIFF_URLS.Admin }),
