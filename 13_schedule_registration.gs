@@ -291,7 +291,7 @@ function buildScheduleConfirmBodyContents_(rows, notes) {
     items.push(createScheduleNoteText_(`ほか${rows.length - shown.length}件（新規はすべて登録します）`));
   }
   if (rows.some(function (row) { return row.tag === 'duplicate'; })) {
-    items.push(createScheduleNoteText_('重複：同じ日・開始・場所の予定がもうあるので、登録しません。'));
+    items.push(createScheduleNoteText_('重複：同じ日・開始・場所の予定があるので登録しません。'));
   }
 
   const existing = notes.existing || [];
@@ -312,8 +312,8 @@ function buildScheduleConfirmBodyContents_(rows, notes) {
   bodyContents.push({
     type: 'text',
     text: notes.actions
-      ? `下の「登録する」（クイックリプライ）を押すか「#予定確定」と送ると、新規の予定をシートに登録します。やめるときは「キャンセル」（${minutes}分たつと取り消されます）。`
-      : 'どれもシートにあるので、登録はしません。',
+      ? `${minutes}分以内に「登録する」で新規を登録（「#予定確定」と送っても可）。過ぎると取り消し。`
+      : 'どれもシートにあるので、登録しません。',
     size: 'xs',
     color: FLEX_CONFIG.textSecondaryColor,
     wrap: true,
