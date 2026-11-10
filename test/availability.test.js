@@ -396,6 +396,34 @@ test("毎日のカード（handleAvailabilityDigest）も、取れなかった�
   assert.match(messages[0].text, /取れませんでした/);
 });
 
+test("ウィジェット用の中身（buildAvailabilityApiPayload）：表のもと・見張る日・読めないとき・書き方のまちがい", () => {
+  const { gas } = setup();
+  const reply = (text) => plain(gas.call("handleAvailabilityText", text));
+  let p = plain(gas.call("buildAvailabilityApiPayload", "#灘崎 10-13"));
+  assert.equal(p.status, "ok");
+  assert.deepEqual(p.hours, [600, 660, 720]);
+  assert.deepEqual(p.courts, ["コート1", "コート2"]);
+  const day = p.days.find((d) => d.date === "2026-11-10");
+  assert.deepEqual(day.cells, { "コート1": ["open", "closed", "open"], "コート2": ["open", "open", "open"] });
+  assert.equal(p.nextQuery, "#灘崎 次 10-13時");
+  assert.match(p.pageUrl, /FacilityAvailability\/Index/);
+  // これからの空き：空きのある日だけ・見張る日の印と様子
+  reply("#灘崎 見張り 11/14 12/1");
+  p = plain(gas.call("buildAvailabilityApiPayload", "#灘崎 これから 13-14"));
+  assert.equal(p.digest, true);
+  assert.deepEqual(p.days.map((d) => [d.date, d.watched]), [["2026-11-14", true]]);
+  assert.equal(p.alert, true);
+  assert.deepEqual(p.watch.map((w) => w.text), ["空きあり", "まだ見られません（サイトにまだない先の日）"]);
+  // 書きかえ・読めない書き方は受けない
+  assert.equal(plain(gas.call("buildAvailabilityApiPayload", "#灘崎 見張り + 12/24")).status, "bad");
+  assert.equal(plain(gas.call("buildAvailabilityApiPayload", "#灘崎 あした")).status, "bad");
+  // 読めないときは投げずに status で
+  const down = setup((url) => (/GetDay/.test(url) ? res(503, {}) : undefined));
+  assert.equal(plain(down.gas.call("buildAvailabilityApiPayload", "#灘崎")).status, "down");
+  const changed = setup((url) => (/GetDay/.test(url) ? res(200, { rooms: [] }) : undefined));
+  assert.equal(plain(changed.gas.call("buildAvailabilityApiPayload", "#灘崎")).status, "changed");
+});
+
 test("ひしょっと（GAS_assistant）の元のファイルと中身が同じ", (t) => {
   const original = path.join(process.env.HOME, "GitHub/GAS_assistant/30_domain/05_availability_service.gs");
   if (!fs.existsSync(original)) return t.skip("GAS_assistant が手元にない");

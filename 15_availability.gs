@@ -12,7 +12,7 @@
  *
  * このファイルだけで動く（ほかのファイルからは Log だけを使う）。
  * ボットに listAvailabilityActivities_(facility, range) があれば、その施設での活動の予定を ⚽ で出す（T-FONTE だけが置いている）。
- * 入口: isAvailabilityText(text)・handleAvailabilityText(text)・handleAvailabilityDigest(text)
+ * 入口: isAvailabilityText(text)・handleAvailabilityText(text)・handleAvailabilityDigest(text)・buildAvailabilityApiPayload(text)（ウィジェット用）
  *
  * 同じものを2か所に置いている:
  * - GAS_assistant（ひしょっと）30_domain/05_availability_service.gs … 元
@@ -151,6 +151,90 @@ function handleAvailabilityDigest(text, now) {
   if (!request || request.badOption || request.watch) return [];
   const at = now || new Date();
   return respondAvailability_(asAvailabilityDigest_(request, at), at).slice(0, 1);
+}
+
+/**
+ * ウィジェット（SQriptableField）向けの中身。カードの代わりに、表のもとを返す。
+ * 「#灘崎」「#灘崎 19-21 土日」「#灘崎 次」「#灘崎 これから」など LINE と同じ書き方。読むだけ（見張る日の書きかえは受けない）。
+ * 取れないときも投げずに status で返す（ウィジェットがやさしい言葉で出せるように）。
+ * 名前の後ろに _ を付けないのは、ライブラリの外（親のボット）から呼べるようにするため。
+ *
+ * @param {string} text
+ * @param {Date=} now
+ * @returns {{status: string, message: (string|undefined), facility: (Object|undefined), title: (string|undefined),
+ *   asOf: (string|undefined), digest: (boolean|undefined), hours: (number[]|undefined), courts: (string[]|undefined),
+ *   days: (Object[]|undefined), watch: (Object[]|null|undefined), alert: (boolean|undefined),
+ *   unknownStatuses: (string[]|undefined), pageUrl: (string|undefined), nextQuery: (string|undefined)}}
+ *   status … ok / down（つながらない）/ changed（作りが変わった）/ bad（書き方がちがう）
+ *   days[].cells … コートの名前 → 1時間ずつの状態（open・view・closed・none。hours と同じ並び）
+ */
+function buildAvailabilityApiPayload(text, now) {
+  const request = detectAvailabilityFacility_(text);
+  if (!request || request.badOption || request.watch) {
+    return { status: 'bad', message: '「#灘崎」「#灘崎 19-21」「#灘崎 これから」のように書いてください。' };
+  }
+  const at = now || new Date();
+  const digest = Boolean(request.digest);
+  if (digest) asAvailabilityDigest_(request, at);
+
+  const facility = request.facility;
+  const range = getAvailabilityRange_(at, request.page, request.spanDays);
+  const pageUrl = buildAvailabilityPageUrl_(facility, range);
+  const base = {
+    facility: { key: facility.key, name: facility.name },
+    title: `${buildAvailabilityLabel_(request, range)}空き状況`,
+    asOf: Utilities.formatDate(at, 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm:ssXXX"),
+    digest: digest,
+    pageUrl: pageUrl,
+  };
+
+  let view;
+  try {
+    view = loadAvailabilityView_(request, range, at);
+  } catch (err) {
+    logAvailabilityError_(err);
+    const changed = err && err.availabilityKind === 'changed';
+    return Object.assign(base, {
+      status: changed ? 'changed' : 'down',
+      message: changed ? 'サイトの作りが変わったようで、読めませんでした。' : 'サイトにつながりませんでした。',
+    });
+  }
+
+  const hours = getAvailabilityHours_(view.slots, request.window);
+  const roomLabel = shortAvailabilityRoomLabel_(view.days.rooms);
+  const watchDates = request.watchDates || [];
+  const activities = view.days.activities || [];
+  const days = view.days.days
+    .filter(function (day) { return !request.onlyOpen || day.open; })
+    .map(function (day) {
+      const cells = {};
+      view.days.courts.forEach(function (court) {
+        const own = view.slots.filter(function (s) { return s.date === day.date && roomLabel(s.room) === court; });
+        cells[court] = hours.map(function (minutes) { return getAvailabilityCellState_(own, minutes, minutes + 60); });
+      });
+      return {
+        date: day.date,
+        label: day.label,
+        tone: day.tone,
+        open: day.open,
+        reason: day.reason,
+        watched: watchDates.indexOf(day.date) >= 0,
+        activities: activities.filter(function (a) { return a.date === day.date; })
+          .map(function (a) { return { start: a.start, end: a.end, courts: a.courts || [] }; }),
+        cells: cells,
+      };
+    });
+
+  return Object.assign(base, {
+    status: 'ok',
+    hours: hours,
+    courts: view.days.courts,
+    days: days,
+    watch: view.watchStatus,
+    alert: days.some(function (day) { return day.open && day.watched; }),
+    unknownStatuses: view.unknownStatuses,
+    nextQuery: digest ? '' : buildAvailabilityNextText_(request),
+  });
 }
 
 // ---------- 返事を選ぶ ----------
