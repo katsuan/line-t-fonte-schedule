@@ -166,7 +166,7 @@ test("公開カレンダー：個人のカレンダー（メールアドレス�
   assert.match(shared.doGet({ action: "plans" }).subscribeUrl, /^https:\/\/calendar\.google\.com\/calendar\/u\/0\?cid=/);
 });
 
-test("「⚽ 空き」：管理者だけ。灘崎の今日から90日ぶんを返す（予定は書きかえない）", () => {
+test("「⚽ 空き」：管理者だけ。今日から90日ぶんと、ほかの場所の予定を返す（予定は書きかえない）", () => {
   const { response } = require(require("node:path").join(process.env.HOME, "GitHub/q-oqrn/tools/qtest/fake-gas.js"));
   const frames = [{ usageTimeFrameId: 1, usageStartTime: "19:00:00", usageEndTime: "20:00:00" }];
   const site = { timeFrames: [{ usageTimeFrames: frames }], rooms: [{ roomName: "フットサルコート", courts: [
@@ -179,5 +179,7 @@ test("「⚽ 空き」：管理者だけ。灘崎の今日から90日ぶんを�
   assert.equal(res.availability.status, "ok");
   assert.match(res.availability.pageUrl, /sd=2026-10-23.*ed=2027-01-20/);
   assert.deepEqual(res.availability.days.map((d) => [d.date, d.open]), [["2026-10-24", true]]);
+  // ほかの場所の予定は、表に出ている日のぶんだけ添える（11/2 は表にない）
+  assert.deepEqual(res.availability.elsewhere, [{ date: "2026-10-24", start: "10:00", end: "12:00", place: "公園", memo1: "練習" }]);
   assert.equal(make({ fetch: fetch("U_STRANGER"), userId: "U_STRANGER" }).doPost({ action: "availability", accessToken: "t" }).code, "forbidden");
 });

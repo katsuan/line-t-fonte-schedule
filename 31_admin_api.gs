@@ -132,9 +132,23 @@ function runAdminAction_(request) {
   return { ok: true, records: listPlanRecords_(), calendar: syncPlansToCalendarSafely_(true) };
 }
 
-/** 「⚽ 空き」タブ：灘崎の今日から90日ぶんのマス（空きのない日も）・見張る日・活動の日（読むだけ。開くたびにサイトを読む） */
+/**
+ * 「⚽ 空き」タブ：灘崎の今日から90日ぶんのマス（空きのない日も）・見張る日・活動の日（読むだけ。開くたびにサイトを読む）。
+ * ほかの場所の予定も elsewhere に添える（その日はこの施設に来られないかもしれないので、表の日の下に場所と時間を出す）
+ */
 function readAdminAvailability_() {
-  return buildAvailabilityApiPayload("#灘崎", new Date(), { spanDays: AVAILABILITY_DIGEST_DAYS });
+  const payload = buildAvailabilityApiPayload("#灘崎", new Date(), { spanDays: AVAILABILITY_DIGEST_DAYS });
+  if (payload.status !== "ok") return payload;
+  const facility = AVAILABILITY_FACILITIES.filter(function (f) { return f.key === payload.facility.key; })[0] || {};
+  const words = facility.placeWords || [];
+  const dates = payload.days.map(function (day) { return day.date; });
+  payload.elsewhere = listPlanRecords_()
+    .filter(function (r) {
+      return dates.indexOf(r.date) >= 0 && !words.some(function (word) { return r.place.indexOf(word) >= 0; });
+    })
+    .map(function (r) { return { date: r.date, start: r.start, end: r.end, place: r.place, memo1: r.memo1 }; })
+    .sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start); });
+  return payload;
 }
 
 /** 予定を1件足す（リンクがなければ同じ月のリンクで補う） */

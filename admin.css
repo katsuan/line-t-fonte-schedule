@@ -672,6 +672,22 @@ dialog::backdrop {
     background: #f7f7f7;
 }
 
+.field-elsewhere {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 2px 0 2px 4px;
+    font-size: 12px;
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.field-elsewhere-label {
+    flex: none;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 800;
+}
+
 .field-note {
     margin: 8px 0 0;
     color: var(--muted);

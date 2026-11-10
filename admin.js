@@ -357,7 +357,7 @@ function renderFieldBody(p) {
     const last = p.days[p.days.length - 1];
     const note = document.createElement("p");
     note.className = "field-note";
-    note.textContent = `サイトに出ているのは ${last.label} まで。⚽ は予定（場所が灘崎）のある時間。`;
+    note.textContent = `サイトに出ているのは ${last.label} まで。⚽ はこの施設での予定の時間。ほかの場所の予定は日の下に1行ずつ。`;
     parts.push(note);
     return parts;
 }
@@ -462,7 +462,22 @@ function createFieldDay(p, day) {
         });
         block.appendChild(row);
     });
+    (p.elsewhere || []).filter(item => item.date === day.date).forEach(item => block.appendChild(createFieldElsewhere(item)));
     return block;
+}
+
+/** ほかの場所の予定（1件1行）：「ほかの場所　体育館 18:00〜20:00 練習」 */
+function createFieldElsewhere(item) {
+    const row = document.createElement("div");
+    row.className = "field-elsewhere";
+    const label = document.createElement("span");
+    label.className = "field-elsewhere-label";
+    label.textContent = "ほかの場所";
+    const text = document.createElement("span");
+    const time = item.end ? `${item.start}〜${item.end}` : item.start;
+    text.textContent = [item.place || "場所なし", time, item.memo1].filter(Boolean).join(" ");
+    row.append(label, text);
+    return row;
 }
 
 /** 「2026-11-10T08:05:00+09:00」→「11/10 8:05」 */
