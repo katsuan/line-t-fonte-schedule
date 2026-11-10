@@ -11,7 +11,7 @@ const lineFetch = (userId = ADMIN) => (url) => {
     if (/access_token=bad/.test(url)) return response(400, { error: "invalid_request" });
     return response(200, { client_id: "2009927582", expires_in: 3600, scope: "profile openid" });
   }
-  if (/v2\/profile/.test(url)) return response(200, { userId });
+  if (/v2\/profile/.test(url)) return response(200, { userId, displayName: "山田" });
   return undefined;
 };
 
@@ -38,6 +38,9 @@ test("権限：管理者でない人は whoami だけ。一覧も書きこみも
   const gas = make({ userId: "U_STRANGER" });
   const me = gas.doPost({ action: "whoami", accessToken: "t" });
   assert.deepEqual([me.ok, me.userId, me.isAdmin], [true, "U_STRANGER", false]);
+  // サイト作成者に送る頼む文（名前つき）。管理者には返さない
+  assert.equal(me.askText, "#管理者申請 U_STRANGER\n名前: 山田\n（サイト作成者の方へ：この文をそのままボットに送ると、承認のボタンが出ます）");
+  assert.equal(make().doPost({ action: "whoami", accessToken: "t" }).askText, undefined);
   assert.equal(gas.doPost({ action: "list", accessToken: "t" }).code, "forbidden");
   assert.equal(gas.doPost({ action: "add", accessToken: "t", record: record() }).code, "forbidden");
   assert.equal(gas.plan.rows.length, 3);

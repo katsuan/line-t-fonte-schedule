@@ -54,8 +54,8 @@ function createAdminError_(code, message) {
 
 // ---------- 本人確認・権限 ----------
 
-/** LIFF のアクセストークンを LINE に確かめ、その人の userId を返す */
-function verifyLineAccessToken_(accessToken) {
+/** LIFF のアクセストークンを LINE に確かめ、その人のプロフィール（userId・displayName）を返す */
+function verifyLineProfile_(accessToken) {
   const verifyResponse = UrlFetchApp.fetch(
     `${ADMIN_API_CONFIG.verifyUrl}?access_token=${encodeURIComponent(accessToken)}`,
     { muteHttpExceptions: true }
@@ -88,13 +88,19 @@ function verifyLineAccessToken_(accessToken) {
     );
   }
 
-  return JSON.parse(profileResponse.getContentText()).userId;
+  const profile = JSON.parse(profileResponse.getContentText());
+  return { userId: profile.userId, displayName: String(profile.displayName || "") };
+}
+
+/** Script Property にカンマ区切りで入れた userId の一覧（ADMIN_USER_IDS・OWNER_USER_IDS） */
+function readUserIdList_(propertyName) {
+  const raw = PropertiesService.getScriptProperties().getProperty(propertyName) || "";
+  return raw.split(",").map(function (id) { return id.trim(); }).filter(Boolean);
 }
 
 /** 管理者（Script Property `ADMIN_USER_IDS`）か */
 function isAdminUserId_(userId) {
-  const raw = PropertiesService.getScriptProperties().getProperty(ADMIN_API_CONFIG.adminUserIdsProperty) || "";
-  return raw.split(",").map(function (id) { return id.trim(); }).filter(Boolean).indexOf(userId) !== -1;
+  return Boolean(userId) && readUserIdList_(ADMIN_API_CONFIG.adminUserIdsProperty).indexOf(userId) !== -1;
 }
 
 // ---------- 操作 ----------

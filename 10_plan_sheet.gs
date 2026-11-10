@@ -42,6 +42,15 @@ function listPlanRecords_() {
   });
 }
 
+/**
+ * 同じ予定かを見分けるキー（日付・開始・場所）。#予定登録 の「重複」と、管理ページの「文章で追加」の「登録済みと同じ」で使う
+ * @param {string} date yyyy-MM-dd
+ * @param {string} start HH:mm
+ */
+function buildPlanMatchKey_(date, start, place) {
+  return [date, start, String(place || "").trim()].join("|");
+}
+
 /** Plan シートの1行を、画面や API に返す文字の形にする（日付のない行は null） */
 function mapPlanRowToRecord_(row, rowNumber) {
   if (!isValidDate(row[0])) return null;

@@ -80,9 +80,9 @@ function toAdminBulkPreviewRecord_(record, existingKeys) {
   return preview;
 }
 
-/** 登録済みと同じ予定かを見分けるキー（日付・開始・場所） */
+/** 登録済みと同じ予定かを見分けるキー（buildPlanMatchKey_。日付・開始・場所） */
 function buildAdminBulkKey_(record) {
-  return [record.date, record.start, record.place].join("|");
+  return buildPlanMatchKey_(record.date, record.start, record.place);
 }
 
 /** 開始の2時間後（日をまたがないよう、23:59までに収める） */

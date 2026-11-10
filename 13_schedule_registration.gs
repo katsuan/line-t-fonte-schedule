@@ -117,15 +117,14 @@ function createScheduleRegistrationMessages_(text, event) {
  *   existing は listPlanRecords_ の形（date は yyyy-MM-dd、start・end は時刻の文字）
  */
 function classifyScheduleRecords_(records) {
-  const keyOf = function (date, start, place) { return [date, start, String(place || '').trim()].join('|'); };
   const sheet = listPlanRecords_();
   const sheetKeys = {};
-  sheet.forEach(function (row) { sheetKeys[keyOf(row.date, row.start, row.place)] = true; });
+  sheet.forEach(function (row) { sheetKeys[buildPlanMatchKey_(row.date, row.start, row.place)] = true; });
 
   const seen = {};
   const inputKeys = {};
   const rows = records.map(function (record) {
-    const key = keyOf(_formatDate_(record.date, 'yyyy-MM-dd'), _formatDate_(record.start, FORMAT.Time), record.place);
+    const key = buildPlanMatchKey_(_formatDate_(record.date, 'yyyy-MM-dd'), _formatDate_(record.start, FORMAT.Time), record.place);
     const tag = sheetKeys[key] || seen[key] ? 'duplicate' : 'new';
     seen[key] = true;
     inputKeys[key] = true;
@@ -136,7 +135,7 @@ function classifyScheduleRecords_(records) {
   const first = dates[0];
   const last = dates[dates.length - 1];
   const existing = sheet
-    .filter(function (row) { return row.date >= first && row.date <= last && !inputKeys[keyOf(row.date, row.start, row.place)]; })
+    .filter(function (row) { return row.date >= first && row.date <= last && !inputKeys[buildPlanMatchKey_(row.date, row.start, row.place)]; })
     .sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start); });
   return { rows: rows, existing: existing };
 }

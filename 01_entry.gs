@@ -42,11 +42,15 @@ function doGet(e) {
 function doPost(e) {
   try {
     const request = parseAdminRequest_(e);
-    const userId = verifyLineAccessToken_(request.accessToken);
+    const profile = verifyLineProfile_(request.accessToken);
+    const userId = profile.userId;
     const isAdmin = isAdminUserId_(userId);
 
     if (request.action === "whoami") {
-      return createAdminResponse_({ ok: true, userId: userId, isAdmin: isAdmin });
+      // 管理者でない人には、サイト作成者に送る頼む文も返す（文の形は 35_admin_request.gs だけで決める）
+      const who = { ok: true, userId: userId, isAdmin: isAdmin };
+      if (!isAdmin) who.askText = buildAdminRequestExample_(userId, profile.displayName);
+      return createAdminResponse_(who);
     }
 
     if (!isAdmin) {

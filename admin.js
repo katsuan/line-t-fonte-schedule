@@ -47,7 +47,7 @@ async function start() {
         if (!who.ok) return fail(who.message);
         if (!who.isAdmin) {
             $("userId").textContent = who.userId;
-            $("askText").textContent = buildAskText(who.userId, await readDisplayName());
+            $("askText").textContent = who.askText || "";
             return show("forbidden");
         }
 
@@ -69,20 +69,6 @@ function applyViewFromUrl() {
         if (!next && params.get("liff.state")) next = new URLSearchParams(params.get("liff.state").split("?")[1] || "").get("view");
         if (next === "calendar" || next === "list" || next === "field") view = next;
     } catch (err) { /* 読めなければいつものタブ */ }
-}
-
-/** サイト作成者に送る文（ボットの「#管理者申請」。サイト作成者がボットに送ると、承認のクイックリプライが出る） */
-function buildAskText(userId, name) {
-    return [
-        `#管理者申請 ${userId}`,
-        name ? `名前: ${name}` : "",
-        "（サイト作成者の方へ：この文をそのままボットに送ると、承認のボタンが出ます）"
-    ].filter(Boolean).join("\n");
-}
-
-/** LINE の表示名（読めなければ空） */
-async function readDisplayName() {
-    try { return (await liff.getProfile()).displayName || ""; } catch (err) { return ""; }
 }
 
 /** 管理者でない人が、サイト作成者に頼む文を送る（LINE の送り先を選ぶ画面。送るのは本人） */
