@@ -183,3 +183,32 @@ test("「⚽ 空き」：管理者だけ。今日から90日ぶんと、ほか�
   assert.deepEqual(res.availability.elsewhere, [{ date: "2026-10-24", start: "10:00", end: "12:00", place: "公園", memo1: "練習" }]);
   assert.equal(make({ fetch: fetch("U_STRANGER"), userId: "U_STRANGER" }).doPost({ action: "availability", accessToken: "t" }).code, "forbidden");
 });
+
+test("「⚽ 空き」：サイトの返事は1時間しまって使う。「読みなおす」（fresh）ならすぐ読む。読めなければ前の分（stale）", () => {
+  const { response } = require(require("node:path").join(process.env.HOME, "GitHub/q-oqrn/tools/qtest/fake-gas.js"));
+  const frames = [{ usageTimeFrameId: 1, usageStartTime: "19:00:00", usageEndTime: "20:00:00" }];
+  // 部屋の名前を長くして、返事を CacheService の1つの値（100KB）より大きくする（分けてしまえるか）
+  const site = { timeFrames: [{ usageTimeFrames: frames }], rooms: [{ roomName: "フットサルコート", note: "あ".repeat(70000), courts: [
+    { courtName: "コート1", dayBooks: [{ usageDate: "2026-10-24T00:00:00", usageTimes: [{ usageTimeFrameId: 1, statusType: "A01" }] }] },
+  ] }] };
+  let calls = 0;
+  let down = false;
+  const gas = make({ fetch: (url) => {
+    if (!/GetDay/.test(url)) return lineFetch(ADMIN)(url);
+    calls++;
+    return down ? response(503, {}) : response(200, site);
+  } });
+  const read = (fresh) => gas.doPost({ action: "availability", accessToken: "t", fresh }).availability;
+  assert.match(read().asOf, /^2026-10-23T08:00/);
+  gas.setNow("2026-10-23T08:50:00+09:00");
+  assert.match(read().asOf, /^2026-10-23T08:00/); // しまった返事。時刻は取った時刻
+  assert.equal(calls, 1);
+  assert.match(read(true).asOf, /^2026-10-23T08:50/); // 読みなおす
+  assert.equal(calls, 2);
+  gas.setNow("2026-10-23T10:00:00+09:00");
+  down = true;
+  const stale = read();
+  assert.equal(stale.status, "ok");
+  assert.equal(stale.stale, true);
+  assert.match(stale.asOf, /^2026-10-23T08:50/);
+});

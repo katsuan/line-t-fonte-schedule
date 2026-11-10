@@ -283,13 +283,13 @@ const field = { loaded: false, loading: false, data: null, error: "", onlyOpen: 
 
 try { field.onlyOpen = localStorage.getItem("admin-field-only-open") === "1"; } catch (err) { /* 保存できなくても動く */ }
 
-/** GAS からサイトの空き状況を読む（開くたび・「読みなおす」のたびにサイトを読む） */
-async function loadField() {
+/** GAS から空き状況を読む。サイトの返事は GAS が1時間しまって使い、「読みなおす」（fresh）のときだけすぐ読み直す */
+async function loadField(fresh = false) {
     field.loading = true;
     field.error = "";
     renderField();
     try {
-        const result = await callApi("availability");
+        const result = await callApi("availability", { fresh });
         if (!result.ok) throw new Error(result.message);
         field.data = result.availability;
         field.loaded = true;
@@ -309,11 +309,12 @@ function renderField() {
     head.className = "field-head";
     const asOf = document.createElement("span");
     asOf.className = "field-asof";
-    asOf.textContent = field.loading ? "読み込み中..." : p && p.asOf ? `${formatFieldTime(p.asOf)} 時点` : "";
+    asOf.textContent = field.loading ? "読み込み中..."
+        : p && p.asOf ? `${formatFieldTime(p.asOf)} 時点${p.stale ? "（サイトにつながらないので前の分）" : ""}` : "";
     const actions = document.createElement("div");
     actions.className = "toolbar-actions";
     if (p && p.pageUrl) actions.appendChild(createAnswerLink("予約サイト", p.pageUrl, "btn btn-small"));
-    actions.appendChild(createButton("読みなおす", "btn btn-small", loadField, field.loading));
+    actions.appendChild(createButton("読みなおす", "btn btn-small", () => loadField(true), field.loading));
     head.append(asOf, actions);
     const children = [head];
 
@@ -441,7 +442,7 @@ function createFieldDay(p, day) {
         if (index === 0) {
             const date = document.createElement("span");
             date.className = `field-tone-${day.tone || "normal"}`;
-            date.textContent = day.label;
+            date.textContent = shortFieldLabel(day.label);
             label.appendChild(date);
         }
         const mark = document.createElement("span");
@@ -478,6 +479,11 @@ function createFieldElsewhere(item) {
     text.textContent = [item.place || "場所なし", time, item.memo1].filter(Boolean).join(" ");
     row.append(label, text);
     return row;
+}
+
+/** 祝日は「11/23(月・祝)」→「11/23(祝)」（日付の列の幅に収め、①② をずらさない。色は赤のまま） */
+function shortFieldLabel(label) {
+    return String(label).replace(/\(.・祝\)$/, "(祝)");
 }
 
 /** 「2026-11-10T08:05:00+09:00」→「11/10 8:05」 */

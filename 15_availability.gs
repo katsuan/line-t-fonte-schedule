@@ -46,6 +46,9 @@ const AVAILABILITY_DIGEST_DAYS = 90;
 /** 先の2週間を何回まで出すか（サイトは先の予約をまだ受け付けていないことが多い） */
 const AVAILABILITY_MAX_PAGE = 4;
 
+/** サイトの返事を CacheService に分けてしまうときの1つの大きさ（字数。1つの値は 100KB までで、日本語は1字3バイトになりうる） */
+const AVAILABILITY_CACHE_CHUNK = 30000;
+
 /** 空きとして出す状態 */
 const AVAILABILITY_OPEN_STATUSES = Object.freeze(['利用可能', '空き状況のみ']);
 
@@ -162,10 +165,12 @@ function handleAvailabilityDigest(text, now) {
  *
  * T-FONTE の管理ページは options.spanDays（90）で、今日から90日ぶんのマスを全部（空きのない日も）読む。
  * そのときは見張る日も添える（見張る日の印と様子）。
+ * options.cacheMinutes があれば、サイトの返事をその分だけしまって使う（fresh なら読み直す）。
+ * asOf はサイトから取った時刻。読めなくてしまった返事を使ったときは stale: true。
  *
  * @param {string} text
  * @param {Date=} now
- * @param {{spanDays: (number|undefined)}=} options
+ * @param {{spanDays: (number|undefined), cacheMinutes: (number|undefined), fresh: (boolean|undefined)}=} options
  * @returns {{status: string, message: (string|undefined), facility: (Object|undefined), title: (string|undefined),
  *   asOf: (string|undefined), digest: (boolean|undefined), hours: (number[]|undefined), courts: (string[]|undefined),
  *   days: (Object[]|undefined), watch: (Object[]|null|undefined), alert: (boolean|undefined),
@@ -185,6 +190,7 @@ function buildAvailabilityApiPayload(text, now, options) {
     : 0;
   if (digest) asAvailabilityDigest_(request, at);
   else if (spanDays) asAvailabilitySpan_(request, spanDays, at);
+  if (options && options.cacheMinutes) request.cache = { minutes: options.cacheMinutes, fresh: Boolean(options.fresh) };
 
   const facility = request.facility;
   const range = getAvailabilityRange_(at, request.page, request.spanDays);
@@ -234,6 +240,8 @@ function buildAvailabilityApiPayload(text, now, options) {
       };
     });
 
+  if (view.fetchedAt) base.asOf = Utilities.formatDate(new Date(view.fetchedAt), 'Asia/Tokyo', "yyyy-MM-dd'T'HH:mm:ssXXX");
+  if (view.stale) base.stale = true;
   return Object.assign(base, {
     status: 'ok',
     hours: hours,
@@ -546,6 +554,51 @@ function getAvailabilityRange_(now, page, spanDays) {
   return { start: day(0), end: day(span - 1), days: span };
 }
 
+/**
+ * サイトの返事を、しまってあれば使う（cache.minutes 分まで。cache.fresh なら読み直す）。
+ * 読めなければ、しまってあった返事を stale として返す（なければ投げる）。
+ * 90日ぶんの返事は 100KB をこえるので、いくつかに分けて CacheService にしまう
+ *
+ * @returns {{data: Object, fetchedAt: number, stale: (boolean|undefined)}}
+ */
+function readAvailabilitySiteCached_(facility, range, cache, at) {
+  const store = CacheService.getScriptCache();
+  const key = `availability-site-${facility.room}-${range.start}-${range.days}`;
+  const read = function () {
+    try {
+      const head = JSON.parse(store.get(key) || 'null');
+      if (!head) return null;
+      const keys = [];
+      for (let i = 0; i < head.parts; i++) keys.push(`${key}-${i}`);
+      const parts = store.getAll(keys);
+      if (keys.some(function (k) { return typeof parts[k] !== 'string'; })) return null;
+      return { fetchedAt: head.fetchedAt, data: JSON.parse(keys.map(function (k) { return parts[k]; }).join('')) };
+    } catch (err) {
+      return null;
+    }
+  };
+  const cached = read();
+  if (cached && !cache.fresh && at.getTime() - cached.fetchedAt < cache.minutes * 60000) return cached;
+  let data;
+  try {
+    data = fetchAvailability_(facility, range);
+  } catch (err) {
+    if (cached) return Object.assign(cached, { stale: true });
+    throw err;
+  }
+  const text = JSON.stringify(data);
+  const values = {};
+  let parts = 0;
+  for (let i = 0; i < text.length; i += AVAILABILITY_CACHE_CHUNK) values[`${key}-${parts++}`] = text.slice(i, i + AVAILABILITY_CACHE_CHUNK);
+  values[key] = JSON.stringify({ fetchedAt: at.getTime(), parts: parts });
+  try {
+    store.putAll(values, Math.min(21600, Math.max(60, Math.ceil(cache.minutes * 60 * 2))));
+  } catch (err) {
+    logAvailabilityError_(err);
+  }
+  return { fetchedAt: at.getTime(), data: data };
+}
+
 /** 空き状況ページ（人が見る方）の URL */
 function buildAvailabilityPageUrl_(facility, range) {
   return `${AVAILABILITY_BASE_URL}/Index/${facility.facility}` +
@@ -659,7 +712,8 @@ function toAvailabilitySlots_(data) {
  * @returns {{slots: Object[], days: Object, unknownStatuses: string[], watchStatus: (Object[]|null)}}
  */
 function loadAvailabilityView_(request, range, at) {
-  const data = fetchAvailability_(request.facility, range);
+  const site = request.cache ? readAvailabilitySiteCached_(request.facility, range, request.cache, at) : null;
+  const data = site ? site.data : fetchAvailability_(request.facility, range);
   const holidays = toAvailabilityHolidays_(data);
   const allSlots = toAvailabilitySlots_(data);
   // 応答の形はそれらしくても、枠が1つも読めなければ、サイトの作りが変わったとみなす
@@ -676,6 +730,8 @@ function loadAvailabilityView_(request, range, at) {
   days.activities = readAvailabilityActivities_(request.facility, range).filter(function (a) { return inDays(a.date); });
 
   return {
+    fetchedAt: site ? site.fetchedAt : 0,
+    stale: Boolean(site && site.stale),
     slots: slots,
     days: days,
     unknownStatuses: unknownStatuses,

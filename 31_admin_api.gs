@@ -103,7 +103,7 @@ function isAdminUserId_(userId) {
 function runAdminAction_(request) {
   if (request.action === "list") return { ok: true, records: listPlanRecords_() };
   if (request.action === "parseSchedule") return Object.assign({ ok: true }, previewAdminBulkText_(request.text));
-  if (request.action === "availability") return { ok: true, availability: readAdminAvailability_() };
+  if (request.action === "availability") return { ok: true, availability: readAdminAvailability_(request.fresh === true) };
   if (request.action === "syncCalendar") {
     return { ok: true, records: listPlanRecords_(), calendar: syncPlansToCalendarSafely_(true) };
   }
@@ -134,10 +134,11 @@ function runAdminAction_(request) {
 
 /**
  * 「⚽ 空き」タブ：灘崎の今日から90日ぶんのマス（空きのない日も）・見張る日・活動の日（読むだけ。開くたびにサイトを読む）。
+ * サイトの返事は1時間しまって使う（fresh なら読み直す。「読みなおす」のボタン）。予定（⚽・ほかの場所）は毎回シートから。
  * ほかの場所の予定も elsewhere に添える（その日はこの施設に来られないかもしれないので、表の日の下に場所と時間を出す）
  */
-function readAdminAvailability_() {
-  const payload = buildAvailabilityApiPayload("#灘崎", new Date(), { spanDays: AVAILABILITY_DIGEST_DAYS });
+function readAdminAvailability_(fresh) {
+  const payload = buildAvailabilityApiPayload("#灘崎", new Date(), { spanDays: AVAILABILITY_DIGEST_DAYS, cacheMinutes: 60, fresh: Boolean(fresh) });
   if (payload.status !== "ok") return payload;
   const facility = AVAILABILITY_FACILITIES.filter(function (f) { return f.key === payload.facility.key; })[0] || {};
   const words = facility.placeWords || [];

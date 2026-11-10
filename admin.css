@@ -625,6 +625,8 @@ dialog::backdrop {
 
 .field-date {
     display: flex;
+    min-width: 0;
+    overflow: hidden;
     align-items: center;
     justify-content: space-between;
     gap: 2px;
