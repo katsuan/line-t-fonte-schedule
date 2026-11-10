@@ -52,6 +52,16 @@ function readScheduleDraftId_(text) {
 // 確認カードに並べる予定の数（多いと LINE のカードの大きさの上限をこえるため）。登録はすべてする
 const SCHEDULE_CONFIRM_CARD_MAX_ROWS_ = 15;
 
+/**
+ * 確認カードの行の札：新規（登録する）・重複（シートか同じ文の中に、同じ日・開始・場所の予定がある。登録しない）・
+ * 元から（同じ期間にシートにある、文にない予定。見るだけ）
+ */
+const SCHEDULE_ROW_TAGS_ = {
+  new: { text: '新規', color: '#FFFFFF', background: '#06C755' },
+  duplicate: { text: '重複', color: '#555555', background: '#E3E5E8' },
+  existing: { text: '元から', color: '#4284F3', background: '#E9F1FF' }
+};
+
 /** #予定登録 の書き方の見本 */
 const SCHEDULE_REGISTRATION_EXAMPLE_ =
   '書き方（1行に1件）:\n#予定登録\n11月2日 15:00〜17:00 灘崎総合公園 フットサル\n11/3 9:00〜 体育館 大会\n（最後の行にURLを書くと、参加リンクになります）';
@@ -75,22 +85,60 @@ function createScheduleRegistrationMessages_(text, event) {
     }];
   }
 
-  const monthlyAutoFilledCount = applyExistingMonthlyLinkFallback_(records);
+  const sorted = classifyScheduleRecords_(records);
+  const fresh = sorted.rows.filter(function (row) { return row.tag === 'new'; }).map(function (row) { return row.record; });
+  const notes = { link: parsedResult.link, errors: errors, existing: sorted.existing };
 
-  const draftId = saveSchedulePendingRecords_(sourceId, records, resolveScheduleUserId_(event));
+  // ぜんぶ重複なら、登録待ちを作らない（ボタンも置かない）
+  if (!fresh.length) {
+    const card = createScheduleConfirmFlexMessage_(sorted.rows, notes);
+    card.sender = SENDERS.Auto;
+    card.quickReply = scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin]);
+    return [card];
+  }
+
+  notes.autoFilledCount = applyExistingMonthlyLinkFallback_(fresh);
+  const draftId = saveSchedulePendingRecords_(sourceId, fresh, resolveScheduleUserId_(event));
 
   // 読み取った予定は一覧のカードで見せる。登録・キャンセルのボタンは下書きIDを送るので、
   // 何日もあとに押されても、ボットがそのつど「済んだ・古い・ほかの人・時間切れ」を見分けて返す
-  const actions = { confirmText: `#予定確定 ${draftId}`, cancelText: `#予定キャンセル ${draftId}` };
-  const card = createScheduleConfirmFlexMessage_(records, {
-    link: parsedResult.link,
-    autoFilledCount: monthlyAutoFilledCount,
-    errors: errors,
-    actions: actions
-  });
+  notes.actions = { confirmText: `#予定確定 ${draftId}`, cancelText: `#予定キャンセル ${draftId}` };
+  const card = createScheduleConfirmFlexMessage_(sorted.rows, notes);
   card.sender = SENDERS.Auto;
-  card.quickReply = scheduleQuickReply_(createScheduleDraftQuickReplyItems_(actions));
+  card.quickReply = scheduleQuickReply_(createScheduleDraftQuickReplyItems_(notes.actions));
   return [card];
+}
+
+/**
+ * 読み取った予定を「新規」「重複」に分け、同じ期間にシートに元からある予定（文にないもの）を添える。
+ * 同じ予定かは、日付・開始・場所で見分ける（管理ページの「文章で追加」の「登録済みと同じ」と同じ）
+ *
+ * @returns {{rows: Array<{record: Object, tag: string}>, existing: Object[]}}
+ *   existing は listPlanRecords_ の形（date は yyyy-MM-dd、start・end は時刻の文字）
+ */
+function classifyScheduleRecords_(records) {
+  const keyOf = function (date, start, place) { return [date, start, String(place || '').trim()].join('|'); };
+  const sheet = listPlanRecords_();
+  const sheetKeys = {};
+  sheet.forEach(function (row) { sheetKeys[keyOf(row.date, row.start, row.place)] = true; });
+
+  const seen = {};
+  const inputKeys = {};
+  const rows = records.map(function (record) {
+    const key = keyOf(_formatDate_(record.date, 'yyyy-MM-dd'), _formatDate_(record.start, FORMAT.Time), record.place);
+    const tag = sheetKeys[key] || seen[key] ? 'duplicate' : 'new';
+    seen[key] = true;
+    inputKeys[key] = true;
+    return { record: record, tag: tag };
+  });
+
+  const dates = records.map(function (record) { return _formatDate_(record.date, 'yyyy-MM-dd'); }).sort();
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  const existing = sheet
+    .filter(function (row) { return row.date >= first && row.date <= last && !inputKeys[keyOf(row.date, row.start, row.place)]; })
+    .sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start); });
+  return { rows: rows, existing: existing };
 }
 
 /**
@@ -129,12 +177,8 @@ function createScheduleConfirmMessages_(text, event) {
 
   extractUpcomingRecordsWithDateObjects(true);
 
-  const confirmMessage = {
-    type: 'text',
-    text: `✅ ${draft.records.length}件登録しました。`,
-    sender: SENDERS.Auto
-  };
-
+  const confirmMessage = createScheduleDoneFlexMessage_(draft.records);
+  confirmMessage.sender = SENDERS.Auto;
   return [confirmMessage].concat(createAutoReminderFlexMessages_());
 }
 
@@ -211,32 +255,66 @@ function createScheduleDraftReply_(kind) {
  * カードはトークに残り、クイックリプライは次のメッセージで消えるので、
  * あとで見ても通じるよう「#予定確定」と送れば登録できること・10分で消えることを書く
  */
-function createScheduleConfirmFlexMessage_(records, notes) {
+function createScheduleConfirmFlexMessage_(rows, notes) {
+  const records = rows.map(function (row) { return row.record; });
+  const count = rows.filter(function (row) { return row.tag === 'new'; }).length;
+  const skipped = rows.length - count;
+  const title = count ? `${count}件を登録しますか？` : '登録する予定はありません';
+  const bubble = {
+    type: 'bubble',
+    size: 'mega',
+    header: createFlexTwoLineHeader_('予定登録の確認', title, true),
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'sm',
+      paddingAll: FLEX_CONFIG.cardPadding,
+      contents: buildScheduleConfirmBodyContents_(rows, notes)
+    }
+  };
+  if (notes.actions) bubble.footer = createScheduleConfirmFooter_(notes.actions);
   return {
     type: 'flex',
-    altText: trimAltText_(`📝 予定登録の確認：${records.length}件（${formatScheduleDateRange_(records)}）`),
+    altText: trimAltText_(`📝 予定登録の確認：新規${count}件${skipped ? `・重複${skipped}件` : ''}（${formatScheduleDateRange_(records)}）`),
+    contents: bubble
+  };
+}
+
+/** 「登録しました」のカード：登録した予定（決めた数まで）と、「予定」で見られること */
+function createScheduleDoneFlexMessage_(records) {
+  const shown = records.slice(0, SCHEDULE_CONFIRM_CARD_MAX_ROWS_);
+  const contents = shown.map(function (record) { return createScheduleConfirmRow_(record, 'new'); });
+  if (records.length > shown.length) contents.push(createScheduleNoteText_(`ほか${records.length - shown.length}件`));
+  contents.push(createScheduleNoteText_('登録した予定は「予定」から見られます。'));
+  return {
+    type: 'flex',
+    altText: trimAltText_(`✅ ${records.length}件登録しました（${formatScheduleDateRange_(records)}）`),
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: createFlexTwoLineHeader_('予定登録の確認', `${records.length}件を登録しますか？`, true),
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        spacing: 'sm',
-        paddingAll: FLEX_CONFIG.cardPadding,
-        contents: buildScheduleConfirmBodyContents_(records, notes)
-      },
-      footer: createScheduleConfirmFooter_(notes.actions)
+      header: createFlexTwoLineHeader_('予定登録', `✅ ${records.length}件登録しました`, true),
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: FLEX_CONFIG.cardPadding, contents: contents }
     }
   };
 }
 
-/** 確認カードの中身：予定（決めた数まで・ほか○件）・リンクと読み取れなかった行の注意・登録の案内 */
-function buildScheduleConfirmBodyContents_(records, notes) {
-  const shown = records.slice(0, SCHEDULE_CONFIRM_CARD_MAX_ROWS_);
-  const rows = shown.map(createScheduleConfirmRow_);
-  if (records.length > shown.length) {
-    rows.push(createScheduleNoteText_(`ほか${records.length - shown.length}件（登録はすべてします）`));
+/** 確認カードの中身：予定（札つき・決めた数まで・ほか○件）・元からある予定・リンクと読み取れなかった行の注意・登録の案内 */
+function buildScheduleConfirmBodyContents_(rows, notes) {
+  const shown = rows.slice(0, SCHEDULE_CONFIRM_CARD_MAX_ROWS_);
+  const items = shown.map(function (row) { return createScheduleConfirmRow_(row.record, row.tag); });
+  if (rows.length > shown.length) {
+    items.push(createScheduleNoteText_(`ほか${rows.length - shown.length}件（新規はすべて登録します）`));
+  }
+  if (rows.some(function (row) { return row.tag === 'duplicate'; })) {
+    items.push(createScheduleNoteText_('重複：同じ日・開始・場所の予定がもうあるので、登録しません。'));
+  }
+
+  const existing = notes.existing || [];
+  if (existing.length) {
+    items.push({ type: 'text', text: '同じ期間に元からある予定', size: 'xs', weight: 'bold', color: FLEX_CONFIG.textSecondaryColor, margin: 'md' });
+    const room = Math.max(3, SCHEDULE_CONFIRM_CARD_MAX_ROWS_ - shown.length);
+    existing.slice(0, room).forEach(function (row) { items.push(createScheduleConfirmRow_(toScheduleRecordFromPlan_(row), 'existing')); });
+    if (existing.length > room) items.push(createScheduleNoteText_(`ほか${existing.length - room}件`));
   }
 
   const noteTexts = [];
@@ -245,16 +323,29 @@ function buildScheduleConfirmBodyContents_(records, notes) {
   if (notes.errors && notes.errors.length) noteTexts.push(`⚠️ 読み取れなかった行（登録しません）:\n${formatScheduleErrors_(notes.errors)}`);
 
   const minutes = Math.round(SCHEDULE_PENDING_CACHE_CONFIG.ttlSeconds / 60);
-  const bodyContents = rows.concat(noteTexts.map(createScheduleNoteText_));
+  const bodyContents = items.concat(noteTexts.map(createScheduleNoteText_));
   bodyContents.push({
     type: 'text',
-    text: `下の「登録する」を押すと、シートに登録します（${minutes}分たつと取り消されます）。`,
+    text: notes.actions
+      ? `下の「登録する」を押すと、新規の予定をシートに登録します（${minutes}分たつと取り消されます）。`
+      : 'どれもシートにあるので、登録はしません。',
     size: 'xs',
     color: FLEX_CONFIG.textSecondaryColor,
     wrap: true,
     margin: 'md'
   });
   return bodyContents;
+}
+
+/** シートの予定（listPlanRecords_ の形）を、確認カードの行に出せる形（Date を持つ）にする */
+function toScheduleRecordFromPlan_(row) {
+  const p = row.date.split('-').map(Number);
+  const at = function (hhmm) {
+    if (!hhmm) return null;
+    const t = hhmm.split(':').map(Number);
+    return new Date(p[0], p[1] - 1, p[2], t[0], t[1]);
+  };
+  return { date: new Date(p[0], p[1] - 1, p[2]), start: at(row.start), end: at(row.end), place: row.place, memo1: row.memo1, memo2: row.memo2, link: row.link };
 }
 
 /** 確認カードの下の「キャンセル」「登録する」（下書きID つきの文字を送る） */
@@ -270,10 +361,13 @@ function createScheduleConfirmFooter_(actions) {
   };
 }
 
-/** 確認カードの予定1件：日時（曜日に色）と、内容・場所・補足 */
-function createScheduleConfirmRow_(record) {
+/** 確認カードの予定1件：日時（曜日に色）・札（新規・重複・元から）と、内容・場所・補足。重複と元からは字をうすく */
+function createScheduleConfirmRow_(record, tagKind) {
   const date = record.date;
-  const time = `${_formatDate_(record.start, FORMAT.Time)}${record.end ? `-${_formatDate_(record.end, FORMAT.Time)}` : '〜'}`;
+  const time = `${record.start ? _formatDate_(record.start, FORMAT.Time) : ''}${record.end ? `-${_formatDate_(record.end, FORMAT.Time)}` : '〜'}`;
+  const tag = SCHEDULE_ROW_TAGS_[tagKind];
+  const muted = tagKind === 'duplicate' || tagKind === 'existing';
+  const ink = muted ? FLEX_CONFIG.textSecondaryColor : FLEX_CONFIG.textPrimaryColor;
   const detail = [record.memo1, record.place, record.memo2, record.link ? '🔗' : ''].filter(Boolean).join(' ');
 
   return {
@@ -287,13 +381,28 @@ function createScheduleConfirmRow_(record) {
         type: 'box',
         layout: 'horizontal',
         contents: [
-          { type: 'text', text: `${date.getMonth() + 1}/${date.getDate()}(`, size: 'sm', weight: 'bold', color: FLEX_CONFIG.textPrimaryColor, flex: 0 },
+          { type: 'text', text: `${date.getMonth() + 1}/${date.getDate()}(`, size: 'sm', weight: 'bold', color: ink, flex: 0 },
           { type: 'text', text: getJapaneseWeekday_(date), size: 'sm', weight: 'bold', color: getWeekdayTextColor_(date), flex: 0 },
-          { type: 'text', text: `) ${time}`, size: 'sm', weight: 'bold', color: FLEX_CONFIG.textPrimaryColor, flex: 1 }
-        ]
+          { type: 'text', text: `) ${time}`, size: 'sm', weight: 'bold', color: ink, flex: 1 }
+        ].concat(tag ? [createScheduleTag_(tag)] : [])
       },
       { type: 'text', text: detail || '予定', size: 'sm', color: FLEX_CONFIG.textSecondaryColor, wrap: true }
     ]
+  };
+}
+
+/** 行の右の小さな札 */
+function createScheduleTag_(tag) {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    flex: 0,
+    paddingStart: '6px',
+    paddingEnd: '6px',
+    cornerRadius: '4px',
+    backgroundColor: tag.background,
+    justifyContent: 'center',
+    contents: [{ type: 'text', text: tag.text, size: 'xxs', weight: 'bold', color: tag.color }]
   };
 }
 

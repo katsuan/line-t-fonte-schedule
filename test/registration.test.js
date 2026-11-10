@@ -4,6 +4,8 @@ const { makeGas, planRow, plain, checkMessages } = require("./helpers");
 const test = require("node:test");
 const assert = require("node:assert");
 
+/** 返事の文字（文ならその文、カードなら altText） */
+const said = (m) => (m.type === "text" ? m.text : m.altText);
 const event = (text, groupId = "G1", userId) => ({ type: "message", source: { type: "group", groupId, userId }, message: { type: "text", text } });
 
 /** 同時に動いたことを確かめるための鍵：持っている間は、ほかからは取れない */
@@ -24,12 +26,13 @@ test("#予定登録：自由文と末尾のリンクを読み、確定でシー�
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   const reply = gas.call("handleTextMessage", event("#予定登録\n11月2日 15:00〜17:00 灘崎総合公園 フットサル（P）②\n11/3 9:00- 体育館 大会\nhttps://example.com/form"));
   assert.equal(reply[0].type, "flex");
-  assert.equal(reply[0].altText, "📝 予定登録の確認：2件（11/2〜11/3）");
+  assert.equal(reply[0].altText, "📝 予定登録の確認：新規2件（11/2〜11/3）");
   assert.match(JSON.stringify(reply[0].contents), /2件を登録しますか/);
   assert.deepEqual(checkMessages(plain(reply)).filter((p) => p.level === "error"), []);
 
   const done = gas.call("handleTextMessage", event("#予定確定"));
-  assert.match(done[0].text, /2件登録しました/);
+  assert.match(said(done[0]), /2件登録しました/);
+  assert.equal(done[0].type, "flex");
   const rows = gas.plan.rows.slice(1);
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((r) => [r[3], r[4], r[5], r[6]]), [
@@ -101,7 +104,7 @@ test("#予定登録の確認カード：下書きIDつきの登録・キャン�
   assert.equal(reply.length, 1);
   assert.deepEqual(checkMessages(reply).filter((p) => p.level === "error"), []);
   const card = JSON.stringify(reply[0].contents);
-  assert.match(card, /ほか15件（登録はすべてします）/);
+  assert.match(card, /ほか15件（新規はすべて登録します）/);
   assert.match(card, /読み取れなかった行/);
   assert.ok(card.length < 20000, `カードの大きさ ${card.length}`);
   const buttons = reply[0].contents.footer.contents.map((b) => b.action);
@@ -121,7 +124,7 @@ function register(gas, text, userId) {
 test("確認カードの「登録する」：2回押しても1回だけ登録し、2回目は「もう登録しています」", () => {
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   const card = register(gas, "11/2 10:00〜12:00 公園 練習", "U_A");
-  assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0].text, /1件登録しました/);
+  assert.match(said(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0]), /1件登録しました/);
   assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0].text, /もう登録しています/);
   assert.equal(gas.plan.rows.length, 2);
 });
@@ -147,7 +150,7 @@ test("確認カードの「登録する」：ほかの人が押しても登録�
   assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_B"))[0].text, /送った人だけ/);
   assert.match(gas.call("handleTextMessage", event(card.cancel, "G1", "U_B"))[0].text, /送った人だけ/);
   assert.equal(gas.plan.rows.length, 1);
-  assert.match(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0].text, /1件登録しました/);
+  assert.match(said(gas.call("handleTextMessage", event(card.confirm, "G1", "U_A"))[0]), /1件登録しました/);
 });
 
 test("古い確認カードの「登録する」：新しい確認が出ていれば、古いほうでは登録しない", () => {
@@ -170,7 +173,7 @@ test("キャンセルしたカードの「登録する」は「キャンセル�
   assert.equal(gas.plan.rows.length, 1);
 
   register(gas, "11/4 10:00〜12:00 公園 練習", "U_A");
-  assert.match(gas.call("handleTextMessage", event("#予定確定", "G1", "U_A"))[0].text, /1件登録しました/);
+  assert.match(said(gas.call("handleTextMessage", event("#予定確定", "G1", "U_A"))[0]), /1件登録しました/);
   assert.equal(gas.plan.rows.length, 2);
 });
 
@@ -178,7 +181,7 @@ test("前の形の登録待ち（反映の前に保存したもの）も、手�
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
   const ms = new Date(2026, 10, 2).getTime();
   gas.cache.SCHEDULE_PENDING_V1_G1 = JSON.stringify([{ dateMs: ms, startMs: ms + 10 * 3600e3, endMs: null, place: "公園", memo1: "練習", memo2: "", link: "" }]);
-  assert.match(gas.call("handleTextMessage", event("#予定確定"))[0].text, /1件登録しました/);
+  assert.match(said(gas.call("handleTextMessage", event("#予定確定"))[0]), /1件登録しました/);
   assert.equal(gas.plan.rows.length, 2);
 });
 
@@ -257,4 +260,45 @@ test("これからの予定がないとき：#今後の予定・#リマインド
   const text = gas.call("createMessage");
   assert.match(text[0].text, /まだありません/);
   assert.doesNotMatch(text[0].text, /エラー/);
+});
+
+test("#予定登録の札：シートにある予定と同じ日・開始・場所は「重複」で登録しない。同じ期間のほかの予定は「元から」", () => {
+  const gas = makeGas({
+    now: "2026-11-01T08:00:00+09:00",
+    plans: [
+      planRow("2026-11-07", "18:00", "21:00", "灘崎総合公園", "⚽フットサル(T)", "②"),
+      planRow("2026-11-07", "10:00", "12:00", "体育館", "🏆大会", ""),
+      planRow("2026-11-20", "10:00", "12:00", "体育館", "練習", ""), // 期間の外
+    ],
+  });
+  const text = [
+    "#予定登録",
+    "11月6日　19:00〜21:00 灘崎総合公園　フットサル(T)②",
+    "11月7日　16:00〜19:00 灘崎総合公園　フットサル(P)①",
+    "11月7日　18:00〜21:00 灘崎総合公園　フットサル(T)②",
+    "11月8日　18:00〜21:00 灘崎総合公園　フットサル(T)②",
+    "11月8日　18:00〜21:00 灘崎総合公園　フットサル(T)②",
+    "https://example.com/form",
+  ].join("\n");
+  const reply = plain(gas.call("handleTextMessage", event(text)));
+  assert.deepEqual(checkMessages(reply).filter((p) => p.level === "error"), []);
+  assert.equal(reply[0].altText, "📝 予定登録の確認：新規3件・重複2件（11/6〜11/8）");
+  const rows = reply[0].contents.body.contents.filter((b) => b.type === "box");
+  const tagOf = (row) => { const last = row.contents[0].contents.slice(-1)[0]; return last.type === "box" ? last.contents[0].text : ""; };
+  assert.deepEqual(rows.map(tagOf), ["新規", "新規", "重複", "新規", "重複", "元から"]);
+  assert.match(JSON.stringify(rows[5]), /体育館/);
+  assert.doesNotMatch(JSON.stringify(reply[0].contents), /11\/20/);
+
+  const done = plain(gas.call("handleTextMessage", event("#予定確定")));
+  assert.equal(done[0].altText, "✅ 3件登録しました（11/6〜11/8）");
+  assert.equal(gas.plan.rows.length - 1, 6); // 元の3件 + 新規3件
+});
+
+test("#予定登録：ぜんぶ重複なら、登録待ちを作らず、ボタンも置かない", () => {
+  const gas = makeGas({ now: "2026-11-01T08:00:00+09:00", plans: [planRow("2026-11-07", "18:00", "21:00", "公園", "練習", "")] });
+  const reply = plain(gas.call("handleTextMessage", event("#予定登録\n11/7 18:00〜21:00 公園 練習")));
+  assert.match(JSON.stringify(reply[0].contents.header), /登録する予定はありません/);
+  assert.equal(reply[0].contents.footer, undefined);
+  assert.match(gas.call("handleTextMessage", event("#予定確定"))[0].text, /登録待ちの予定はありません/);
+  assert.equal(gas.plan.rows.length, 2);
 });
