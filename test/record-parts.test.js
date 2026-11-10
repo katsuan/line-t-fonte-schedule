@@ -47,7 +47,7 @@ const at = (s) => new Date(s).getTime();
 const plan = (over) => Object.assign({ date: "2026-11-02", start: "10:00", end: "12:00", place: "体育館", memo1: "⚽フットサル", memo2: "", link: "" }, over);
 
 test("行のリンク：月の共通リンクはうすいボタン、その予定だけのリンクは濃いボタン。リンクがなければカレンダー追加だけ", () => {
-  const page = loadPage(["js/month-calendar.js", "calendar.js"], at("2026-11-01T09:00:00+09:00"));
+  const page = loadPage(["js/config.js", "js/month-calendar.js", "calendar.js"], at("2026-11-01T09:00:00+09:00"));
   const common = "https://example.com/nov";
   const list = [plan({ link: common }), plan({ date: "2026-11-09", link: common }), plan({ date: "2026-11-16", link: "https://example.com/special" }), plan({ date: "2026-12-01" })];
   vm.runInContext(`records = ${JSON.stringify(list)};`, page);
@@ -62,7 +62,7 @@ test("行のリンク：月の共通リンクはうすいボタン、その予�
 });
 
 test("カレンダー追加のリンク：日時・場所・補足を入れ、終了がなければ開始と同じ", () => {
-  const page = loadPage(["js/month-calendar.js", "calendar.js"], at("2026-11-01T09:00:00+09:00"));
+  const page = loadPage(["js/config.js", "js/month-calendar.js", "calendar.js"], at("2026-11-01T09:00:00+09:00"));
   const url = new URL(page.createCalendarLinkUrl(plan({ end: "", memo2: "②", memo1: "練習 & 試合" })));
   assert.equal(url.origin + url.pathname, "https://calendar.google.com/calendar/render");
   assert.equal(url.searchParams.get("text"), "練習 & 試合");
@@ -73,7 +73,7 @@ test("カレンダー追加のリンク：日時・場所・補足を入れ、�
 });
 
 test("月の共通リンク：その月でいちばん多いリンク。同じ数なら、あとに登録したもの", () => {
-  const page = loadPage(["js/month-calendar.js", "calendar.js"], at("2026-11-01T09:00:00+09:00"));
+  const page = loadPage(["js/config.js", "js/month-calendar.js", "calendar.js"], at("2026-11-01T09:00:00+09:00"));
   vm.runInContext(`records = ${JSON.stringify([plan({ link: "https://a.example" }), plan({ link: "https://b.example" }), plan({ date: "2026-10-30", link: "https://c.example" })])};`, page);
   assert.equal(page.baseLinkFor("2026-11"), "https://b.example");
   vm.runInContext(`records.push(${JSON.stringify(plan({ link: "https://a.example" }))});`, page);
@@ -82,7 +82,7 @@ test("月の共通リンク：その月でいちばん多いリンク。同じ�
 });
 
 test("予定の行：過ぎた予定・選んだ予定の印、内容の先頭の絵文字はアイコンに、場所と補足は1行に", () => {
-  const page = loadPage(["js/month-calendar.js", "calendar.js"], at("2026-11-03T09:00:00+09:00"));
+  const page = loadPage(["js/config.js", "js/month-calendar.js", "calendar.js"], at("2026-11-03T09:00:00+09:00"));
   vm.runInContext(`records = [];`, page);
   const row = page.createRecordRow(plan({ memo2: "②" }), "2026-11-03", " is-selected", null);
   assert.equal(row.className, "row-item past is-selected");
@@ -95,7 +95,7 @@ test("予定の行：過ぎた予定・選んだ予定の印、内容の先頭�
 });
 
 test("管理ページ：終了の初期値は開始の2時間後。日をまたぐときは 23:59 まで", () => {
-  const page = loadPage(["js/month-calendar.js", "admin.js"], at("2026-11-01T09:00:00+09:00"));
+  const page = loadPage(["js/config.js", "js/month-calendar.js", "js/admin-field.js", "admin.js"], at("2026-11-01T09:00:00+09:00"));
   assert.equal(page.defaultEndFor("10:00"), "12:00");
   assert.equal(page.defaultEndFor("9:30"), "11:30");
   assert.equal(page.defaultEndFor("22:30"), "23:59");

@@ -44,6 +44,8 @@ GAS はファイルを名前の順に1つずつ読む。読みこみ時（トッ
 | `index.html` ・ `app.js` ・ `style.css` | 予定シェア（LIFF「リッチに送る」）。GAS（`doGet`）のカードを見本に出し、LINE の友だち・グループに送る |
 | `admin.html` ・ `admin.js` ・ `admin.css` | 予定の管理（LIFF。`https://liff.line.me/<LIFF_ID>/admin.html`）。管理者未登録のときは、頼む文（`#管理者申請 <userId>`・名前）を出し、「サイト作成者に送る」で LINE の送り先を選んで送れる（送るのは本人。ボットのプッシュは使わない）。サイト作成者がその文をボットに送ると「承認する」のクイックリプライが出て、押すと `ADMIN_USER_IDS` に足す（`35_admin_request.gs`）。`admin.html?view=field` で開くと「⚽ 空き」タブから（空き状況のカードの「90日の表を見る」ボタン。`availabilityExtraLinks_`）。「⚽ 空き」タブは灘崎の今日から90日ぶんのマス（日ごと・コート①②・1時間ずつ）と見張る日・予定のある時間の ⚽・ほかの場所の予定は日の下に1行ずつ場所と時間（サイトの返事は GAS が1時間しまって使い、「読みなおす」ですぐ読み直す。読めないときは前の分を出す。「空きのある日だけ」でしぼれる） |
 | `calendar.html` ・ `calendar.js` ・ `calendar.css` | 公開の活動予定カレンダー（ログインなし） |
+| `js/config.js` | 3つの画面で同じ設定（LIFF_ID・GAS_URL・GROUP_LINK）。ほかの js より先に読む（GAS 側の同じ値は 00_setup.gs） |
+| `js/admin-field.js` | 管理ページの「⚽ 空き」タブ（admin.js より先に読む） |
 | `js/month-calendar.js` | 2つのページで同じ部品：月の表（曜日・週のはじまり・マス・スワイプ）と、予定の行（アイコン・内容・残り日数・日時・場所・回答リンク・カレンダー追加）・月のカード・選んだ日のカード。目立たせ方（公開は「次回」で選んだ予定、管理は保存した直後の予定）と行の操作（管理だけ 複製・編集・削除）は、入口の `createRowItem` で決める。`calendar.html`・`admin.html` が入口より先に読む |
 | `css/month-calendar.css` | 2つのページで同じ見た目（月の表・予定の行・月のカード・ボタン・タブ）。各ページの CSS（`calendar.css`・`admin.css`。色の変数とページだけのもの）より先に読む |
 

@@ -46,9 +46,6 @@ body {
     background: linear-gradient(135deg, rgba(29, 93, 216, 0.12) 0%, rgba(77, 138, 249, 0.18) 100%);
     color: var(--accent);
     border: 1px solid rgba(66, 132, 243, 0.16);
-}
-
-.hero {
     display: flex;
     align-items: center;
     justify-content: space-between;

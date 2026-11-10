@@ -35,7 +35,7 @@ function loadCalendar(now) {
     fetch: () => new Promise(() => {}), setInterval() {}, setTimeout() {}, console, Date: FakeDate, Intl,
   };
   vm.createContext(ctx);
-  for (const file of ["js/month-calendar.js", "calendar.js"]) {
+  for (const file of ["js/config.js", "js/month-calendar.js", "calendar.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), ctx, { filename: file });
   }
   return ctx;

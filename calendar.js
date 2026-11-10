@@ -2,7 +2,7 @@
 // GAS（doGet ?action=plans）から今月からの予定を読み、カレンダー・リスト・次回のカウントダウンを出す。
 // 前に読んだ内容は端末に残し、次に開いたとき先に出す。月の表の部品は js/month-calendar.js（先に読む）。
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
+// GAS_URL は js/config.js（先に読む）
 
 const $ = id => document.getElementById(id);
 

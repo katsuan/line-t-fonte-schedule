@@ -8,8 +8,8 @@
     <title>T-FONTE 予定の管理</title>
     <link rel="icon" href="data:," />
 
-    <link rel="stylesheet" href="css/month-calendar.css?v=202611110015" />
-    <link rel="stylesheet" href="admin.css?v=202611110015" />
+    <link rel="stylesheet" href="css/month-calendar.css?v=202611110110" />
+    <link rel="stylesheet" href="admin.css?v=202611110110" />
 </head>
 
 <body>
@@ -36,6 +36,7 @@
             <div class="toolbar-actions">
                 <button id="askAdmin" class="btn btn-primary" type="button">サイト作成者に送る</button>
                 <button id="copyUserId" class="btn" type="button">文をコピー</button>
+                <button id="reopenBtn" class="btn" type="button">開き直す</button>
             </div>
             <p class="link-note">「サイト作成者に送る」は、LINE の送り先を選ぶ画面を開きます。あなたの ID: <span id="userId"></span></p>
         </section>
@@ -134,8 +135,10 @@
 
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
-    <script src="js/month-calendar.js?v=202611110015"></script>
-    <script src="admin.js?v=202611110015"></script>
+    <script src="js/config.js?v=202611110110"></script>
+    <script src="js/month-calendar.js?v=202611110110"></script>
+    <script src="js/admin-field.js?v=202611110110"></script>
+    <script src="admin.js?v=202611110110"></script>
 </body>
 
 </html>

@@ -2,9 +2,7 @@
 // GAS（doGet）から予定のカードを読んで見本を出し、「シェア」で LINE の友だち・グループに送る（shareTargetPicker）。
 // 前に読んだ内容は端末に残し、次に開いたとき先に出す。
 
-const LIFF_ID = "2009927582-9QtOstUK";
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzXgPNJkiAB4eGVUwExQ8ehA8wMM93rSGk8OcvZe-1fo6ozalkr4Ov83KCwouA5WN1K/exec";
-const GROUP_LINK = "line://ti/g/hwc5nRC7mS";
+// LIFF_ID・GAS_URL・GROUP_LINK は js/config.js（先に読む）
 const PREVIEW_CACHE_KEY = "t_fonte_reminder_preview_cache_v2";
 const STATUS_TEXT = {
     noLiff: "LIFFなしのプレビュー表示です。",
@@ -21,7 +19,6 @@ const els = {
     messageList: document.getElementById("messageList"),
     shareBtn: document.getElementById("shareBtn"),
     reloadBtn: document.getElementById("reloadBtn"),
-    status: document.getElementById("status"),
     statusText: document.getElementById("statusText"),
     statusSpinner: document.getElementById("statusSpinner"),
     summaryChip: document.getElementById("summaryChip"),
@@ -54,7 +51,8 @@ async function main(forceRefresh = false) {
         applyMessagePayload_(normalizedPayload);
         savePreviewCache(normalizedPayload);
         renderPreviewFromMessages(previewMessages);
-        setReady(canShareInLiff);
+        // 予定がない（カードがなく「まだありません」の文だけ）ときは、送るボタンを出さない
+        setReady(canShareInLiff && shareTargetPickerMessages.some(message => message && message.type === "flex"));
 
     } catch (err) {
         console.error(err);

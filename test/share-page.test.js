@@ -18,6 +18,7 @@ function loadApp() {
     fetch: () => new Promise(() => {}),
   };
   vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../js/config.js"), "utf8"), ctx);
   const src = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8").replace(/\nmain\(\);\s*$/, "\n");
   vm.runInContext(src, ctx);
   return ctx;
