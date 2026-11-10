@@ -341,8 +341,9 @@ function createScheduleConfirmFooter_(actions) {
     layout: 'horizontal',
     spacing: 'sm',
     contents: [
+      // 幅は半分ずつ（1:2 だと、せまい画面で「キャンセル」が切れる）
       { type: 'button', style: 'secondary', flex: 1, action: { type: 'message', label: 'キャンセル', text: actions.cancelText } },
-      { type: 'button', style: 'primary', flex: 2, action: { type: 'message', label: '登録する', text: actions.confirmText } }
+      { type: 'button', style: 'primary', flex: 1, action: { type: 'message', label: '登録する', text: actions.confirmText } }
     ]
   };
 }
