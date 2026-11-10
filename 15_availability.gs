@@ -12,7 +12,7 @@
  *
  * このファイルだけで動く（ほかのファイルからは Log だけを使う）。
  * ボットに listAvailabilityActivities_(facility, range) があれば、その施設での活動の予定を ⚽ で出す（T-FONTE だけが置いている）。
- * 入口: isAvailabilityText(text)・handleAvailabilityText(text)・handleAvailabilityDigest(text)・buildAvailabilityApiPayload(text)（ウィジェット用）
+ * 入口: isAvailabilityText(text)・handleAvailabilityText(text)・handleAvailabilityDigest(text)・buildAvailabilityApiPayload(text)（表のもと。ウィジェットとくらべる見本）
  *
  * 同じものを2か所に置いている:
  * - GAS_assistant（ひしょっと）30_domain/05_availability_service.gs … 元
@@ -154,7 +154,8 @@ function handleAvailabilityDigest(text, now) {
 }
 
 /**
- * ウィジェット（SQriptableField）向けの中身。カードの代わりに、表のもとを返す。
+ * 表のもと（カードの代わり）。ウィジェット（q-sqriptable の SQriptableField。GAS を通さずサイトから直接読む）が
+ * 同じ決まりで同じ表を作れているかをくらべる見本に使う（q-sqriptable の test/fixtures/field-expected.json を、これで作った）。
  * 「#灘崎」「#灘崎 19-21 土日」「#灘崎 次」「#灘崎 これから」など LINE と同じ書き方。読むだけ（見張る日の書きかえは受けない）。
  * 取れないときも投げずに status で返す（ウィジェットがやさしい言葉で出せるように）。
  * 名前の後ろに _ を付けないのは、ライブラリの外（親のボット）から呼べるようにするため。
