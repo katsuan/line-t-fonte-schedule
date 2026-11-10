@@ -52,17 +52,25 @@ function routeTextMessage_(text, event) {
     // エラーの中身は LINE に出さず、DebugLog（上）にだけ残す
     return [{
       type: 'text',
-      text: '⚠️ うまく返事を作れませんでした。\n少し待ってから、もう一度送ってください。',
-      sender: SENDERS.Error
+      text: ROUTER_ERROR_TEXT,
+      sender: SENDERS.Error,
+      quickReply: { items: QUICK_REPLY_SETS.next() }
     }];
   }
 }
 
-/** 施設の空き状況の返事に、T-FONTE の送り主を付ける */
+/** 返事を作れなかったときの文（#テスト の見本も同じものを出す） */
+const ROUTER_ERROR_TEXT = '⚠️ うまく返事を作れませんでした。\n少し待ってから、もう一度送ってください。';
+
+/** 施設の空き状況の返事に、T-FONTE の送り主と、最後の1通にクイックリプライを付ける */
 function createAvailabilityMessages_(text) {
-  return (handleAvailabilityText(text) || []).map(function (message) {
+  const messages = (handleAvailabilityText(text) || []).map(function (message) {
     return Object.assign({ sender: SENDERS.Auto }, message);
   });
+  if (messages.length && !messages[messages.length - 1].quickReply) {
+    messages[messages.length - 1].quickReply = { items: QUICK_REPLY_SETS.next() };
+  }
+  return messages;
 }
 
 /**
@@ -89,7 +97,7 @@ function listAvailabilityActivities_(facility, range) {
   return readPlanValues_().slice(1).map(function (row) {
     const dateObj = row[0], startObj = row[1], endObj = row[2], place = String(row[3] || '');
     if (!isValidDate(dateObj) || !isValidDate(startObj)) return null;
-    if (!words.some(function (word) { return place.indexOf(word) >= 0; })) return null;
+    if (!placeHasWord_(place, words)) return null;
     const date = Utilities.formatDate(dateObj, 'Asia/Tokyo', 'yyyy-MM-dd');
     if (date < range.start || date > range.end) return null;
     const start = minutes(startObj);
@@ -106,10 +114,7 @@ function listAvailabilityActivities_(facility, range) {
 
 // ---------- トリガーの言葉 ----------
 
-/**
- * テキスト予定一覧トリガーか判定
- * (#今後の予定から始まる)
- */
+/** 「#今後の予定」か（予定のカードを返す） */
 function isFutureScheduleTriggerText_(text) {
   return text.startsWith('#今後の予定');
 }

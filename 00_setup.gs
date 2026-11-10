@@ -53,17 +53,19 @@ function installPlanChangeTrigger() {
 
 // ---------- 人が書きかえる設定 ----------
 
-/** LIFF の URL（リッチに送る・管理ページ） */
+/** 画面の URL（リッチに送る・管理ページは LIFF、公開カレンダーはそのまま） */
 const LIFF_URLS = {
   FlexSender: "https://liff.line.me/2009927582-9QtOstUK",
   // 管理ページ（予定の追加・編集・削除）。LIFF の URL にパスを足すと、エンドポイント配下のそのページが開く
-  Admin: "https://liff.line.me/2009927582-9QtOstUK/admin.html"
+  Admin: "https://liff.line.me/2009927582-9QtOstUK/admin.html",
+  // 公開カレンダー（ログインなしで見られる。LIFF ではない）
+  Calendar: "https://katsuan.github.io/line-t-fonte-schedule/calendar.html"
 }
 
 /** 通知カードの「グループへ」で開く LINE グループのリンク */
 const GROUP_LINK = "line://ti/g/hwc5nRC7mS"
 
-// 終了時刻が無い予定は、開始の何時間後までとみなすか（管理ページ・まとめて追加・カレンダー同期で共通）
+// 終了時刻が無い予定は、開始の何時間後までとみなすか（管理ページ・まとめて追加・カレンダー同期・天気・空き状況の ⚽ で共通）
 const DEFAULT_PLAN_DURATION_HOURS = 2;
 
 /**

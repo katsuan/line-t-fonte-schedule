@@ -12,10 +12,8 @@ const FLEX_CONFIG = {
   recordBackgroundColor: "#F6F8FB",
   iconBackgroundColor: "#E6EEF9",
   badgeBackgroundColor: "#FFE2BF",
-  weatherBadgeBackgroundColor: "#E8F3FF",
   summaryTextColor: "#93A1B4",
   badgeTextColor: "#A54B00",
-  weatherBadgeTextColor: "#3566A8",
   weatherTextColor: "#3566A8",
   textPrimaryColor: "#222222",
   textSecondaryColor: "#555555",
@@ -85,7 +83,7 @@ function createShareFlexMessages_(forceRefresh) {
   return attachReminderQuickReply_(messages);
 }
 
-/** 画面（リッチに送る）に返す中身：見本とシェア用のカード（送信ガイドは入れない） */
+/** 画面（リッチに送る）に返す中身：見本とシェア用のカード（送信ガイドは作ってから外す。管理者向けのため） */
 function createLiffPayload_(forceRefresh) {
   const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
   const reminderText = buildReminderTextMessageTextFromRecords_(records);
@@ -188,7 +186,7 @@ function attachReminderQuickReply_(messages) {
 
   decorated[lastIndex].sender = SENDERS.Auto;
   decorated[lastIndex].quickReply = {
-    items: [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.SS, ACTIONS.Plan]
+    items: QUICK_REPLY_SETS.cards()
   };
 
   return decorated;

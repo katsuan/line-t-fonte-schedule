@@ -127,7 +127,7 @@ test("カード：自動リマインド・#リマインド・画面用の中身�
 
   const auto = gas.call("createAutoReminderFlexMessages_");
   assert.deepEqual(errorsOf(auto), []);
-  assert.equal(auto[auto.length - 1].quickReply.items.length, 4);
+  assert.deepEqual(auto[auto.length - 1].quickReply.items.map((it) => it.action.label), ["リッチに送る", "予定を管理", "カレンダー", "シート", "予定"]);
 
   const share = gas.call("createShareFlexMessages_");
   assert.deepEqual(errorsOf(share), []);

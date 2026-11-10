@@ -32,7 +32,7 @@ function isAdminTestTriggerText_(text) {
 
 /** 管理者でなければ undefined（知らない言葉と同じ）。管理者なら、選んだ見本か、テストのカード */
 function createAdminTestMessages_(text, event) {
-  const userId = event && event.source && event.source.userId;
+  const userId = resolveScheduleUserId_(event);
   if (!userId || !isAdminUserId_(userId)) return undefined;
 
   const match = ADMIN_TEST_TRIGGER_PATTERN_.exec(text) || [];
@@ -226,7 +226,7 @@ function buildAdminTestTexts_() {
     { type: "text", text: SCHEDULE_DRAFT_REPLY_TEXTS_.none },
     { type: "text", text: "キャンセルしました。" },
     { type: "text", text: SHEET_ERROR_TEXT + "\n（これからの予定が1件もないときの返事）" },
-    { type: "text", text: "⚠️ 内部エラーが発生しました。\n少し待ってから、もう一度送ってください。" }
+    { type: "text", text: ROUTER_ERROR_TEXT }
   ];
 }
 

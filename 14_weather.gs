@@ -1,8 +1,8 @@
 // ==========[ 天気（Open-Meteo）：近い予定の、その時間の天気 ]==========
 //
 // 位置は WEATHER_CONFIG.Default（岡山市）。場所の言葉ごとに変えたいときは Places に足す。
-// 位置ごとに16日ぶんの1時間ごとの予報を1回で読み、CacheService に3時間しまう（Script Properties には書かない）。
-// 予定の開始〜終了の時間から「☔雨 降水70% 12℃」の短い文を作る。カード（30_）から使う
+// 位置ごとに ForecastDays 日ぶんの1時間ごとの予報を1回で読み、CacheService に CacheMinutes 分しまう（Script Properties には書かない）。
+// 予定の開始〜終了の時間から「☔雨 降水70% 12℃」の短い文を作り、カードの「予報: 」の行にする。カード（30_）から使う
 
 /** 近い予定の「予定 → 天気の短い文」。止めているとき・読めないときは空 */
 function getNearTermWeatherSummaryMap_(records, now, nearTermDays, forceRefresh) {
@@ -26,12 +26,12 @@ function getNearTermWeatherSummaryMap_(records, now, nearTermDays, forceRefresh)
 /** 予定の場所から、天気を見る位置を決める（場所の言葉が入っていればその位置、なければ Default） */
 function resolveWeatherSpot_(place) {
   const text = String(place || "");
-  const hit = WEATHER_CONFIG.Places.filter(spot => spot.words.some(word => text.indexOf(word) >= 0))[0];
+  const hit = WEATHER_CONFIG.Places.filter(spot => placeHasWord_(text, spot.words))[0];
   return hit || WEATHER_CONFIG.Default;
 }
 
 /**
- * 予定の開始〜終了（終了がなければ開始から2時間）の天気の短い文。予報の外の日なら空。
+ * 予定の開始〜終了（終了が開始より前・同じなら、開始から DEFAULT_PLAN_DURATION_HOURS 時間）の天気の短い文。予報の外の日なら空。
  * 天気はいちばん悪いもの、降水確率はいちばん高いもの、気温は幅（2℃以上ちがえば「12〜15℃」）
  */
 function summarizeWeatherForRecord_(forecast, record) {
@@ -87,7 +87,7 @@ function formatWeatherSummaryText_(weatherCode) {
 // ---------- 読む ----------
 
 /**
- * その位置の16日ぶんの1時間ごとの予報（天気コード・降水確率・気温）。CacheService にしまってあれば使う。
+ * その位置の ForecastDays 日ぶんの1時間ごとの予報（天気コード・降水確率・気温）。CacheService にしまってあれば使う。
  * 読めなければ null（天気を出さないだけで、カードはそのまま）
  * @return {{hours: Array<{at: number, code: number, rain: number, temp: number}>}|null}
  */
@@ -143,9 +143,16 @@ function buildWeatherRecordKey_(record) {
   return `${String(record.place || "").trim().replace(/\s+/g, " ")}__${at}`;
 }
 
-/** 前に Script Properties にしまっていた天気の控えを消す（いまは CacheService にしまう） */
+/**
+ * 前に Script Properties にしまっていた天気の控えを消す（いまは CacheService にしまう）。
+ * 設定の名前を全部見るので、6時間に1回だけ（消し終わったら、なにもしない）
+ */
 function removeOldWeatherProperties_() {
+  const cache = CacheService.getScriptCache();
+  const doneKey = `${WEATHER_CONFIG.CachePrefix}old-properties-checked`;
+  if (cache.get(doneKey)) return;
   try {
+    cache.put(doneKey, "1", 21600);
     const props = PropertiesService.getScriptProperties();
     const keys = typeof props.getKeys === "function" ? props.getKeys() : Object.keys(props.getProperties());
     keys.filter(key => WEATHER_CONFIG.OldPropertyPrefixes.some(prefix => key.indexOf(prefix) === 0))

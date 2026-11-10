@@ -190,7 +190,7 @@ test("#予定登録：読み取れないときは、書き方の見本と、画�
   const reply = gas.call("handleTextMessage", event("#予定登録"));
   assert.equal(reply[0].type, "text");
   assert.match(reply[0].text, /書き方/);
-  assert.deepEqual(reply[0].quickReply.items.map((it) => it.action.label), ["予定を管理"]);
+  assert.deepEqual(reply[0].quickReply.items.map((it) => it.action.label), ["予定", "予定を管理", "カレンダー"]);
 });
 
 test("#予定キャンセル：登録待ちを消す", () => {

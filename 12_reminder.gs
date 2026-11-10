@@ -5,7 +5,6 @@
 // - 文のリマインドの文面（buildReminderTextMessageTextFromRecords_）
 // 入口（01_）の shouldSendRemindMessage・completeAutoReminderSend などから使う
 
-// ==========[ Error message ]==========
 // これからの予定が1件もないとき（エラーではない）。名前は前のまま（親のボットから見えるため変えない）
 const SHEET_ERROR_TEXT = `📭 これからの予定は、まだありません。\n予定はシートか「予定を管理」から入れられます。\n${SETTING.SheetLink}`;
 
@@ -14,7 +13,7 @@ const errorMessage = [{
   type: 'text',
   text: SHEET_ERROR_TEXT,
   sender: SENDERS.Auto,
-  quickReply: { items: [ACTIONS.Admin, ACTIONS.SS] }
+  quickReply: { items: [ACTIONS.Admin, ACTIONS.SS, ACTIONS.Calendar] }
 }];
 
 /** リマインドの文面の、見出し・書き出し・しめの候補（毎回1つ選ぶ） */
@@ -45,6 +44,11 @@ const AUTO_REMINDER_SENT_CACHE_CONFIG = {
 };
 
 // ---------- 通知する予定 ----------
+
+/** いま（今日）の通知の対象（シートの予定から） */
+function getCurrentReminderTargetRecords_() {
+  return getReminderTargetRecords_(extractUpcomingRecordsWithDateObjects(), new Date());
+}
 
 /**
  * 通知する予定: 今日から RemindNum 日後までの予定のうち、まだ通知していないもの。
@@ -99,7 +103,6 @@ function buildAutoReminderSenderNameFromRecords_(records) {
 /**
  * 通知した予定を、送信済みにする。対象は、通知の文面に入れた予定（mergeRecordsWithinReminderWindow_）。
  * 文面に入れた予定は、次の実行で、もう一度通知されないようにする。
- * （以前は「今日から5日以内」を一律に送信済みにしていて、文面の範囲とずれ、近い日の予定が2回通知されていた）
  */
 function markAutoReminderRecordsAsSent_(records) {
   const sentKeyMap = loadAutoReminderSentKeyMap_(); // 読み込み時に古い記録は消してある

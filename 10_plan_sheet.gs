@@ -51,6 +51,17 @@ function buildPlanMatchKey_(date, start, place) {
   return [date, start, String(place || "").trim()].join("|");
 }
 
+/** 予定（listPlanRecords_ の形）を日付・開始の順に並べるときのくらべ方 */
+function comparePlanRecords_(a, b) {
+  return (a.date + a.start).localeCompare(b.date + b.start);
+}
+
+/** 場所に、言葉のどれかが入っているか（空き状況の施設・天気の位置） */
+function placeHasWord_(place, words) {
+  const text = String(place || "");
+  return (words || []).some(function (word) { return word && text.indexOf(word) >= 0; });
+}
+
 /** Plan シートの1行を、画面や API に返す文字の形にする（日付のない行は null） */
 function mapPlanRowToRecord_(row, rowNumber) {
   if (!isValidDate(row[0])) return null;

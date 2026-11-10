@@ -151,10 +151,10 @@ function readAdminAvailability_(fresh) {
   const dates = payload.days.map(function (day) { return day.date; });
   payload.elsewhere = listPlanRecords_()
     .filter(function (r) {
-      return dates.indexOf(r.date) >= 0 && !words.some(function (word) { return r.place.indexOf(word) >= 0; });
+      return dates.indexOf(r.date) >= 0 && !placeHasWord_(r.place, words);
     })
     .map(function (r) { return { date: r.date, start: r.start, end: r.end, place: r.place, memo1: r.memo1 }; })
-    .sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start); });
+    .sort(comparePlanRecords_);
   return payload;
 }
 

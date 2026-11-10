@@ -81,7 +81,7 @@ function createScheduleRegistrationMessages_(text, event) {
         ? `⚠️ 読み取れる予定がありませんでした。\n${formatScheduleErrors_(errors)}\n\n${SCHEDULE_REGISTRATION_EXAMPLE_}`
         : `⚠️「#予定登録」の下に、予定を1行ずつ入力してください。\n\n${SCHEDULE_REGISTRATION_EXAMPLE_}`,
       sender: SENDERS.Error,
-      quickReply: scheduleQuickReply_([ACTIONS.Admin])
+      quickReply: scheduleQuickReply_(QUICK_REPLY_SETS.next())
     }];
   }
 
@@ -93,7 +93,7 @@ function createScheduleRegistrationMessages_(text, event) {
   if (!fresh.length) {
     const card = createScheduleConfirmFlexMessage_(sorted.rows, notes);
     card.sender = SENDERS.Auto;
-    card.quickReply = scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin]);
+    card.quickReply = scheduleQuickReply_(QUICK_REPLY_SETS.next());
     return [card];
   }
 
@@ -136,7 +136,7 @@ function classifyScheduleRecords_(records) {
   const last = dates[dates.length - 1];
   const existing = sheet
     .filter(function (row) { return row.date >= first && row.date <= last && !inputKeys[buildPlanMatchKey_(row.date, row.start, row.place)]; })
-    .sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start); });
+    .sort(comparePlanRecords_);
   return { rows: rows, existing: existing };
 }
 
@@ -203,14 +203,11 @@ function createScheduleCancelMessages_(text, event) {
     type: 'text',
     text: 'キャンセルしました。',
     sender: SENDERS.Auto,
-    quickReply: scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin])
+    quickReply: scheduleQuickReply_(QUICK_REPLY_SETS.next())
   }];
 }
 
-/**
- * 登録・キャンセルを進めてよいか。だめなら、その理由のやさしい返事を返す（よければ null）
- * - 済んだ確認カード（登録した・取り消した）／古い確認カード（新しい確認が出ている）／ほかの人の確認／時間切れ
- */
+/** 登録・キャンセルできないときの返事の文（済んだ・古い・入れかわった・時間切れ・ほかの人・登録待ちなし） */
 const SCHEDULE_DRAFT_REPLY_TEXTS_ = {
   registered: 'この確認カードの予定は、もう登録しています。\n登録した予定は「予定」から見られます。',
   cancelled: 'この確認カードは、キャンセル済みです。\n登録するときは、もう一度「#予定登録」から送ってください。',
@@ -218,7 +215,7 @@ const SCHEDULE_DRAFT_REPLY_TEXTS_ = {
   // 同じトークで、あとからほかの人が #予定登録 を送ると、登録待ちはその人のものに入れかわる
   replaced: 'あとから別の人が「#予定登録」を送ったので、この確認は取り消されました。\n登録するときは、もう一度「#予定登録」から送ってください。',
   // 済んだ印（6時間）も消えたあとは、登録したかどうかがわからない。言い切らずに、確かめ方を書く
-  expired: 'この確認カードは、受けつけの時間（10分）が過ぎています。\n登録できたかは「予定」で確かめられます。まだのときは、もう一度「#予定登録」から送ってください。',
+  expired: `この確認カードは、受けつけの時間（${Math.round(SCHEDULE_PENDING_CACHE_CONFIG.ttlSeconds / 60)}分）が過ぎています。\n登録できたかは「予定」で確かめられます。まだのときは、もう一度「#予定登録」から送ってください。`,
   otherUser: 'この確認は、「#予定登録」を送った人だけが登録・キャンセルできます。',
   none: '登録待ちの予定はありません（登録が済んだか、時間がたって取り消されました）。\n新しく登録するときは「#予定登録」からどうぞ。'
 };
@@ -247,7 +244,7 @@ function createScheduleDraftReply_(kind) {
     type: 'text',
     text: SCHEDULE_DRAFT_REPLY_TEXTS_[kind],
     sender: SENDERS.Auto,
-    quickReply: scheduleQuickReply_([ACTIONS.Plan, ACTIONS.Admin])
+    quickReply: scheduleQuickReply_(QUICK_REPLY_SETS.next())
   };
 }
 
@@ -328,7 +325,7 @@ function createScheduleLinkButtons_(rows) {
   const links = [];
   rows.forEach(function (row) {
     const link = String(row.record.link || '').trim();
-    if (row.tag === 'new' && /^https?:\/\//.test(link) && link.length <= 1000 && links.indexOf(link) < 0) links.push(link);
+    if (row.tag === 'new' && usableCardLink_(link) && links.indexOf(link) < 0) links.push(link);
   });
   return links.slice(0, 3).map(function (link, index) {
     return {

@@ -3,7 +3,7 @@
 // - doGet / doPost … ウェブアプリ（公開カレンダー・リッチに送る・管理ページ）から
 // - handleTextMessage・createAutoReminderMessages など … 親の LINE ボットから（ライブラリとして）。名前を変えると親が動かなくなる
 // - onPlanSheetChanged・syncPlansToCalendarJob … トリガーから。名前を変えるとトリガーが動かなくなる
-// 中身は短くし、長い処理はそれぞれのファイル（10_ 〜 34_）の関数を呼ぶ
+// 中身は短くし、長い処理はそれぞれのファイル（10_ 〜 35_）の関数を呼ぶ
 
 // ---------- ウェブアプリ ----------
 
@@ -90,10 +90,7 @@ function handleTextMessage(event) {
 /** 親のボットから呼ばれる。いま通知する予定があるか */
 function shouldSendRemindMessage() {
   Log.start();
-  const records = extractUpcomingRecordsWithDateObjects();
-  if (records.length === 0) return false;
-
-  const targetRecords = getReminderTargetRecords_(records, new Date());
+  const targetRecords = getCurrentReminderTargetRecords_();
   Log.debug(`targetRecordCount=${targetRecords.length}`);
 
   Log.finish();
@@ -102,9 +99,7 @@ function shouldSendRemindMessage() {
 
 /** 親のボットから呼ばれる。通知の送り主の名前「対象日: 11/1, 11/3」 */
 function createAutoReminderSenderName() {
-  const records = extractUpcomingRecordsWithDateObjects();
-  const targetRecords = getReminderTargetRecords_(records, new Date());
-  return buildAutoReminderSenderNameFromRecords_(targetRecords);
+  return buildAutoReminderSenderNameFromRecords_(getCurrentReminderTargetRecords_());
 }
 
 /** 親のボットから呼ばれる。管理者への通知のカード */
@@ -126,7 +121,7 @@ function createMessage() {
   if (!records.length) return errorMessage;
 
   const messageText = buildReminderTextMessageTextFromRecords_(records);
-  const actions = [ACTIONS.FlexSender, ACTIONS.Copy(trimClipboardText_(messageText)), ACTIONS.SS, ACTIONS.Plan];
+  const actions = [ACTIONS.Copy(trimClipboardText_(messageText))].concat(QUICK_REPLY_SETS.cards());
 
   console.log(messageText);
 
@@ -143,15 +138,12 @@ function createMessage() {
 /** 自動リマインドの判定と、送信済みの記録（送るところは親のボットが持つ） */
 function main() {
   Log.start();
-  const records = extractUpcomingRecordsWithDateObjects();
-  const targetRecords = getReminderTargetRecords_(records, new Date());
+  const targetRecords = getCurrentReminderTargetRecords_();
 
   if (targetRecords.length > 0) {
     const messages = createAutoReminderMessages();
     if (messages) {
-      Log.debug("Flexリマインド送信");
-      // LineApiDriver.PostAllMessages(GROUP_ID, messages);
-      // LineApiDriver.reply(messages);
+      Log.debug("Flexリマインド送信"); // 送るのは親のボット
       completeAutoReminderSend();
     }
   } else {

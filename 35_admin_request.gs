@@ -40,7 +40,7 @@ function buildAdminRequestExample_(userId, name) {
 /** 「#管理者申請」「#管理者承認」の返事（申請 → 承認の確かめ、承認 → ADMIN_USER_IDS に足す） */
 function createAdminRequestMessages_(text, event) {
   const source = String(text || "").trim();
-  const presser = (event && event.source && event.source.userId) || "";
+  const presser = resolveScheduleUserId_(event);
   const match = source.match(ADMIN_REQUEST_USER_ID_PATTERN_);
 
   if (!match) {
@@ -94,9 +94,7 @@ function maskAdminRequestUserId_(userId) {
   return `${userId.slice(0, 5)}…${userId.slice(-4)}`;
 }
 
-/** 申請の返事（文とクイックリプライ） */
+/** 申請の返事（文とクイックリプライ。なければいつものまとまり） */
 function adminRequestReply_(text, quickItems) {
-  const message = { type: "text", text: text, sender: SENDERS.Auto };
-  if (quickItems && quickItems.length) message.quickReply = { items: quickItems };
-  return message;
+  return { type: "text", text: text, sender: SENDERS.Auto, quickReply: { items: quickItems && quickItems.length ? quickItems : QUICK_REPLY_SETS.next() } };
 }

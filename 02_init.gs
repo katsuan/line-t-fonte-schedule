@@ -25,8 +25,6 @@ const SHEETS = {
 }
 
 // ---------- 設定（Setting シート） ----------
-
-// ==========[ 初期化：設定情報読込 ]==========
 const SETTING = {
   RemindNum: parseRemindNum_(SHEETS.Setting.getRange("B2").getDisplayValue()),
   SheetLink: `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=0`,
@@ -42,8 +40,6 @@ function parseRemindNum_(text) {
 }
 
 // ---------- 色・アイコン ----------
-
-// ==========[ 定数：色 ]==========
 const COLORS = {
   Base: "3d4070",
   Green: "1FAC47",
@@ -53,7 +49,7 @@ const COLORS = {
   Red: "F72A25",
 }
 
-// ==========[ 関数：アイコン生成 ]==========
+/** アイコン画像（placehold.jp）の決まり */
 const PLACEHOLD = {
   BaseUrl: "https://placehold.jp/",
   Size: "150x150",
@@ -64,7 +60,6 @@ const PLACEHOLD = {
 
 /**
  * アイコン画像のURLを作成
- * @param {string} bg 背景色（例: "F72A25"）
  * @param {string} text 表示する文字（絵文字も可。URLエンコードされる）
  * @param {Object} [options] オプション（bgColor: 背景色, textColor: テキスト色, size: サイズ, textSize: テキストサイズ）
  * 色は16進数カラーコード
@@ -90,8 +85,6 @@ const ICONS = {
 }
 
 // ---------- 日付の書式 ----------
-
-// ==========[ 初期化：日付・時間 ]==========
 const FORMAT = {
   TimeZone: "JST",
   Date: "M月d日",
@@ -105,20 +98,27 @@ function _formatDate_(date, pattern) {
 
 // ---------- クイックリプライ・送り主 ----------
 
-// ==========[ クイックリプライアクション群 ]==========
+/** クイックリプライの部品 */
 const ACTIONS = {
-  /** 
-   * @param {string} text コピー対象の文字列
-   */
   FlexSender: LINE_func.createQuickReply('リッチに送る', { type: 'uri', uri: LIFF_URLS.FlexSender }),
   Admin: LINE_func.createQuickReply('予定を管理', { type: 'uri', uri: LIFF_URLS.Admin }),
-  Copy: (text = '') => (LINE_func.createQuickReply('Copy', { type: 'clipboard', text: text, imageUrl: ICONS.Copy })),
+  Calendar: LINE_func.createQuickReply('カレンダー', { type: 'uri', uri: LIFF_URLS.Calendar }),
+  /** @param {string} text コピーする文 */
+  Copy: (text = '') => (LINE_func.createQuickReply('コピー', { type: 'clipboard', text: text, imageUrl: ICONS.Copy })),
   SS: LINE_func.createQuickReply('シート', { type: 'uri', imageUrl: ICONS.SS, uri: SETTING.SheetLink }),
   Plan: LINE_func.createQuickReply('予定', { text: '#今後の予定', imageUrl: ICONS.Soccer })
-
 }
 
-// ==========[ 送信者設定 ]==========
+/**
+ * 返事のあとに出すクイックリプライのまとまり（同じような返事には同じものを出す）
+ * - cards … 予定のカード（#今後の予定・通知など）のあと
+ * - next  … 文の返事（登録の結果・断り・空き状況など）のあと。行き止まりにしない
+ */
+const QUICK_REPLY_SETS = {
+  cards: function () { return [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.Calendar, ACTIONS.SS, ACTIONS.Plan]; },
+  next: function () { return [ACTIONS.Plan, ACTIONS.Admin, ACTIONS.Calendar]; }
+};
+
 const createSender = (name, iconUrl) => {
   return { name: name, iconUrl: iconUrl }
 }

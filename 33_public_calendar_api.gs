@@ -54,7 +54,7 @@ function listPublicPlanRecords_() {
       };
     })
     .sort(function (a, b) {
-      return (a.date + a.start).localeCompare(b.date + b.start);
+      return comparePlanRecords_(a, b);
     });
 }
 
