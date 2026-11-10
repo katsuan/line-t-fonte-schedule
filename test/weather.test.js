@@ -49,9 +49,9 @@ test("天気：予定の場所の位置で、開始〜終了の時間の天気�
   assert.match(text, /天気: ☔雨 降水70% 12〜15℃/); // 11/12 19-21時（20時が雨）
   assert.match(text, /天気: ⛅晴れ 降水10% 12℃/); // 11/13 10時〜（終了がなければ2時間）
   assert.equal((text.match(/天気: /g) || []).length, 2); // 11/30 は近くないので出さない
-  // 灘崎は公園の位置、ほかは岡山市
-  assert.ok(asked.some((u) => /latitude=34\.5446&longitude=133\.8679/.test(u)));
-  assert.ok(asked.some((u) => /latitude=34\.65&longitude=133\.9333/.test(u)));
+  // 位置はどの予定も岡山市（1回だけ聞く）
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /latitude=34\.65&longitude=133\.9333/);
   assert.ok(asked.every((u) => /forecast_days=16/.test(u) && !/models=/.test(u)));
 });
 
@@ -65,7 +65,7 @@ test("天気：予報は CacheService にしまい、もう一度出すときは
   } });
   cards();
   const first = asked.length;
-  assert.equal(first, 2);
+  assert.equal(first, 1);
   cards();
   assert.equal(asked.length, first);
   assert.deepEqual(Object.keys(gas.properties).filter((k) => /^WEATHER_/.test(k)), []);

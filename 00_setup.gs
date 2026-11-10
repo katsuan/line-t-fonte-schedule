@@ -67,8 +67,8 @@ const GROUP_LINK = "line://ti/g/hwc5nRC7mS"
 const DEFAULT_PLAN_DURATION_HOURS = 2;
 
 /**
- * 天気（Open-Meteo）の設定。場所の名前で位置を探すと公園などは見つからないので、場所の言葉ごとに位置を決めておく。
- * どれにも当たらない場所は Default（岡山市）の天気にする。予報は予定の時間（開始〜終了）の1時間ごとのものから作る
+ * 天気（Open-Meteo）の設定。場所の名前で位置を探すと公園などは見つからないので、位置は決めておく（どの予定も岡山市）。
+ * 場所ごとに変えたいときは Places に { words, name, latitude, longitude } を足す。予報は予定の時間（開始〜終了）の1時間ごとのものから作る
  */
 const WEATHER_CONFIG = {
   Enabled: true, // 天気の取得・表示（止めるときは false）
@@ -78,9 +78,7 @@ const WEATHER_CONFIG = {
   ForecastDays: 16,
   CacheMinutes: 180, // 予報を CacheService にしまう時間
   CachePrefix: "weather-forecast-v2-",
-  Places: [
-    { words: ["灘崎"], name: "灘崎町総合公園", latitude: 34.5446, longitude: 133.8679 }
-  ],
+  Places: [],
   Default: { name: "岡山市", latitude: 34.65, longitude: 133.9333 },
   // 前に Script Properties にしまっていた控え（見つけたら消す）
   OldPropertyPrefixes: ["WEATHER_GEOCODE_V1_", "WEATHER_FORECAST_V1_", "WEATHER_FORECAST_CACHE_DATE_V1", "WEATHER_FORECAST_CACHE_KEYS_V1"]
