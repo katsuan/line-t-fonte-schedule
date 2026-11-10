@@ -207,12 +207,8 @@ function buildAdminTestRegistration_() {
 
 /** 見本：#予定確定 のあとの返事（シートには書かない） */
 function buildAdminTestRegistered_() {
-  const records = buildAdminTestRecords_().slice(0, 2).map(function (record) {
-    return { date: startOfDay_(record.date), start: record.start, end: record.end, place: record.place, memo1: record.memo1, memo2: record.memo2, link: record.link };
-  });
-  const card = createScheduleDoneFlexMessage_(records);
-  card.contents.body.contents.push(createScheduleNoteText_("（見本なので、シートには書いていません）"));
-  return [card].concat(buildAdminTestAutoReminder_());
+  return [{ type: "text", text: "✅ 3件登録しました。（見本なので、シートには書いていません）" }]
+    .concat(buildAdminTestAutoReminder_());
 }
 
 /** 確認カードが、済んだあと・何日もあと・ほかの人に押されたときの返事（5通） */

@@ -177,8 +177,12 @@ function createScheduleConfirmMessages_(text, event) {
 
   extractUpcomingRecordsWithDateObjects(true);
 
-  const confirmMessage = createScheduleDoneFlexMessage_(draft.records);
-  confirmMessage.sender = SENDERS.Auto;
+  const confirmMessage = {
+    type: 'text',
+    text: `✅ ${draft.records.length}件登録しました。`,
+    sender: SENDERS.Auto
+  };
+
   return [confirmMessage].concat(createAutoReminderFlexMessages_());
 }
 
@@ -277,24 +281,6 @@ function createScheduleConfirmFlexMessage_(rows, notes) {
     type: 'flex',
     altText: trimAltText_(`📝 予定登録の確認：新規${count}件${skipped ? `・重複${skipped}件` : ''}（${formatScheduleDateRange_(records)}）`),
     contents: bubble
-  };
-}
-
-/** 「登録しました」のカード：登録した予定（決めた数まで）と、「予定」で見られること */
-function createScheduleDoneFlexMessage_(records) {
-  const shown = records.slice(0, SCHEDULE_CONFIRM_CARD_MAX_ROWS_);
-  const contents = shown.map(function (record) { return createScheduleConfirmRow_(record, 'new'); });
-  if (records.length > shown.length) contents.push(createScheduleNoteText_(`ほか${records.length - shown.length}件`));
-  contents.push(createScheduleNoteText_('登録した予定は「予定」から見られます。'));
-  return {
-    type: 'flex',
-    altText: trimAltText_(`✅ ${records.length}件登録しました（${formatScheduleDateRange_(records)}）`),
-    contents: {
-      type: 'bubble',
-      size: 'mega',
-      header: createFlexTwoLineHeader_('予定登録', `✅ ${records.length}件登録しました`, true),
-      body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: FLEX_CONFIG.cardPadding, contents: contents }
-    }
   };
 }
 

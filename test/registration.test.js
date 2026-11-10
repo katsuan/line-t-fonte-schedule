@@ -31,8 +31,7 @@ test("#予定登録：自由文と末尾のリンクを読み、確定でシー�
   assert.deepEqual(checkMessages(plain(reply)).filter((p) => p.level === "error"), []);
 
   const done = gas.call("handleTextMessage", event("#予定確定"));
-  assert.match(said(done[0]), /2件登録しました/);
-  assert.equal(done[0].type, "flex");
+  assert.match(done[0].text, /2件登録しました/);
   const rows = gas.plan.rows.slice(1);
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((r) => [r[3], r[4], r[5], r[6]]), [
@@ -290,7 +289,7 @@ test("#予定登録の札：シートにある予定と同じ日・開始・場�
   assert.doesNotMatch(JSON.stringify(reply[0].contents), /11\/20/);
 
   const done = plain(gas.call("handleTextMessage", event("#予定確定")));
-  assert.equal(done[0].altText, "✅ 3件登録しました（11/6〜11/8）");
+  assert.equal(done[0].text, "✅ 3件登録しました。");
   assert.equal(gas.plan.rows.length - 1, 6); // 元の3件 + 新規3件
 });
 
