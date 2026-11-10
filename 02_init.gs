@@ -119,7 +119,7 @@ const ACTIONS = {
  * 返事のあとに出すクイックリプライのまとまり（同じような返事には同じものを出す）
  * - cards … 予定のカード（#今後の予定・通知など）のあと
  * - next  … 文の返事（登録の結果・断り・空き状況など）のあと。行き止まりにしない
- * - owner … サイト作成者が送ったときだけ、最後に足す（20_text_router.gs。通知など送った人のいないものには出さない）
+ * - owner … サイト作成者がボットとの1対1のトークで送ったときだけ、最後に足す（20_text_router.gs。グループ・通知には出さない）
  */
 const QUICK_REPLY_SETS = {
   cards: function () { return [ACTIONS.FlexSender, ACTIONS.Admin, ACTIONS.Calendar, ACTIONS.Plan]; },

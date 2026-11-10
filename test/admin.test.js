@@ -39,7 +39,7 @@ test("権限：管理者でない人は whoami だけ。一覧も書きこみも
   const me = gas.doPost({ action: "whoami", accessToken: "t" });
   assert.deepEqual([me.ok, me.userId, me.isAdmin], [true, "U_STRANGER", false]);
   // サイト作成者に送る頼む文（名前つき）。管理者には返さない
-  assert.equal(me.askText, "#管理者申請 U_STRANGER\n名前: 山田\n（サイト作成者の方へ：この文をそのままボットに送ると、承認のボタンが出ます）");
+  assert.equal(me.askText, "#管理者申請 U_STRANGER\n名前: 山田\n（サイト作成者の方へ：この文をそのまま、ボットとの1対1のトークに送ると、承認のボタンが出ます）");
   assert.equal(make().doPost({ action: "whoami", accessToken: "t" }).askText, undefined);
   assert.equal(gas.doPost({ action: "list", accessToken: "t" }).code, "forbidden");
   assert.equal(gas.doPost({ action: "add", accessToken: "t", record: record() }).code, "forbidden");
@@ -220,12 +220,17 @@ test("管理者の申請：サイト作成者がボットに送ると「承認�
   const OWNER = "U" + "a".repeat(32);
   const NEWBIE = "U" + "b".repeat(32);
   const gas = make({ properties: { ADMIN_USER_IDS: ADMIN, OWNER_USER_IDS: OWNER } });
-  const say = (text, userId) => require("./helpers").plain(gas.call("handleTextMessage", { type: "message", source: { type: "user", userId }, message: { type: "text", text } }));
-  const ask = `#管理者申請 ${NEWBIE}\n名前: 山田\n（サイト作成者の方へ：この文をそのままボットに送ると、承認のボタンが出ます）`;
+  const say = (text, userId, type = "user") => require("./helpers").plain(gas.call("handleTextMessage", { type: "message", source: { type, userId, groupId: type === "group" ? "G1" : undefined }, message: { type: "text", text } }));
+  const ask = `#管理者申請 ${NEWBIE}\n名前: 山田\n（サイト作成者の方へ：この文をそのまま、ボットとの1対1のトークに送ると、承認のボタンが出ます）`;
 
   // 管理者でもサイト作成者でない人は足せない
   assert.match(say(ask, ADMIN)[0].text, /サイト作成者だけ/);
   assert.match(say(`#管理者承認 ${NEWBIE}`, ADMIN)[0].text, /サイト作成者だけ/);
+  assert.equal(gas.properties.ADMIN_USER_IDS, ADMIN);
+
+  // グループでは承認しない（承認のボタンがほかの人にも見えるため）
+  assert.match(say(ask, OWNER, "group")[0].text, /1対1のトーク/);
+  assert.match(say(`#管理者承認 ${NEWBIE}`, OWNER, "group")[0].text, /1対1のトーク/);
   assert.equal(gas.properties.ADMIN_USER_IDS, ADMIN);
 
   const reply = say(ask, OWNER);
@@ -241,12 +246,13 @@ test("管理者の申請：サイト作成者がボットに送ると「承認�
   assert.match(say("#管理者申請 だれか", OWNER)[0].text, /例:\n#管理者申請 U/);
 });
 
-test("🔑 シートはサイト作成者だけ：作成者が送った返事にだけ「🔑シート」を足す。ほかの人・#テスト には出さない", () => {
+test("🔑 シートはサイト作成者だけ：作成者がボットとの1対1で送った返事にだけ「🔑シート」を足す。グループ・ほかの人・#テスト には出さない", () => {
   const OWNER = "U" + "a".repeat(32);
   const gas = make({ properties: { ADMIN_USER_IDS: `${ADMIN},${OWNER}`, OWNER_USER_IDS: OWNER } });
-  const say = (text, userId) => require("./helpers").plain(gas.call("handleTextMessage", { type: "message", source: { type: "group", groupId: "G1", userId }, message: { type: "text", text } }));
+  const say = (text, userId, type = "user") => require("./helpers").plain(gas.call("handleTextMessage", { type: "message", source: { type, userId, groupId: type === "group" ? "G1" : undefined }, message: { type: "text", text } }));
   const labels = (reply) => reply[reply.length - 1].quickReply.items.map((i) => i.action.label);
   assert.deepEqual(labels(say("#今後の予定", OWNER)), ["リッチに送る", "予定を管理", "カレンダー", "予定", "🔑シート"]);
+  assert.deepEqual(labels(say("#今後の予定", OWNER, "group")), ["リッチに送る", "予定を管理", "カレンダー", "予定"]);
   assert.deepEqual(labels(say("#今後の予定", ADMIN)), ["リッチに送る", "予定を管理", "カレンダー", "予定"]);
   assert.ok(!labels(say("#予定登録", OWNER)).includes("シート"));
   assert.ok(labels(say("#予定登録", OWNER)).includes("🔑シート"));

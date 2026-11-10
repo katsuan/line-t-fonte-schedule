@@ -61,11 +61,12 @@ function routeTextMessage_(text, event) {
 }
 
 /**
- * サイト作成者が送ったときだけ、最後の返事のクイックリプライに 🔑 の項目（QUICK_REPLY_SETS.owner）を足す。
+ * サイト作成者がボットとの1対1のトークで送ったときだけ、最後の返事のクイックリプライに 🔑 の項目（QUICK_REPLY_SETS.owner）を足す。
+ * グループでは作成者が送っても足さない（ほかの人にも見えるため）。
  * もとの返事（使い回しの定数もある）は書きかえず、写しに足す
  */
 function appendOwnerQuickReply_(messages, event) {
-  if (!Array.isArray(messages) || !messages.length || !isSiteOwnerUserId_(resolveScheduleUserId_(event))) return messages;
+  if (!Array.isArray(messages) || !messages.length || !isSiteOwnerDirectChat_(event)) return messages;
   const copied = messages.slice();
   const last = Object.assign({}, copied[copied.length - 1]);
   const items = ((last.quickReply && last.quickReply.items) || []).concat(QUICK_REPLY_SETS.owner()).slice(0, 13);

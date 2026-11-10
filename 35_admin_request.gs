@@ -28,12 +28,18 @@ function isSiteOwnerUserId_(userId) {
   return Boolean(userId) && readUserIdList_(ADMIN_REQUEST_CONFIG.ownerUserIdsProperty).indexOf(userId) !== -1;
 }
 
+/** サイト作成者が、ボットとの1対1のトークで送ったか（🔑 のものは、ほかの人の目に入らないここだけで出す） */
+function isSiteOwnerDirectChat_(event) {
+  const source = (event && event.source) || {};
+  return source.type === "user" && isSiteOwnerUserId_(source.userId);
+}
+
 /** 頼む文の例（管理ページの「サイト作成者に送る」で入れる文と同じ形） */
 function buildAdminRequestExample_(userId, name) {
   return [
     `${ADMIN_REQUEST_CONFIG.requestWord} ${userId}`,
     name ? `名前: ${name}` : "",
-    "（サイト作成者の方へ：この文をそのままボットに送ると、承認のボタンが出ます）"
+    "（サイト作成者の方へ：この文をそのまま、ボットとの1対1のトークに送ると、承認のボタンが出ます）"
   ].filter(Boolean).join("\n");
 }
 
@@ -51,6 +57,10 @@ function createAdminRequestMessages_(text, event) {
   // 承認できるのはサイト作成者だけ。ほかの人が送ったら、サイト作成者に送ってもらう
   if (!isSiteOwnerUserId_(presser)) {
     return [adminRequestReply_("管理者を足せるのは、サイト作成者だけです。この文を、サイト作成者に送ってください。")];
+  }
+  // 承認はボットとの1対1のトークだけ（グループでは、ほかの人にも承認のボタンが見えてしまう）
+  if (!isSiteOwnerDirectChat_(event)) {
+    return [adminRequestReply_(`${OWNER_ONLY_MARK} 承認は、ボットとの1対1のトークでしてください。この文を、そこにそのまま送ると承認のボタンが出ます。`)];
   }
   if (isAdminUserId_(userId)) return [alreadyAdminReply_(userId)];
 

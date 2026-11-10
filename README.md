@@ -29,7 +29,7 @@ GAS はファイルを名前の順に1つずつ読む。読みこみ時（トッ
 | `21_admin_test_desk.gs` | 管理者のテストの窓口。`ADMIN_USER_IDS` にいる人が `#テスト`（`#test`）と送ると 🧪 テストのカードが返り、返事・カードの見本と自己点検を試せる。見本はためしのデータで、本物には書かない。ふつうの人には何も返さない |
 | `30_flex_cards.gs` | 予定のカード（月ごとのカード・通知カードの送信ガイド・画面に返す中身）と、カードの見出しの部品（確認カード・テストのカード・自己点検も使う） |
 | `31_admin_api.gs` | 管理ページの API。LIFF のアクセストークンを LINE に確かめ、`ADMIN_USER_IDS` の人だけが一覧・追加・編集・削除できる |
-| （🔑 の印） | サイト作成者（`OWNER_USER_IDS`）だけに出すもの。予定のシート（作成者が送った返事のクイックリプライに「🔑シート」を足す。通知・カード・予定がないときの文にはシートのリンクを出さない）と、管理者の承認（「🔑承認する」）。`OWNER_ONLY_MARK`・`QUICK_REPLY_SETS.owner`・`appendOwnerQuickReply_` |
+| （🔑 の印） | サイト作成者（`OWNER_USER_IDS`）だけに出すもの。予定のシート（作成者がボットとの1対1のトークで送った返事のクイックリプライにだけ「🔑シート」を足す。グループでは足さない。通知・カード・予定がないときの文にはシートのリンクを出さない）と、管理者の承認（「🔑承認する」。1対1のトークだけ）。`OWNER_ONLY_MARK`・`QUICK_REPLY_SETS.owner`・`appendOwnerQuickReply_` |
 | `35_admin_request.gs` | 管理者の申請：`#管理者申請 <userId>` をサイト作成者（Script Property `OWNER_USER_IDS`）がボットに送ると「承認する」（`#管理者承認 <userId>`）が出て、押すと `ADMIN_USER_IDS` に足す。サイト作成者でない人・もう管理者・ID が読めない、を見分けて返す。`OWNER_USER_IDS` は手で入れる（ボットからは変えない） |
 | `32_admin_bulk_add.gs` | 管理ページの「📝 文章で追加」（読み取りは `#予定登録` と同じ。1件でも不正なら書かない） |
 | `33_public_calendar_api.gs` | 公開カレンダーの API（`doGet ?action=plans`）と予定の版。登録リンクは専用カレンダー（`@group.calendar.google.com`）のときだけ返す。シートを手で直したときの反映は `installPlanChangeTrigger` |
