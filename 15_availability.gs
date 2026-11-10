@@ -1163,6 +1163,8 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
     });
   }
 
+  // ページ（T-FONTE の管理ページの90日の表）へのリンクがあるボットでは、先の日はページで見るので「次の2週間」は出さない
+  const extraButtons = readAvailabilityExtraButtons_(card.facility);
   const bubble = {
     type: 'bubble',
     size: 'giga',
@@ -1175,7 +1177,7 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
         style: 'link',
         height: 'sm',
         action: { type: 'uri', label: '予約サイトで見る', uri: card.pageUrl },
-      }].concat(readAvailabilityExtraButtons_(card.facility)).concat(card.nextText ? [{
+      }].concat(extraButtons).concat(card.nextText && !extraButtons.length ? [{
         type: 'button',
         style: 'link',
         height: 'sm',

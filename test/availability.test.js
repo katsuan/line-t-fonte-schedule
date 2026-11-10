@@ -102,19 +102,26 @@ test("空いている時間がつながるところは、最初のマスに始�
   assert.deepEqual(labels("11/10(火)", "②"), ["10", ".", "13", "."]);
 });
 
-test("#灘崎 次 は次の2週間を取り、カードの「次の2週間」ボタンは曜日・時間帯をそのまま送る", () => {
+test("#灘崎 次 は次の2週間を取る。カードは直近2週間に、予約サイトと90日の表のボタン（「次の2週間」ボタンは出さない）", () => {
   const asked = [];
-  const { reply } = setup((url, opt) => {
+  const { gas, reply } = setup((url, opt) => {
     if (!/GetDay/.test(url)) return undefined;
     asked.push(JSON.parse(opt.payload));
     return res(200, SITE);
   });
   const [card] = reply("#灘崎 土日 19-21");
-  const next = card.contents.footer.contents.find((b) => b.action.type === "message");
-  assert.equal(next.action.text, "#灘崎 次 土日 19-21時");
-  reply(next.action.text);
+  assert.deepEqual(card.contents.footer.contents.map((b) => [b.action.type, b.action.label]), [
+    ["uri", "予約サイトで見る"], ["uri", "90日の表を見る（管理ページ）"],
+  ]);
+  reply("#灘崎 次 土日 19-21"); // 手で書けば次の2週間も見られる
   assert.deepEqual(asked.map((a) => [a.startDate, a.endDate]), [["2026-11-10", "2026-11-23"], ["2026-11-24", "2026-12-07"]]);
   assert.equal(reply("#灘崎 次の次")[0].contents.body.contents[1].text.startsWith("12/8〜12/21の空き状況"), true);
+
+  // ページへのリンクがないボット（ひしょっと）では、これまでどおり「次の2週間」ボタンで曜日・時間帯をそのまま送る
+  gas.ctx.availabilityExtraLinks_ = undefined;
+  const [plain2] = reply("#灘崎 土日 19-21");
+  const next = plain2.contents.footer.contents.find((b) => b.action.type === "message");
+  assert.equal(next.action.text, "#灘崎 次 土日 19-21時");
 });
 
 test("時間帯の外側だけ空いていても、時間帯の中がうまっていれば空きなしの日にまとめる", () => {
