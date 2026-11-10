@@ -46,9 +46,9 @@ function setup(o = {}) {
 test("天気：予定の場所の位置で、開始〜終了の時間の天気（いちばん悪い天気・降水確率・気温の幅）", () => {
   const { asked, cards } = setup();
   const text = cards();
-  assert.match(text, /天気: ☔雨 降水70% 12〜15℃/); // 11/12 19-21時（20時が雨）
-  assert.match(text, /天気: ⛅晴れ 降水10% 12℃/); // 11/13 10時〜（終了がなければ2時間）
-  assert.equal((text.match(/天気: /g) || []).length, 2); // 11/30 は近くないので出さない
+  assert.match(text, /予報: ☔雨 降水70% 12〜15℃/); // 11/12 19-21時（20時が雨）
+  assert.match(text, /予報: ⛅晴れ 降水10% 12℃/); // 11/13 10時〜（終了がなければ2時間）
+  assert.equal((text.match(/予報: /g) || []).length, 2); // 11/30 は近くないので出さない
   // 位置はどの予定も岡山市（1回だけ聞く）
   assert.equal(asked.length, 1);
   assert.match(asked[0], /latitude=34\.65&longitude=133\.9333/);
@@ -76,5 +76,5 @@ test("天気：読めなくても、カードはそのまま（天気の行が�
   const { cards } = setup({ down: true });
   const text = cards();
   assert.match(text, /フットサル/);
-  assert.doesNotMatch(text, /天気: /);
+  assert.doesNotMatch(text, /予報: /);
 });

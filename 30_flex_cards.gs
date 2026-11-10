@@ -577,7 +577,7 @@ function createRecordDetailBox_(record, weatherSummary) {
         flex: 0
       },
       weatherSummary
-        ? { type: "text", text: `天気: ${weatherSummary}`, size: "xs", color: FLEX_CONFIG.weatherTextColor, wrap: true }
+        ? { type: "text", text: `予報: ${weatherSummary}`, size: "xs", color: FLEX_CONFIG.weatherTextColor, wrap: true }
         : null,
       locationText
         ? { type: "text", text: locationText, size: "sm", color: FLEX_CONFIG.textSecondaryColor, wrap: true }

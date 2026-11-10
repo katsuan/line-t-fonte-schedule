@@ -618,12 +618,12 @@ function derivePreviewIconText_(title) {
     return firstChar || "予";
 }
 
-/** 「天気: 」の行を読み取る */
+/** 「予報: 」の行を読み取る（前のカードの「天気: 」も） */
 function extractWeatherText_(textLines) {
     if (!Array.isArray(textLines)) return "";
 
     const weatherNode = textLines.find(item =>
-        typeof item?.text === "string" && item.text.startsWith("天気: ")
+        typeof item?.text === "string" && (item.text.startsWith("予報: ") || item.text.startsWith("天気: "))
     );
 
     return weatherNode ? weatherNode.text : "";
