@@ -201,7 +201,7 @@ function buildAvailabilityApiPayload(text, now, options) {
   if (options && options.cacheMinutes) request.cache = { minutes: options.cacheMinutes, fresh: Boolean(options.fresh) };
 
   const facility = request.facility;
-  const range = getAvailabilityRange_(at, request.fromWeek * 7, request.spanDays || request.weeks * 7);
+  const range = availabilityRangeOf_(request, at);
   const pageUrl = buildAvailabilityPageUrl_(facility, range);
   const base = {
     facility: { key: facility.key, name: facility.name },
@@ -325,7 +325,7 @@ function asAvailabilitySpan_(request, spanDays, now) {
  */
 function respondAvailability_(request, at) {
   const facility = request.facility;
-  const range = getAvailabilityRange_(at, request.fromWeek * 7, request.spanDays || request.weeks * 7);
+  const range = availabilityRangeOf_(request, at);
   const pageUrl = buildAvailabilityPageUrl_(facility, range);
   const title = `${buildAvailabilityLabel_(request, range)}空き状況`;
 
@@ -382,63 +382,67 @@ function availabilityCardOf_(request, range, view, at) {
 /**
  * 「#灘崎 全部」：今日から AVAILABILITY_WEEKS.maxEnd 週目まで、1週間ずつのカード（上に「0w（今週）」）を横に並べて1通で返す。
  * サイトは AVAILABILITY_DIGEST_DAYS 日ぶんを1回だけ読んで、そこから切り出す。
- * LINE の大きさの上限に入るぶんだけ並べ、入らなかった先は、最後のカードの「次の2週間」ボタンで見る。
+ * LINE の大きさの上限に入るぶんだけ並べ、入らなかった先は、最後のカードの「次の週」ボタンで見る。
  * 1枚目から入らない（時間帯をしぼっていないなど）ときは、ふつうの「#灘崎」と同じ返事にする
  *
  * @returns {Object[]}
  */
 function respondAvailabilityAll_(given, at) {
-  const request = Object.assign({}, given, { weeks: 1 });
+  const request = Object.assign({}, given, { weeks: 1, showDates: true });
   const facility = request.facility;
   const whole = getAvailabilityRange_(at, 0, AVAILABILITY_DIGEST_DAYS);
-  // spanDays を入れると、見出しに期間の日付が付く
-  const wholeTitle = `${buildAvailabilityLabel_(Object.assign({}, request, { spanDays: 1 }), getAvailabilityRange_(at, 0, AVAILABILITY_WEEKS.maxEnd * 7))}空き状況`;
+  const titleOf = function (range) { return `${buildAvailabilityLabel_(request, range)}空き状況`; };
+  const fail = function (err) {
+    logAvailabilityError_(err);
+    return [buildAvailabilityErrorMessage_(facility, titleOf(getAvailabilityRange_(at, 0, AVAILABILITY_WEEKS.maxEnd * 7)), buildAvailabilityPageUrl_(facility, whole), err)];
+  };
   let data;
   try {
     data = fetchAvailability_(facility, whole);
   } catch (err) {
-    logAvailabilityError_(err);
-    return [buildAvailabilityErrorMessage_(facility, wholeTitle, buildAvailabilityPageUrl_(facility, whole), err)];
+    return fail(err);
   }
 
   const size = function (x) { return JSON.stringify(x).length; };
+  // 最後のカードも、横に並べたものも、LINE の大きさの上限に入るか
+  const fits = function (list) {
+    return size(list[list.length - 1]) <= AVAILABILITY_BUBBLE_MAX_BYTES && size({ type: 'carousel', contents: list }) <= AVAILABILITY_CAROUSEL_MAX_BYTES;
+  };
   const cards = [];
   const bubbles = [];
+  let shown = null;
   for (let from = 0; from + request.weeks <= AVAILABILITY_WEEKS.maxEnd && bubbles.length < AVAILABILITY_CAROUSEL_MAX_BUBBLES; from += request.weeks) {
-    const part = Object.assign({}, request, { fromWeek: from, all: false, showDates: true });
-    const range = getAvailabilityRange_(at, from * 7, request.weeks * 7);
+    const part = Object.assign({}, request, { fromWeek: from, all: false });
+    const range = availabilityRangeOf_(part, at);
     let view;
     try {
       view = loadAvailabilityView_(part, range, at, data);
     } catch (err) {
-      logAvailabilityError_(err);
-      return [buildAvailabilityErrorMessage_(facility, wholeTitle, buildAvailabilityPageUrl_(facility, whole), err)];
+      return fail(err);
     }
     const card = availabilityCardOf_(part, range, view, at);
     card.nextText = ''; // 続きのボタンは、最後のカードにだけ付ける（下）
-    const bubble = buildAvailabilityBubble_(card, card.days.days, false);
     // 先の日がサイトにまだない（返事が短い）ときと、大きすぎるときは、そこで止める
     if (!card.days.days.length && !card.slots.length) break;
-    if (size(bubble) > AVAILABILITY_BUBBLE_MAX_BYTES) break;
-    if (size({ type: 'carousel', contents: bubbles.concat(bubble) }) > AVAILABILITY_CAROUSEL_MAX_BYTES) break;
+    const bubble = buildAvailabilityBubble_(card, card.days.days, false);
+    if (!fits(bubbles.concat(bubble))) break;
     cards.push(card);
     bubbles.push(bubble);
+    shown = range;
   }
-  if (!bubbles.length) return respondAvailability_(Object.assign({}, request, { all: false, fromWeek: 0 }), at);
+  if (!bubbles.length) return respondAvailability_(Object.assign({}, given, { weeks: 1, all: false, fromWeek: 0 }), at);
 
-  // 入りきらなかった先があれば、最後のカードに「次の2週間」ボタン（ボタンの文の分だけ大きくなるので、入らなければ付けない）
+  // 入りきらなかった先があれば、最後のカードに「次の週」ボタン（ボタンの文の分だけ大きくなるので、入らなければ付けない）
   const last = cards[cards.length - 1];
   last.nextText = buildAvailabilityNextText_(Object.assign({}, request, { fromWeek: last.fromWeek }));
   if (last.nextText) {
-    const withNext = buildAvailabilityBubble_(last, last.days.days, false);
-    const trial = bubbles.slice(0, -1).concat(withNext);
-    if (size(withNext) <= AVAILABILITY_BUBBLE_MAX_BYTES && size({ type: 'carousel', contents: trial }) <= AVAILABILITY_CAROUSEL_MAX_BYTES) bubbles[bubbles.length - 1] = withNext;
+    const trial = bubbles.slice(0, -1).concat(buildAvailabilityBubble_(last, last.days.days, false));
+    if (fits(trial)) bubbles[bubbles.length - 1] = trial[trial.length - 1];
   }
 
   // 通知の文には、並べたぶんの空きのある日（見出しは全体の期間）
-  const shownEnd = getAvailabilityRange_(at, last.fromWeek * 7, request.weeks * 7).end;
   const summary = Object.assign({}, cards[0], {
-    title: `${buildAvailabilityLabel_(Object.assign({}, request, { spanDays: 1 }), { start: whole.start, end: shownEnd })}空き状況`,
+    title: titleOf({ start: whole.start, end: shown.end }),
     alert: false,
     days: Object.assign({}, cards[0].days, { days: [].concat.apply([], cards.map(function (c) { return c.days.days; })) }),
   });
@@ -488,7 +492,7 @@ function buildAvailabilityLabel_(request, range) {
 }
 
 /**
- * 「次の2週間」ボタンで送る文（「2-4w」のあとなら「4-6w」。いまの曜日・時間帯はそのまま）。これ以上先は出さないなら ''。
+ * 「次の2週間」「次の週」ボタンで送る文（「2-4w」のあとなら「4-6w」、「1w」のあとなら「2w」。いまの曜日・時間帯はそのまま）。これ以上先は出さないなら ''。
  * 押されるたびにその時の空きを取るので、あとで押されても困らない。
  */
 function buildAvailabilityNextText_(request) {
@@ -638,6 +642,11 @@ function isAvailabilityDay_(date, days, holidays) {
 }
 
 // ---------- サイトから取る ----------
+
+/** その request で見る期間（「2-4w」なら15日目から2週間。spanDays があればその日数） */
+function availabilityRangeOf_(request, at) {
+  return getAvailabilityRange_(at, request.fromWeek * 7, request.spanDays || request.weeks * 7);
+}
 
 /**
  * 日本時間の今日から fromDay 日あとからの spanDays 日（ふつうは今日から2週間。「2-4w」なら15日目から2週間）。
@@ -1482,7 +1491,7 @@ function formatAvailabilityWeeks_(from, to) {
 
 /** カードの上の札：1週間なら「0w（今週）」「1w（来週）」「2w（再来週）」「3w」、2週間なら「2-4w」 */
 function formatAvailabilityWeekTag_(from, weeks) {
-  if (weeks !== 1) return `${from}-${from + weeks}w`;
+  if (weeks !== 1) return formatAvailabilityWeeks_(from, from + weeks);
   const names = ['今週', '来週', '再来週'];
   return names[from] ? `${from}w（${names[from]}）` : `${from}w`;
 }
