@@ -102,7 +102,7 @@ test("空いている時間がつながるところは、最初のマスに始�
   assert.deepEqual(labels("11/10(火)", "②"), ["10", ".", "13", "."]);
 });
 
-test("#灘崎 次 は次の2週間を取る。カードは直近2週間に、予約サイトと90日の表のボタン（「次の2週間」ボタンは出さない）", () => {
+test("#灘崎 2-4w は2週後からの2週間を取る（1-3w のように1週ずらしも）。カードは直近2週間に、予約サイトと90日の表のボタン（「次の2週間」ボタンは出さない）", () => {
   const asked = [];
   const { gas, reply } = setup((url, opt) => {
     if (!/GetDay/.test(url)) return undefined;
@@ -113,15 +113,20 @@ test("#灘崎 次 は次の2週間を取る。カードは直近2週間に、予
   assert.deepEqual(card.contents.footer.contents.map((b) => [b.action.type, b.action.label]), [
     ["uri", "予約サイトで見る"], ["uri", "90日の表を見る"],
   ]);
-  reply("#灘崎 次 土日 19-21"); // 手で書けば次の2週間も見られる
+  reply("#灘崎 2-4w 土日 19-21"); // 手で書けば先の2週間も見られる
   assert.deepEqual(asked.map((a) => [a.startDate, a.endDate]), [["2026-11-10", "2026-11-23"], ["2026-11-24", "2026-12-07"]]);
-  assert.equal(reply("#灘崎 次の次")[0].contents.body.contents[1].text.startsWith("12/8〜12/21の空き状況"), true);
+  assert.equal(reply("#灘崎 4-6w")[0].contents.body.contents[1].text.startsWith("12/8〜12/21の空き状況"), true);
+  assert.equal(reply("#灘崎 1〜3週")[0].contents.body.contents[1].text.startsWith("11/17〜11/30の空き状況"), true);
+  assert.equal(reply("#灘崎 1-2w")[0].contents.body.contents[1].text.startsWith("11/17〜11/23の空き状況"), true);
+  // 幅が3週より広い・12週より先・前の書き方「次」は、書き方の例を返す
+  for (const bad of ["#灘崎 0-4w", "#灘崎 12-14w", "#灘崎 次"]) assert.match(JSON.stringify(reply(bad)), /書き方の例/, bad);
 
   // ページへのリンクがないボット（ひしょっと）では、これまでどおり「次の2週間」ボタンで曜日・時間帯をそのまま送る
   gas.ctx.availabilityExtraLinks_ = undefined;
   const [plain2] = reply("#灘崎 土日 19-21");
   const next = plain2.contents.footer.contents.find((b) => b.action.type === "message");
-  assert.equal(next.action.text, "#灘崎 次 土日 19-21時");
+  assert.equal(next.action.text, "#灘崎 2-4w 土日 19-21時");
+  assert.equal(next.action.label, "次の2週間");
 });
 
 test("時間帯の外側だけ空いていても、時間帯の中がうまっていれば空きなしの日にまとめる", () => {
@@ -414,7 +419,7 @@ test("ウィジェット用の中身（buildAvailabilityApiPayload）：表の�
   assert.deepEqual(p.courts, ["コート1", "コート2"]);
   const day = p.days.find((d) => d.date === "2026-11-10");
   assert.deepEqual(day.cells, { "コート1": ["open", "closed", "open"], "コート2": ["open", "open", "open"] });
-  assert.equal(p.nextQuery, "#灘崎 次 10-13時");
+  assert.equal(p.nextQuery, "#灘崎 2-4w 10-13時");
   assert.match(p.pageUrl, /FacilityAvailability\/Index/);
   // これからの空き：空きのある日だけ・見張る日の印と様子
   reply("#灘崎 見張り 11/14 12/1");
