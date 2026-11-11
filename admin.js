@@ -18,8 +18,14 @@ let endTouched = false; // 終了を自分で入力したら、開始を変え�
 let commonPref = true; // 「月の共通リンクを使う」の希望（共通リンクのない月では一時的に使えなくなる）
 let toastTimer = null;
 
+/** 予定を日付・開始の順に並べるときのくらべ方 */
+function compareRecords(a, b) {
+    return (a.date + a.start).localeCompare(b.date + b.start);
+}
+
 // ---------- 通信 ----------
 
+/** GAS（doPost）に操作を送る。LIFF のアクセストークンを添える */
 async function callApi(action, payload = {}) {
     const response = await fetch(GAS_URL, {
         method: "POST",
@@ -32,6 +38,7 @@ async function callApi(action, payload = {}) {
 
 // ---------- 起動 ----------
 
+/** 起動：LIFF のログイン → 管理者か確かめる → 予定を読む */
 async function start() {
     show("loading");
     try {
@@ -103,13 +110,14 @@ async function loadRecords() {
 
 /** 予定の一覧を日時の順にして、画面と入力の候補を作り直す */
 function applyRecords(next) {
-    records = next.slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+    records = next.slice().sort(compareRecords);
     render();
     renderSuggestions();
 }
 
 // ---------- 描画 ----------
 
+/** リストとカレンダーを描く */
 function render() {
     renderList();
     renderCalendar();
@@ -134,7 +142,7 @@ function renderList() {
 /** 送信されるカードと同じ、月ごとのカード（見出し・予定の行・リンクのボタン） */
 function createMonthCard(month, monthRecords, today) {
     const label = document.createElement("span");
-    label.textContent = `${Number(month.slice(5, 7))}月の予定`;
+    label.textContent = `${monthNumberOf(month)}月の予定`;
     const head = [label, createButton("共通リンク", "btn btn-small", () => editMonthLink(month))];
     const card = createRecordCard("month-card", head, monthRecords, today, createRowItem);
 
@@ -277,6 +285,7 @@ try {
     if (saved === "list" || saved === "field") view = saved;
 } catch (err) { /* 保存できなくても動く */ }
 
+/** 表示を切りかえて、端末に残す */
 function setView(next) {
     view = next;
     try { localStorage.setItem("admin-view", next); } catch (err) { /* 保存できなくても動く */ }
@@ -301,9 +310,7 @@ function applyView() {
 
 /** カレンダーの月を前・次に動かす */
 function shiftCalMonth(delta) {
-    const [y, m] = calMonth.split("-").map(Number);
-    const next = new Date(y, m - 1 + delta, 1);
-    calMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    calMonth = addMonths(calMonth, delta);
     selectedDate = "";
     renderCalendar();
 }
@@ -357,7 +364,7 @@ function onDayTap(date, dayRecords) {
  * @param {Object[]} saved 保存した予定（まとめて登録したときは、いちばん早い日の予定を見せる）
  */
 function revealSaved(saved) {
-    const target = saved.slice().sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))[0];
+    const target = saved.slice().sort(compareRecords)[0];
     if (!target) return;
 
     const match = records.find(record => recordKey(record) === recordKey(target));
@@ -368,9 +375,7 @@ function revealSaved(saved) {
     selectedDate = match.date;
     flashKey = recordKey(match);
     render();
-
-    const row = [...document.querySelectorAll(".row-item.is-flash")].find(el => el.offsetParent !== null);
-    if (row) (row.closest(".month-card") || row).scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    revealMarkedRow(".row-item.is-flash");
     setTimeout(() => {
         flashKey = "";
         document.querySelectorAll(".row-item.is-flash").forEach(el => el.classList.remove("is-flash"));
@@ -387,6 +392,7 @@ function createDayPanel(date, dayRecords, today) {
 
 // ---------- 追加・編集 ----------
 
+/** 追加・複製・編集のフォームを開く（presetDate は、カレンダーで選んだ日） */
 function openEditor(record, asCopy, presetDate) {
     editing = record && !asCopy ? record : null;
     els.formTitle.textContent = editing ? "予定を編集" : asCopy ? "予定を複製して追加" : "予定を追加";
@@ -414,7 +420,7 @@ function defaultEndFor(start) {
     const match = /^(\d{1,2}):(\d{2})$/.exec(start || "");
     if (!match) return "";
     const total = Math.min(Number(match[1]) * 60 + Number(match[2]) + DEFAULT_DURATION_HOURS * 60, 23 * 60 + 59);
-    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
 }
 
 /** 終了を自分で変えていなければ、開始の2時間後にする */
@@ -432,7 +438,7 @@ function syncLinkField() {
     const box = $("fLinkCommon");
     const note = $("fLinkNote");
 
-    $("fLinkCommonText").textContent = month ? `${Number(month.slice(5, 7))}月の共通リンクを使う` : "月の共通リンクを使う";
+    $("fLinkCommonText").textContent = month ? `${monthNumberOf(month)}月の共通リンクを使う` : "月の共通リンクを使う";
     box.disabled = !base;
     box.checked = !!base && commonPref;
     $("fLink").hidden = box.checked;
@@ -506,6 +512,7 @@ async function saveForm(event) {
 
 // ---------- 削除 ----------
 
+/** 予定を消す（たしかめてから） */
 async function removeRecord(record) {
     const label = `${record.date} ${record.start} ${record.memo1}`;
     if (!confirm(`この予定を削除しますか？\n${label}`)) return;
@@ -614,8 +621,7 @@ function renderBulkConfirm(result) {
 
 /** 確認の予定1件（チェック・日時・内容・場所・印） */
 function createBulkItem(record, index) {
-    const [y, m, d] = record.date.split("-").map(Number);
-    const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+    const day = parseDateKey(record.date);
 
     const item = document.createElement("label");
     item.className = `bulk-item${record.checked ? "" : " is-off"}`;
@@ -634,8 +640,8 @@ function createBulkItem(record, index) {
 
     const when = document.createElement("div");
     when.className = "bulk-item-when";
-    when.textContent = `${m}/${d}(${weekday}) ${record.start}-${record.end}`;
-    if (record.endIsDefault) when.appendChild(createBulkTag("終了は2時間後"));
+    when.textContent = `${day.getMonth() + 1}/${day.getDate()}(${WEEKDAYS[day.getDay()]}) ${record.start}-${record.end}`;
+    if (record.endIsDefault) when.appendChild(createBulkTag(`終了は${DEFAULT_DURATION_HOURS}時間後`));
     if (record.duplicate) when.appendChild(createBulkTag("登録済みと同じ", true));
 
     const what = document.createElement("div");

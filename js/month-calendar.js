@@ -9,15 +9,47 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 // GAS の DEFAULT_PLAN_DURATION_HOURS（カレンダー同期）と同じ
 const DEFAULT_DURATION_HOURS = 2;
 
+/** 2けたにそろえる（9 → "09"） */
+function pad2(n) {
+    return String(n).padStart(2, "0");
+}
+
+/** Date から「2026-11-02」 */
+function toDateKey(d) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
 /** 今日の「2026-11-02」 */
 function todayKey() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return toDateKey(new Date());
+}
+
+/** 「2026-11-02」を、その日の 0:00 の Date にする */
+function parseDateKey(dateKey) {
+    const [y, m, d] = dateKey.split("-").map(Number);
+    return new Date(y, m - 1, d);
+}
+
+/** 「2026-11」から delta か月ずらした「2026-12」 */
+function addMonths(month, delta) {
+    const [y, m] = month.split("-").map(Number);
+    const next = new Date(y, m - 1 + delta, 1);
+    return `${next.getFullYear()}-${pad2(next.getMonth() + 1)}`;
+}
+
+/** 「2026-11」の月の数（11） */
+function monthNumberOf(month) {
+    return Number(month.slice(5, 7));
 }
 
 /** 「2026年11月」の文字 */
 function monthLabel(month) {
-    return `${month.slice(0, 4)}年${Number(month.slice(5, 7))}月`;
+    return `${month.slice(0, 4)}年${monthNumberOf(month)}月`;
+}
+
+/** 曜日の番号（0=日曜）から、色の印（"sun"・"sat"・""） */
+function weekdayClass(weekday) {
+    return weekday === 0 ? "sun" : weekday === 6 ? "sat" : "";
 }
 
 /** 予定を見分けるキー（日付・開始・場所・内容） */
@@ -27,9 +59,7 @@ function recordKey(record) {
 
 /** 今日からの残り日数の表示（過ぎた予定は「終了」） */
 function untilLabel(dateKey) {
-    const [y, m, d] = dateKey.split("-").map(Number);
-    const now = new Date();
-    const days = Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+    const days = Math.round((parseDateKey(dateKey) - parseDateKey(todayKey())) / 86400000);
     if (days < 0) return { text: "終了", className: "done" };
     if (days === 0) return { text: "今日", className: "today" };
     return { text: `あと${days}日`, className: "" };
@@ -132,6 +162,15 @@ function revealDayPanel() {
     if (panel) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
+/**
+ * 印のついた予定の行（".row-item.is-selected" など）のうち、見えているものを見える位置へ移す。
+ * リストは横スクロールの月カードごと、カレンダーは下に出る日付のカードごと
+ */
+function revealMarkedRow(selector) {
+    const row = [...document.querySelectorAll(selector)].find(el => el.offsetParent !== null);
+    if (row) (row.closest(".month-card") || row).scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+}
+
 const WEEK_START_KEY = "t_fonte_week_start"; // "1" なら月曜はじまり。ないときは日曜はじまり（いままでどおり）
 
 let weekStart = readWeekStart();
@@ -174,7 +213,7 @@ function createMonthGrid(month, byDate, today, createCell) {
         grid.appendChild(blank);
     }
     for (let day = 1; day <= new Date(year, monthNumber, 0).getDate(); day++) {
-        const date = `${month}-${String(day).padStart(2, "0")}`;
+        const date = `${month}-${pad2(day)}`;
         grid.appendChild(createCell(date, day, byDate.get(date) || [], today));
     }
     return grid;
@@ -185,7 +224,8 @@ function appendWeekdayHeads(grid) {
     for (let i = 0; i < 7; i++) {
         const index = (weekStart + i) % 7;
         const dow = document.createElement("div");
-        dow.className = `cal-dow${index === 0 ? " sun" : index === 6 ? " sat" : ""}`;
+        const tone = weekdayClass(index);
+        dow.className = `cal-dow${tone ? ` ${tone}` : ""}`;
         dow.textContent = WEEKDAYS[index];
         grid.appendChild(dow);
     }
@@ -251,8 +291,8 @@ function createMonthScroller(list, today, createCard) {
 
 /** 「11月2日(月)」 */
 function formatDayLabel(date) {
-    const [y, m, d] = date.split("-").map(Number);
-    return `${m}月${d}日(${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+    const day = parseDateKey(date);
+    return `${day.getMonth() + 1}月${day.getDate()}日(${WEEKDAYS[day.getDay()]})`;
 }
 
 /**
@@ -281,7 +321,7 @@ function createMonthLinkFoot(month) {
     if (!monthLink) return null;
     const foot = document.createElement("div");
     foot.className = "month-card-foot";
-    foot.appendChild(createAnswerLink(`${Number(month.slice(5, 7))}月のリンクを開く`, monthLink, "btn btn-answer"));
+    foot.appendChild(createAnswerLink(`${monthNumberOf(month)}月のリンクを開く`, monthLink, "btn btn-answer"));
     return foot;
 }
 
@@ -334,15 +374,15 @@ function createRowHead(record, titleText) {
 
 /** 行の日時「11月2日(月) 10:00-12:00」（曜日は土日に色） */
 function createRowDateLine(record) {
-    const [y, m, d] = record.date.split("-").map(Number);
-    const weekday = new Date(y, m - 1, d).getDay();
+    const day = parseDateKey(record.date);
+    const weekday = day.getDay();
     const dateLine = document.createElement("p");
     dateLine.className = "row-meta";
     const dow = document.createElement("span");
-    dow.className = weekday === 0 ? "sun" : weekday === 6 ? "sat" : "";
+    dow.className = weekdayClass(weekday);
     dow.textContent = `(${WEEKDAYS[weekday]})`;
     dateLine.append(
-        document.createTextNode(`${m}月${d}日`),
+        document.createTextNode(`${day.getMonth() + 1}月${day.getDate()}日`),
         dow,
         document.createTextNode(` ${record.start}${record.end ? `-${record.end}` : ""}`)
     );
@@ -387,11 +427,10 @@ function createCalendarLinkUrl(record) {
  * 押したときの動きと読み上げの名前は、呼んだページで付ける
  */
 function createDayCell(date, day, dayRecords, today, isSelected) {
-    const weekday = new Date(date.replaceAll("-", "/")).getDay();
     const cell = document.createElement("button");
     cell.type = "button";
     cell.className = ["cal-cell",
-        weekday === 0 ? "sun" : weekday === 6 ? "sat" : "",
+        weekdayClass(parseDateKey(date).getDay()),
         dayRecords.length ? "has-events" : "",
         date === today ? "today" : "",
         date < today ? "past" : "",

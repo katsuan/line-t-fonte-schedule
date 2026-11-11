@@ -43,8 +43,7 @@ function writeCache(data) {
 /** 今日なら「12:34」、それ以前なら「10/21 12:34」 */
 function formatClock(ms) {
     const d = new Date(ms);
-    const two = n => String(n).padStart(2, "0");
-    const clock = `${two(d.getHours())}:${two(d.getMinutes())}`;
+    const clock = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     return d.toDateString() === new Date().toDateString() ? clock : `${d.getMonth() + 1}/${d.getDate()} ${clock}`;
 }
 
@@ -185,6 +184,7 @@ function openSubscribeSheet() {
 
 // ---------- 描画 ----------
 
+/** タブ（カレンダー・リスト）を切りかえて、両方を描く */
 function render() {
     renderedDay = todayKey();
     $("calendar").hidden = view !== "calendar";
@@ -221,9 +221,7 @@ function monthRange() {
 
 /** カレンダーの月を前・次に動かす（今月から予定のある月まで） */
 function shiftMonth(delta) {
-    const [y, m] = calMonth.split("-").map(Number);
-    const next = new Date(y, m - 1 + delta, 1);
-    const target = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    const target = addMonths(calMonth, delta);
     const { first, last } = monthRange();
     if (target < first || target > last) return;
     calMonth = target;
@@ -236,7 +234,7 @@ function shiftMonth(delta) {
 function renderCalendar() {
     const today = todayKey();
     const { first: thisMonth, last: lastMonth } = monthRange();
-    const month = Number(calMonth.slice(5, 7));
+    const month = monthNumberOf(calMonth);
     const byDate = groupRecordsByDate(records);
 
     const title = document.createElement("span");
@@ -263,15 +261,12 @@ function renderCalendar() {
     const dayRecords = byDate.get(selectedDate) || [];
     if (selectedDate.startsWith(calMonth) && dayRecords.length) {
         children.push(createDayPanel(selectedDate, dayRecords, today));
-    } else if (![...byDate.keys()].some(date => date.startsWith(calMonth))) {
-        const hint = document.createElement("p");
-        hint.className = "hint";
-        hint.textContent = "この月の予定はまだありません。";
-        children.push(hint);
     } else {
         const hint = document.createElement("p");
         hint.className = "hint";
-        hint.textContent = "色のついた日をタップすると、予定が表示されます。";
+        hint.textContent = [...byDate.keys()].some(date => date.startsWith(calMonth))
+            ? "色のついた日をタップすると、予定が表示されます。"
+            : "この月の予定はまだありません。";
         children.push(hint);
     }
     $("calendar").replaceChildren(...children);
@@ -314,7 +309,7 @@ function renderList() {
 
 /** 1か月分の予定のカード（月のリンクつき） */
 function createMonthCard(month, monthRecords, today) {
-    const card = createRecordCard("month-card", [`${Number(month.slice(5, 7))}月の予定`], monthRecords, today, createRowItem);
+    const card = createRecordCard("month-card", [`${monthNumberOf(month)}月の予定`], monthRecords, today, createRowItem);
     const foot = createMonthLinkFoot(month);
     if (foot) card.appendChild(foot);
     return card;
@@ -327,6 +322,7 @@ function createRowItem(record, today) {
 
 // ---------- 次回の予定（カウントダウン）と選択 ----------
 
+/** 「2026-11-02」と「10:00」の時刻（ミリ秒）。時刻がなければ 0:00 */
 function timeMs(date, time) {
     const [y, m, d] = date.split("-").map(Number);
     const [hh, mm] = String(time || "0:0").split(":").map(Number);
@@ -352,10 +348,9 @@ function formatCountdown(ms) {
     const hours = Math.floor((totalSeconds % 86400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    const two = n => String(n).padStart(2, "0");
-    if (days > 0) return `あと${days}日${hours}時間${two(minutes)}分${two(seconds)}秒`;
-    if (hours > 0) return `あと${hours}時間${two(minutes)}分${two(seconds)}秒`;
-    if (minutes > 0) return `あと${minutes}分${two(seconds)}秒`;
+    if (days > 0) return `あと${days}日${hours}時間${pad2(minutes)}分${pad2(seconds)}秒`;
+    if (hours > 0) return `あと${hours}時間${pad2(minutes)}分${pad2(seconds)}秒`;
+    if (minutes > 0) return `あと${minutes}分${pad2(seconds)}秒`;
     return `あと${seconds}秒`;
 }
 
@@ -367,9 +362,8 @@ function updateNextBar() {
     bar.hidden = !next || $("main").hidden;
     if (!next) return;
 
-    const [y, m, d] = next.date.split("-").map(Number);
-    const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
-    $("nextWhen").textContent = `${m}/${d}(${weekday}) ${next.start}`;
+    const day = parseDateKey(next.date);
+    $("nextWhen").textContent = `${day.getMonth() + 1}/${day.getDate()}(${WEEKDAYS[day.getDay()]}) ${next.start}`;
     $("nextWhat").textContent = [next.memo1, next.place].filter(Boolean).join(" ");
 
     const startMs = timeMs(next.date, next.start);
@@ -387,11 +381,7 @@ function selectNextRecord() {
     selectedDate = next.date;
     selectedKey = recordKey(next);
     render();
-
-    const row = [...document.querySelectorAll(".row-item.is-selected")].find(el => el.offsetParent !== null);
-    if (!row) return;
-    // リストは横スクロールの月カードごと、カレンダーは下に出る日付のカードごと見える位置へ
-    (row.closest(".month-card") || row).scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    revealMarkedRow(".row-item.is-selected");
 }
 
 // ---------- イベント ----------

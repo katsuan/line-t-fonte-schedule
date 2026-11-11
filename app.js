@@ -14,6 +14,15 @@ const STATUS_TEXT = {
     refreshing: "前回プレビューを表示しつつ更新中..."
 };
 
+/** シェアするメッセージの長さの上限（LINE の決まり） */
+const SHARE_LIMITS = { textChars: 5000, altTextChars: 1500, messages: 5 };
+
+/** カードの下の「以上」「他○件」 */
+const SUMMARY_NOTE_PATTERN = /^(他\d+件\b.*|以上)$/;
+
+/** シェアのボタンのいつもの文字 */
+const SHARE_BUTTON_LABEL = "LINEで送る";
+
 const els = {
     loading: document.getElementById("loading"),
     messageList: document.getElementById("messageList"),
@@ -438,19 +447,13 @@ function createScheduleDateLine(item) {
     return meta;
 }
 
-/** カードから、予定の並びを読み取る */
+/** カードから、予定の並びを読み取る（hero になければ body から） */
 function extractScheduleItems(bubble) {
     const heroContents = bubble?.hero?.contents;
-    if (Array.isArray(heroContents) && heroContents.length) {
-        return heroContents
-            .map(extractScheduleItemFromBox)
-            .filter(Boolean);
-    }
+    const contents = Array.isArray(heroContents) && heroContents.length ? heroContents : bubble?.body?.contents;
+    if (!Array.isArray(contents)) return [];
 
-    const bodyContents = bubble?.body?.contents;
-    if (!Array.isArray(bodyContents)) return [];
-
-    return bodyContents
+    return contents
         .map(extractScheduleItemFromBox)
         .filter(Boolean);
 }
@@ -458,7 +461,7 @@ function extractScheduleItems(bubble) {
 /** カードの下の「以上」「他○件」を読み取る */
 function extractSummaryNote(bubble) {
     const bodyTexts = extractTexts(bubble?.body);
-    const bodyNote = bodyTexts.find(text => /^(他\d+件\b.*|以上)$/.test(text));
+    const bodyNote = bodyTexts.find(text => SUMMARY_NOTE_PATTERN.test(text));
     if (bodyNote) return bodyNote;
 
     const heroContents = bubble?.hero?.contents;
@@ -467,7 +470,7 @@ function extractSummaryNote(bubble) {
     const fallbackNode = heroContents.find(item =>
         item?.type === "text" &&
         typeof item.text === "string" &&
-        /^(他\d+件\b.*|以上)$/.test(item.text)
+        SUMMARY_NOTE_PATTERN.test(item.text)
     );
 
     return fallbackNode ? fallbackNode.text : "";
@@ -597,23 +600,17 @@ function hasNearBadge_(box) {
 
 /** 予定のアイコンの文字を読み取る */
 function extractScheduleIconText_(box) {
+    // GAS の FLEX_CONFIG.iconBackgroundColor（予定の丸いアイコン）
     const iconContainer = findBoxByBackgroundColor_(box, "#E6EEF9");
-    if (!iconContainer || !Array.isArray(iconContainer.contents)) {
-        const fallbackTitle = extractTexts(box)[0] || "";
-        return derivePreviewIconText_(fallbackTitle);
-    }
-
-    const iconNode = iconContainer.contents.find(child => child?.type === "text" && child.text);
+    const iconNode = Array.isArray(iconContainer?.contents)
+        ? iconContainer.contents.find(child => child?.type === "text" && child.text)
+        : null;
     return iconNode ? iconNode.text : derivePreviewIconText_(extractTexts(box)[0] || "");
 }
 
 /** 内容の1文字目をアイコンにする（なければ「予」） */
 function derivePreviewIconText_(title) {
-    const normalized = String(title || "").trim();
-    if (!normalized) return "予";
-
-    const firstChar = Array.from(normalized)[0] || "";
-    return firstChar || "予";
+    return Array.from(String(title || "").trim())[0] || "予";
 }
 
 /** 「予報: 」の行を読み取る（前のカードの「天気: 」も） */
@@ -716,7 +713,7 @@ function buildShareTargetPickerMessages_(messages) {
     return (Array.isArray(messages) ? messages : [])
         .flatMap(message => normalizeShareTargetPickerMessages_(message))
         .filter(Boolean)
-        .slice(0, 5);
+        .slice(0, SHARE_LIMITS.messages);
 }
 
 /** シェアするメッセージの中身を、確かめ用の欄に出す */
@@ -732,30 +729,13 @@ function renderShareTargetPickerDebug_(messages) {
     }
 }
 
-/** メッセージ1つを、シェアできる形にする */
+/** メッセージ1つを、シェアできる形にする（できなければ空の並び） */
 function normalizeShareTargetPickerMessages_(message) {
-    if (!message || typeof message !== "object") {
-        return [];
-    }
-
-    if (message.type === "text") {
-        const text = String(message.text || "").trim();
-        return text ? [{ type: "text", text: text.slice(0, 5000) }] : [];
-    }
-
-    if (message.type !== "flex") {
-        return [];
-    }
-
-    const sanitizedMessage = sanitizeMessageForShareTargetPicker_(cloneObject(message));
-    if (!sanitizedMessage) {
-        return [];
-    }
-
-    return [sanitizedMessage];
+    const sanitizedMessage = sanitizeMessageForShareTargetPicker_(message);
+    return sanitizedMessage ? [sanitizedMessage] : [];
 }
 
-/** シェアできない項目（送り主・クイックリプライなど）を外す */
+/** シェアできない項目（送り主・クイックリプライなど）を外す。もとのメッセージは書きかえない */
 function sanitizeMessageForShareTargetPicker_(message) {
     if (!message || typeof message !== "object") {
         return null;
@@ -790,7 +770,7 @@ function sanitizeMessageForShareTargetPicker_(message) {
 
     if (message.type === "text") {
         const text = String(message.text || "").trim();
-        return text ? { type: "text", text: text.slice(0, 5000) } : null;
+        return text ? { type: "text", text: text.slice(0, SHARE_LIMITS.textChars) } : null;
     }
 
     return null;
@@ -798,7 +778,7 @@ function sanitizeMessageForShareTargetPicker_(message) {
 
 /** 通知文を上限の長さまでにする */
 function trimShareAltText_(text) {
-    return String(text || "").slice(0, 1500);
+    return String(text || "").slice(0, SHARE_LIMITS.altTextChars);
 }
 
 /** シェアするカード（先頭の送信ガイドは除く） */
@@ -884,17 +864,21 @@ async function handleShare() {
                 window.location.href = GROUP_LINK;
             }, 1200);
         } else {
-            els.shareBtn.disabled = false;
-            els.shareBtn.textContent = "LINEで送る";
+            resetShareButton();
             setStatus("送信をキャンセルしました。");
         }
 
     } catch (err) {
         console.error(err);
-        els.shareBtn.disabled = false;
-        els.shareBtn.textContent = "LINEで送る";
+        resetShareButton();
         setStatus("送信に失敗しました。時間をおいてもう一度お試しください。");
     }
+}
+
+/** シェアのボタンを、押せるいつもの文字にもどす */
+function resetShareButton() {
+    els.shareBtn.disabled = false;
+    els.shareBtn.textContent = SHARE_BUTTON_LABEL;
 }
 
 /** 下の知らせの文字を出す（loading なら回る印も） */
@@ -934,8 +918,7 @@ function setReady(shareEnabled) {
 
     if (shareEnabled) {
         els.shareBtn.classList.remove("hidden");
-        els.shareBtn.disabled = false;
-        els.shareBtn.textContent = "LINEで送る";
+        resetShareButton();
         setStatus(`${countPreviewUnits(shareTargetPickerMessages)}か月分の送信準備ができました。`);
         return;
     }

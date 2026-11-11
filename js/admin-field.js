@@ -1,5 +1,5 @@
 // 管理ページ（admin.html）の「⚽ 空き」タブ：灘崎の今日から90日のマス・見張る日・予定の ⚽・ほかの場所の予定。
-// admin.js より先に読む（ここの関数は、呼ばれたときに admin.js の $・callApi と、js/month-calendar.js の createButton・createAnswerLink を使う）。
+// admin.js より先に読む（ここの関数は、呼ばれたときに admin.js の $・callApi と、js/month-calendar.js の createButton・createAnswerLink・monthNumberOf を使う）。
 // 管理ページの applyView が、タブを開いたときに loadField を呼ぶ
 
 const FIELD_COURT_MARKS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
@@ -49,6 +49,7 @@ function renderField() {
     root.replaceChildren(...children);
 }
 
+/** 空きのタブの知らせ（読めない・空きの日がない など） */
 function fieldNotice(text) {
     const note = document.createElement("div");
     note.className = "empty";
@@ -109,6 +110,7 @@ function createFieldWatch(watch) {
     return box;
 }
 
+/** 色の見方（予約できる・空き状況のみ・うまっている） */
 function createFieldLegend() {
     const legend = document.createElement("div");
     legend.className = "field-legend";
@@ -147,7 +149,7 @@ function createFieldGrid(p, days) {
             month = day.date.slice(0, 7);
             const head = document.createElement("div");
             head.className = "field-month";
-            head.textContent = `${Number(month.slice(5, 7))}月`;
+            head.textContent = `${monthNumberOf(month)}月`;
             table.appendChild(head);
         }
         table.appendChild(createFieldDay(p, day));
@@ -215,5 +217,5 @@ function shortFieldLabel(label) {
 function formatFieldTime(iso) {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${pad2(d.getMinutes())}`;
 }
