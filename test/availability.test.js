@@ -115,9 +115,9 @@ test("#灘崎 2-4w は2週後からの2週間を取る（1-3w のように1週�
   ]);
   reply("#灘崎 2-4w 土日 19-21"); // 手で書けば先の2週間も見られる
   assert.deepEqual(asked.map((a) => [a.startDate, a.endDate]), [["2026-11-10", "2026-11-23"], ["2026-11-24", "2026-12-07"]]);
-  assert.equal(reply("#灘崎 4-6w")[0].contents.body.contents[1].text.startsWith("12/8〜12/21の空き状況"), true);
-  assert.equal(reply("#灘崎 1〜3週")[0].contents.body.contents[1].text.startsWith("11/17〜11/30の空き状況"), true);
-  assert.equal(reply("#灘崎 1-2w")[0].contents.body.contents[1].text.startsWith("11/17〜11/23の空き状況"), true);
+  assert.equal(reply("#灘崎 4-6w")[0].contents.body.contents.find((x) => /空き状況/.test(x.text || "")).text.startsWith("12/8〜12/21の空き状況"), true);
+  assert.equal(reply("#灘崎 1〜3週")[0].contents.body.contents.find((x) => /空き状況/.test(x.text || "")).text.startsWith("11/17〜11/30の空き状況"), true);
+  assert.equal(reply("#灘崎 1-2w")[0].contents.body.contents.find((x) => /空き状況/.test(x.text || "")).text.startsWith("11/17〜11/23の空き状況"), true);
   // 幅が3週より広い・12週より先・前の書き方「次」は、書き方の例を返す
   for (const bad of ["#灘崎 0-4w", "#灘崎 12-14w", "#灘崎 次"]) assert.match(JSON.stringify(reply(bad)), /書き方の例/, bad);
 
@@ -129,7 +129,7 @@ test("#灘崎 2-4w は2週後からの2週間を取る（1-3w のように1週�
   assert.equal(next.action.label, "次の2週間");
 });
 
-test("#灘崎 全部 は、12週目まで2週間ずつのカードを横に並べる（サイトは90日ぶんを1回だけ読む）。入らなければ入るぶんだけ", () => {
+test("#灘崎 全部 は、0w〜11w の1週間ずつのカード（上に「0w（今週）」）を横に並べる（サイトは90日ぶんを1回だけ読む）。入らなければ入るぶんだけ", () => {
   // 11/10 から90日ぶん。土曜の 10-12時だけ空き、ほかは空きなし（本物も、空きなしの日が多い）
   const days = [];
   for (let i = 0; i < 90; i++) {
@@ -145,10 +145,18 @@ test("#灘崎 全部 は、12週目まで2週間ずつのカードを横に並�
   });
   const [msg] = reply("#灘崎 全部 10-12");
   assert.equal(msg.contents.type, "carousel");
-  assert.equal(msg.contents.contents.length, 6);
+  assert.equal(msg.contents.contents.length, 12);
   assert.deepEqual(asked.map((a) => [a.startDate, a.period]), [["2026-11-10", 90]]);
-  const titles = msg.contents.contents.map((b) => b.body.contents[1].text.split("の空き状況")[0]);
-  assert.deepEqual(titles, ["11/10〜11/23 10-12時", "11/24〜12/7 10-12時", "12/8〜12/21 10-12時", "12/22〜1/4 10-12時", "1/5〜1/18 10-12時", "1/19〜2/1 10-12時"]);
+  const cards = msg.contents.contents;
+  assert.deepEqual(cards.map((b) => b.body.contents[0].text).slice(0, 5), ["0w（今週）", "1w（来週）", "2w（再来週）", "3w", "4w"]);
+  assert.equal(cards[11].body.contents[0].text, "11w");
+  const titles = cards.map((b) => b.body.contents.find((x) => /空き状況/.test(x.text || "")).text.split("の空き状況")[0]);
+  assert.deepEqual(titles.slice(0, 3), ["11/10〜11/16 10-12時", "11/17〜11/23 10-12時", "11/24〜11/30 10-12時"]);
+  assert.equal(titles[11], "1/26〜2/1 10-12時");
+  // 札の書き方を送れば、その週が見られる
+  assert.match(reply("#灘崎 1w")[0].contents.body.contents.find((x) => /空き状況/.test(x.text || "")).text, /^11\/17〜11\/23の空き状況/);
+  assert.equal(reply("#灘崎 1w")[0].contents.body.contents[0].text, "1w（来週）");
+  assert.equal(reply("#灘崎 2-4w")[0].contents.body.contents[0].text, "2-4w");
   assert.match(msg.altText, /11\/10〜2\/1 10-12時の空き状況/);
   assert.ok(JSON.stringify(msg).length <= 48000);
 
@@ -159,7 +167,8 @@ test("#灘崎 全部 は、12週目まで2週間ずつのカードを横に並�
   assert.ok(JSON.stringify(wide).length <= 48000);
   if (bubbles.length < 6) {
     const next = bubbles[bubbles.length - 1].footer.contents.find((b) => b.action.type === "message");
-    assert.equal(next.action.text, `#灘崎 ${bubbles.length * 2}-${bubbles.length * 2 + 2}w`);
+    assert.equal(next.action.text, `#灘崎 ${bubbles.length}w`);
+    assert.equal(next.action.label, "次の週");
   }
   // 「全部」と「これから」「2-4w」はいっしょにしない
   for (const bad of ["#灘崎 全部 2-4w", "#灘崎 全部 これから"]) assert.match(JSON.stringify(reply(bad)), /書き方の例/, bad);
@@ -239,7 +248,7 @@ test("日付の文字は、土曜は青、日曜・祝日は赤。祝日は「(�
     "11/10(火) #111111", "11/11(水・祝) #CF222E", "11/14(土) #0969DA",
   ]);
   assert.deepEqual(dates(reply("#灘崎 土日祝")[0].contents).map((d) => d.split(" ")[0]), ["11/11(水・祝)", "11/14(土)"]);
-  assert.match(reply("#灘崎 土日祝")[0].contents.body.contents[1].text, /^土日祝の空き状況/);
+  assert.match(reply("#灘崎 土日祝")[0].contents.body.contents.find((x) => /空き状況/.test(x.text || "")).text, /^土日祝の空き状況/);
   assert.deepEqual(dates(reply("#灘崎 土日")[0].contents).map((d) => d.split(" ")[0]), ["11/14(土)"]);
 });
 

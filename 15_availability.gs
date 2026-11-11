@@ -6,7 +6,7 @@
  * ----------------------------------------------------------------------------
  * 岡山市施設予約サービスの空き状況ページが裏で使っている API（GetDay）から取って、LINE のカードで返す。
  * - 「#灘崎」… 2週間。「19-21」で時間帯、「土日」「土日祝」で曜日、「2-4w」で2週後からの2週間（今日から何週目〜何週目。組み合わせられる）
- * - 「#灘崎 全部 19-21」… 今日から12週目まで、2週間ずつのカードを横に並べる（入るぶんだけ。サイトは90日ぶんを1回だけ読む）
+ * - 「#灘崎 1w」… 1週後からの1週間（0w 今週・1w 来週・2w 再来週…）。「#灘崎 全部 19-21」… 0w〜11w の1週間ずつのカードを横に並べる（入るぶんだけ。サイトは90日ぶんを1回だけ読む）
  * - 「#灘崎 これから 19-21」… 90日先までで空きのある日だけ（ひしょっとは毎日 OURA のうしろに足す: handleAvailabilityDigest）
  * - 「#灘崎 見張り 12/11 12/17」… 見張る日。その日に空きがあれば、これからの空きのカードを目立つ色にする（Script Properties）
  * - 取れないときは「つながらない」「作りが変わった」を分けて返す（エラーの中身は LINE に出さない）
@@ -365,7 +365,8 @@ function availabilityCardOf_(request, range, view, at) {
     asOf: Utilities.formatDate(at, 'Asia/Tokyo', 'M/d HH:mm'),
     window: request.window,
     nextText: request.spanDays ? '' : buildAvailabilityNextText_(request),
-    nextLabel: `次の${request.weeks}週間`,
+    nextLabel: request.weeks === 1 ? '次の週' : `次の${request.weeks}週間`,
+    weekTag: request.spanDays ? '' : formatAvailabilityWeekTag_(request.fromWeek, request.weeks),
     maxMessages: request.maxMessages || 5,
     watchDates: watchDates,
     unknownStatuses: view.unknownStatuses,
@@ -379,14 +380,15 @@ function availabilityCardOf_(request, range, view, at) {
 }
 
 /**
- * 「#灘崎 全部」：今日から AVAILABILITY_WEEKS.maxEnd 週目まで、request.weeks 週ずつのカードを横に並べて1通で返す。
+ * 「#灘崎 全部」：今日から AVAILABILITY_WEEKS.maxEnd 週目まで、1週間ずつのカード（上に「0w（今週）」）を横に並べて1通で返す。
  * サイトは AVAILABILITY_DIGEST_DAYS 日ぶんを1回だけ読んで、そこから切り出す。
  * LINE の大きさの上限に入るぶんだけ並べ、入らなかった先は、最後のカードの「次の2週間」ボタンで見る。
  * 1枚目から入らない（時間帯をしぼっていないなど）ときは、ふつうの「#灘崎」と同じ返事にする
  *
  * @returns {Object[]}
  */
-function respondAvailabilityAll_(request, at) {
+function respondAvailabilityAll_(given, at) {
+  const request = Object.assign({}, given, { weeks: 1 });
   const facility = request.facility;
   const whole = getAvailabilityRange_(at, 0, AVAILABILITY_DIGEST_DAYS);
   // spanDays を入れると、見出しに期間の日付が付く
@@ -454,7 +456,8 @@ function buildAvailabilityHelpMessage_(facility) {
       `#${facility.key} 土日 … 土日の空き（土日祝・平日・月水金 なども）`,
       `#${facility.key} 土日 19-21 … 両方でしぼる`,
       `#${facility.key} 2-4w … 2週後からの2週間（今日から何週目〜何週目。1-3w・4-6w など）`,
-      `#${facility.key} 全部 19-21 … 12週先まで2週間ずつ横に並べる（入るぶんだけ）`,
+      `#${facility.key} 1w … 来週（0w 今週・2w 再来週…。今日から7日ずつ）`,
+      `#${facility.key} 全部 19-21 … 0w〜11w の1週間ずつを横に並べる（入るぶんだけ）`,
       `#${facility.key} これから 19-21 … ${AVAILABILITY_DIGEST_DAYS}日先までの空きのある日`,
       `#${facility.key} 見張り … 見張る日（見る・入れかえ・足す・消す）`,
     ].join('\n'),
@@ -574,7 +577,8 @@ function parseAvailabilityDays_(text) {
 }
 
 /**
- * 今日から何週目〜何週目か。「2-4w」「２〜４週」→ {from: 2, to: 4}、「2w」「2週間」→ {from: 0, to: 2}。
+ * 今日から何週目〜何週目か（週は今日から7日ずつ）。
+ * 「2-4w」「２〜４週」→ {from: 2, to: 4}、「1w」「1週目」→ {from: 1, to: 2}（その週の1週間）、「2週間」→ {from: 0, to: 2}。
  * 幅が AVAILABILITY_WEEKS の外（「0-4w」「10-14w」など）や読めなければ null。
  *
  * @param {string} text
@@ -585,9 +589,11 @@ function parseAvailabilityWeeks_(text) {
     .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
     .toLowerCase()
     .replace(/[〜～ー－−–—]/g, '-');
-  const m = t.match(/^(?:(\d{1,2})-)?(\d{1,2})(?:w|週間?)$/);
+  const one = t.match(/^(\d{1,2})(?:w|週目)$/);
+  const span = t.match(/^(\d{1,2})週間$/);
+  const m = one ? [null, one[1], String(Number(one[1]) + 1)] : span ? [null, '0', span[1]] : t.match(/^(\d{1,2})-(\d{1,2})(?:w|週間?)$/);
   if (!m) return null;
-  const from = Number(m[1] || 0);
+  const from = Number(m[1]);
   const to = Number(m[2]);
   const width = to - from;
   return width >= 1 && width <= AVAILABILITY_WEEKS.maxWidth && to <= AVAILABILITY_WEEKS.maxEnd ? { from: from, to: to } : null;
@@ -1121,8 +1127,10 @@ function buildAvailabilityBubble_(card, days, joinRuns, part, square, noButtons)
       }],
     });
   }
+  // いちばん上に、どの週か（「0w（今週）」。送れば同じ週が見られる書き方）
+  if (card.weekTag) head.push({ type: 'text', text: card.weekTag, weight: 'bold', size: 'sm', color: dark, margin: card.alert ? 'md' : 'none' });
   head.push(
-    { type: 'text', text: card.facility.name, weight: 'bold', size: 'md', color: dark, wrap: true, margin: card.alert ? 'md' : 'none' },
+    { type: 'text', text: card.facility.name, weight: 'bold', size: 'md', color: dark, wrap: true, margin: card.weekTag ? 'xs' : card.alert ? 'md' : 'none' },
     { type: 'text', text: `${card.title}${part ? `・${part}` : ''}（${card.asOf} 時点）`, size: 'xs', color: sub, wrap: true, margin: 'sm' },
     {
       type: 'box', layout: 'horizontal', spacing: 'md', margin: 'md',
@@ -1467,9 +1475,16 @@ function buildAvailabilityWatchCard_(facility, dates, now, note) {
 
 // ---------- 小さな道具（書き方・時刻・日付） ----------
 
-/** 2, 4 → 「2-4w」（ボタンで送る文に使う） */
+/** 2, 4 → 「2-4w」、1, 2 → 「1w」（ボタンで送る文に使う。どちらも parseAvailabilityWeeks_ で読める） */
 function formatAvailabilityWeeks_(from, to) {
-  return `${from}-${to}w`;
+  return to - from === 1 ? `${from}w` : `${from}-${to}w`;
+}
+
+/** カードの上の札：1週間なら「0w（今週）」「1w（来週）」「2w（再来週）」「3w」、2週間なら「2-4w」 */
+function formatAvailabilityWeekTag_(from, weeks) {
+  if (weeks !== 1) return `${from}-${from + weeks}w`;
+  const names = ['今週', '来週', '再来週'];
+  return names[from] ? `${from}w（${names[from]}）` : `${from}w`;
 }
 
 /** [0, 6] → 「土日」、[0, 6, 7] → 「土日祝」、平日5つ → 「平日」 */
