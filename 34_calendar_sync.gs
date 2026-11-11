@@ -12,7 +12,6 @@ const CALENDAR_SYNC_CONFIG = {
   syncedVersionProperty: "CALENDAR_SYNCED_VERSION",
   statusProperty: "CALENDAR_SYNC_STATUS",
   tagKey: "tfonte_plan",
-  defaultDurationHours: DEFAULT_PLAN_DURATION_HOURS,
   horizonDays: 400,
   lockWaitMs: 20000,
   triggerHour: 3
@@ -61,7 +60,7 @@ function syncPlansToCalendar_(force) {
     const rangeStart = startOfDay_(now);
     const rangeEnd = new Date(rangeStart.getTime() + CALENDAR_SYNC_CONFIG.horizonDays * MS_PER_DAY_);
 
-    const desired = buildDesiredCalendarEvents_(_formatDate_(now, "yyyy-MM-dd"));
+    const desired = buildDesiredCalendarEvents_(formatDateKey_(now));
     const existing = groupSyncedEventsByHash_(listSyncedCalendarEvents_(calendar, rangeStart, rangeEnd));
     const result = reconcileCalendarEvents_(calendar, desired, existing);
 
@@ -86,17 +85,14 @@ function getCalendarSyncId_() {
 
 /**
  * シートの今日以降の予定を、カレンダーに作りたい予定の形にする。
- * 終了時刻が空、または開始以前のときは、開始の2時間後にする（管理ページの初期値と同じ）。
+ * 終了時刻が空、または開始以前のときは、開始の DEFAULT_PLAN_DURATION_HOURS 時間後にする（resolvePlanEnd_。管理ページの初期値と同じ）。
  */
 function buildDesiredCalendarEvents_(todayDateKey) {
   return listPlanRecords_()
     .filter(function (row) { return row.date >= todayDateKey && row.start; })
     .map(function (row) {
-      const start = parseCalendarDateTime_(row.date, row.start);
-      let end = row.end ? parseCalendarDateTime_(row.date, row.end) : null;
-      if (!end || end.getTime() <= start.getTime()) {
-        end = new Date(start.getTime() + CALENDAR_SYNC_CONFIG.defaultDurationHours * MS_PER_HOUR_);
-      }
+      const start = parseDateTimeKey_(row.date, row.start);
+      const end = resolvePlanEnd_(start, row.end ? parseDateTimeKey_(row.date, row.end) : null);
 
       // タイトルは内容だけ。補足は説明欄に書き、改行してリンクを続ける（どちらも無ければ説明欄は空）
       const description = [row.memo2, row.link].filter(Boolean).join("\n");
@@ -112,21 +108,12 @@ function buildDesiredCalendarEvents_(todayDateKey) {
     });
 }
 
-/** 「2026-11-02」と「15:00」から日時を作る */
-function parseCalendarDateTime_(dateText, timeText) {
-  const date = dateText.split("-").map(Number);
-  const time = timeText.split(":").map(Number);
-  return new Date(date[0], date[1] - 1, date[2], time[0], time[1]);
-}
-
 /** カレンダーの予定の中身から作る印（同じ予定かを見分ける） */
 function hashCalendarEvent_(event) {
   const source = JSON.stringify([
     event.title, event.start.getTime(), event.end.getTime(), event.options.location, event.options.description
   ]);
-  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, source, Utilities.Charset.UTF_8)
-    .map(function (byte) { return ("0" + (byte & 0xff).toString(16)).slice(-2); })
-    .join("");
+  return bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, source, Utilities.Charset.UTF_8));
 }
 
 /** このシステムが作った（タグのある）予定だけを取り出す */

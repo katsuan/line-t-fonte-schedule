@@ -42,13 +42,16 @@ function logScheduleDebug_(label, detail) {
 /** LINE の ID などを、そのままログに残さないための短い印（SHA-256 の先頭12桁）。同じ ID は同じ印になる */
 function hashForLog_(value) {
   try {
-    return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value), Utilities.Charset.UTF_8)
-      .map(function (byte) { return ("0" + (byte & 0xff).toString(16)).slice(-2); })
-      .join("")
+    return bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value), Utilities.Charset.UTF_8))
       .slice(0, 12);
   } catch (err) {
     return "";
   }
+}
+
+/** computeDigest の結果（-128〜127 の数の並び）を、16進数の文字にする（34_ のカレンダーの印も使う） */
+function bytesToHex_(bytes) {
+  return bytes.map(function (byte) { return ("0" + (byte & 0xff).toString(16)).slice(-2); }).join("");
 }
 
 /** ログに書けるよう文字にする（JSON にできなければ String） */

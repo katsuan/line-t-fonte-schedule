@@ -124,14 +124,14 @@ function classifyScheduleRecords_(records) {
   const seen = {};
   const inputKeys = {};
   const rows = records.map(function (record) {
-    const key = buildPlanMatchKey_(_formatDate_(record.date, 'yyyy-MM-dd'), _formatDate_(record.start, FORMAT.Time), record.place);
+    const key = buildPlanMatchKey_(formatDateKey_(record.date), _formatDate_(record.start, FORMAT.Time), record.place);
     const tag = sheetKeys[key] || seen[key] ? 'duplicate' : 'new';
     seen[key] = true;
     inputKeys[key] = true;
     return { record: record, tag: tag };
   });
 
-  const dates = records.map(function (record) { return _formatDate_(record.date, 'yyyy-MM-dd'); }).sort();
+  const dates = records.map(function (record) { return formatDateKey_(record.date); }).sort();
   const first = dates[0];
   const last = dates[dates.length - 1];
   const existing = sheet
@@ -340,13 +340,8 @@ function createScheduleLinkButtons_(rows) {
 
 /** シートの予定（listPlanRecords_ の形）を、確認カードの行に出せる形（Date を持つ）にする */
 function toScheduleRecordFromPlan_(row) {
-  const p = row.date.split('-').map(Number);
-  const at = function (hhmm) {
-    if (!hhmm) return null;
-    const t = hhmm.split(':').map(Number);
-    return new Date(p[0], p[1] - 1, p[2], t[0], t[1]);
-  };
-  return { date: new Date(p[0], p[1] - 1, p[2]), start: at(row.start), end: at(row.end), place: row.place, memo1: row.memo1, memo2: row.memo2, link: row.link };
+  const at = function (hhmm) { return hhmm ? parseDateTimeKey_(row.date, hhmm) : null; };
+  return { date: parseDateTimeKey_(row.date), start: at(row.start), end: at(row.end), place: row.place, memo1: row.memo1, memo2: row.memo2, link: row.link };
 }
 
 /** 確認カードの予定1件：日時（曜日に色）・札（新規・重複・元から）と、内容・場所・補足。重複と元からは字をうすく */
@@ -369,7 +364,7 @@ function createScheduleConfirmRow_(record, tagKind) {
         type: 'box',
         layout: 'horizontal',
         contents: [
-          { type: 'text', text: `${date.getMonth() + 1}/${date.getDate()}(`, size: 'sm', weight: 'bold', color: ink, flex: 0 },
+          { type: 'text', text: `${formatMonthDay_(date)}(`, size: 'sm', weight: 'bold', color: ink, flex: 0 },
           { type: 'text', text: getJapaneseWeekday_(date), size: 'sm', weight: 'bold', color: getWeekdayTextColor_(date), flex: 0 },
           { type: 'text', text: `) ${time}`, size: 'sm', weight: 'bold', color: ink, flex: 1 }
         ].concat(tag ? [createScheduleTag_(tag)] : [])
@@ -402,9 +397,8 @@ function createScheduleNoteText_(text) {
 /** 「11/2〜11/5」（1日だけなら「11/2」） */
 function formatScheduleDateRange_(records) {
   const times = records.map(function (record) { return record.date.getTime(); });
-  const label = function (ms) { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()}`; };
-  const first = label(Math.min.apply(null, times));
-  const last = label(Math.max.apply(null, times));
+  const first = formatMonthDay_(new Date(Math.min.apply(null, times)));
+  const last = formatMonthDay_(new Date(Math.max.apply(null, times)));
   return first === last ? first : `${first}〜${last}`;
 }
 

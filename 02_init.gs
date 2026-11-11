@@ -127,6 +127,7 @@ const QUICK_REPLY_SETS = {
   owner: function () { return [ACTIONS.SS]; }
 };
 
+/** 送り主（名前とアイコン）を作る */
 const createSender = (name, iconUrl) => {
   return { name: name, iconUrl: iconUrl }
 }
@@ -134,5 +135,5 @@ const createSender = (name, iconUrl) => {
 /** 返事の送り主（名前とアイコン） */
 const SENDERS = {
   Error: createSender("エラー", ICONS.Warning),
-  Auto: createSender("T-FONTE", ICONS.Auto),
+  Auto: createSender(SERVICE_NAME_.name, ICONS.Auto),
 }

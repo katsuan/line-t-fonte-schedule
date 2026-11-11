@@ -78,7 +78,7 @@ function appendOwnerQuickReply_(messages, event) {
 /** 返事を作れなかったときの文（#テスト の見本も同じものを出す） */
 const ROUTER_ERROR_TEXT = '⚠️ うまく返事を作れませんでした。\n少し待ってから、もう一度送ってください。';
 
-/** 施設の空き状況の返事に、T-FONTE の送り主と、最後の1通にクイックリプライを付ける */
+/** 施設の空き状況の返事に、いつもの送り主（SENDERS.Auto）と、最後の1通にクイックリプライを付ける */
 function createAvailabilityMessages_(text) {
   const messages = (handleAvailabilityText(text) || []).map(function (message) {
     return Object.assign({ sender: SENDERS.Auto }, message);
@@ -114,7 +114,7 @@ function listAvailabilityActivities_(facility, range) {
     const dateObj = row[0], startObj = row[1], endObj = row[2], place = String(row[3] || '');
     if (!isValidDate(dateObj) || !isValidDate(startObj)) return null;
     if (!placeHasWord_(place, words)) return null;
-    const date = Utilities.formatDate(dateObj, 'Asia/Tokyo', 'yyyy-MM-dd');
+    const date = formatDateKey_(dateObj);
     if (date < range.start || date > range.end) return null;
     const start = minutes(startObj);
     const end = isValidDate(endObj) && minutes(endObj) > start ? minutes(endObj) : start + DEFAULT_PLAN_DURATION_HOURS * 60;

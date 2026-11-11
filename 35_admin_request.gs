@@ -25,7 +25,7 @@ function isAdminRequestText_(text) {
 
 /** サイト作成者（Script Property `OWNER_USER_IDS`）か */
 function isSiteOwnerUserId_(userId) {
-  return Boolean(userId) && readUserIdList_(ADMIN_REQUEST_CONFIG.ownerUserIdsProperty).indexOf(userId) !== -1;
+  return isUserIdListed_(ADMIN_REQUEST_CONFIG.ownerUserIdsProperty, userId);
 }
 
 /** サイト作成者が、ボットとの1対1のトークで送ったか（🔑 のものは、ほかの人の目に入らないここだけで出す） */

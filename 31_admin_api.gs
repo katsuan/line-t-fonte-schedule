@@ -98,9 +98,14 @@ function readUserIdList_(propertyName) {
   return raw.split(",").map(function (id) { return id.trim(); }).filter(Boolean);
 }
 
+/** userId が、Script Property（カンマ区切り）の一覧に入っているか */
+function isUserIdListed_(propertyName, userId) {
+  return Boolean(userId) && readUserIdList_(propertyName).indexOf(userId) !== -1;
+}
+
 /** 管理者（Script Property `ADMIN_USER_IDS`）か */
 function isAdminUserId_(userId) {
-  return Boolean(userId) && readUserIdList_(ADMIN_API_CONFIG.adminUserIdsProperty).indexOf(userId) !== -1;
+  return isUserIdListed_(ADMIN_API_CONFIG.adminUserIdsProperty, userId);
 }
 
 // ---------- 操作 ----------
@@ -198,7 +203,7 @@ function setAdminMonthLink_(month, fromLink, link) {
     if (index === 0 || !isValidDate(row[0])) return;
     if (_formatDate_(row[0], "yyyy-MM") !== month) return;
 
-    const currentLink = String(row[6] || "").trim();
+    const currentLink = String(row[PLAN_LINK_COLUMN_ - 1] || "").trim();
     if (currentLink && currentLink !== previousLink) return;
 
     SHEETS.Plan.getRange(index + 1, PLAN_LINK_COLUMN_).setValue(nextLink); // qcheck-ok: G1 http(s):// で始まる文字だけ

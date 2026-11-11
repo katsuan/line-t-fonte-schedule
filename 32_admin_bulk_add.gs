@@ -3,10 +3,9 @@
 // 文章 → 読み取り（previewAdminBulkText_。書きこまない）→ 画面で確認 → まとめて登録（addAdminPlanRows_。1件でも不正なら書かない）。
 // 読み取りはチャットの #予定登録 と同じ（13_schedule_registration.gs）。31_admin_api.gs から呼ばれる
 
-/** 文章でまとめて追加の上限と、終了時刻の既定 */
+/** 文章でまとめて追加の上限 */
 const ADMIN_BULK_CONFIG = {
-  maxRecords: 50,
-  defaultDurationHours: DEFAULT_PLAN_DURATION_HOURS
+  maxRecords: 50
 };
 
 /**
@@ -66,9 +65,9 @@ function addAdminPlanRows_(inputs) {
 function toAdminBulkPreviewRecord_(record, existingKeys) {
   const start = _formatDate_(record.start, FORMAT.Time);
   const preview = {
-    date: _formatDate_(record.date, "yyyy-MM-dd"),
+    date: formatDateKey_(record.date),
     start: start,
-    // 終了が書かれていなければ、開始の2時間後（管理ページの追加フォームと同じ初期値）
+    // 終了が書かれていなければ、開始の DEFAULT_PLAN_DURATION_HOURS 時間後（管理ページの追加フォームと同じ初期値）
     end: record.end ? _formatDate_(record.end, FORMAT.Time) : defaultAdminEndTime_(record.start),
     endIsDefault: !record.end,
     place: record.place,
@@ -85,9 +84,9 @@ function buildAdminBulkKey_(record) {
   return buildPlanMatchKey_(record.date, record.start, record.place);
 }
 
-/** 開始の2時間後（日をまたがないよう、23:59までに収める） */
+/** 開始の DEFAULT_PLAN_DURATION_HOURS 時間後（日をまたがないよう、23:59までに収める） */
 function defaultAdminEndTime_(startDate) {
   const limit = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59);
-  const end = new Date(startDate.getTime() + ADMIN_BULK_CONFIG.defaultDurationHours * MS_PER_HOUR_);
+  const end = resolvePlanEnd_(startDate, null);
   return _formatDate_(end > limit ? limit : end, FORMAT.Time);
 }

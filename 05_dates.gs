@@ -43,3 +43,26 @@ function buildMonthLabel_(date) {
 function buildYearMonthKey_(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
+
+/** 「2026-11-02」の文字（シート・画面・API でそろえて使う日付のキー） */
+function formatDateKey_(date) {
+  return _formatDate_(date, "yyyy-MM-dd");
+}
+
+/** 「11/2」の文字 */
+function formatMonthDay_(date) {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+/** 「2026-11-02」と「15:00」から日時を作る（時刻がなければ、その日の 0:00） */
+function parseDateTimeKey_(dateText, timeText) {
+  const date = dateText.split("-").map(Number);
+  const time = timeText ? timeText.split(":").map(Number) : [0, 0];
+  return new Date(date[0], date[1] - 1, date[2], time[0], time[1]);
+}
+
+/** 予定のおわりの日時。終了が空か、開始より前・同じなら、開始の DEFAULT_PLAN_DURATION_HOURS 時間後 */
+function resolvePlanEnd_(start, end) {
+  if (end && end.getTime() > start.getTime()) return end;
+  return new Date(start.getTime() + DEFAULT_PLAN_DURATION_HOURS * MS_PER_HOUR_);
+}

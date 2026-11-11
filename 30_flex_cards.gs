@@ -128,7 +128,7 @@ function buildReminderFlexMessages_(records, options) {
   return buildCarouselMessages_(viewModel.bubbleEntries);
 }
 
-/** カードに使うもの（月ごとのまとまり・カード）を作る。予定がなければ errorMessage を返す */
+/** カード（と近い予定の日付）を作る。予定がなければ errorMessage を返す */
 function buildReminderFlexViewModel_(records, options) {
   const { forceRefresh, includeGuideBubble, reminderText, noWeather } = options || {};
   const now = new Date();
@@ -160,10 +160,7 @@ function buildReminderFlexViewModel_(records, options) {
     });
   }
 
-  return {
-    bubbleEntries: bubbleEntries,
-    groups: groups
-  };
+  return { bubbleEntries: bubbleEntries };
 }
 
 /** 予定がないときの文の返事（入れ方つき） */
@@ -268,18 +265,13 @@ function getRandomAltTextTitle_() {
 function collectNearTermDates_(records, now) {
   return records
     .filter(record => isNearTermDate_(record.date, now, FLEX_CONFIG.nearTermDays))
-    .map(record => formatNearTermDateLabel_(record.date));
+    .map(record => formatMonthDay_(record.date));
 }
 
 /** カードの並びから、近い予定の日付を重ならないように集める */
 function collectNearTermDateLabels_(bubbleEntries) {
   const labels = bubbleEntries.flatMap(entry => entry.nearTermDates || []);
   return Array.from(new Set(labels));
-}
-
-/** 「11/2」の文字 */
-function formatNearTermDateLabel_(date) {
-  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 // ---------- カードの部品 ----------
@@ -781,7 +773,7 @@ function getWeekdayTextColor_(date) {
   return FLEX_CONFIG.textSecondaryColor;
 }
 
-/** 「11/2日」の文字（日付＋曜日） */
+/** 「11/2日」の文字（日付＋曜日の1文字。日曜なら「日」） */
 function formatCompactDateLabel_(date) {
-  return `${date.getMonth() + 1}/${date.getDate()}${getJapaneseWeekday_(date)}`;
+  return `${formatMonthDay_(date)}${getJapaneseWeekday_(date)}`;
 }

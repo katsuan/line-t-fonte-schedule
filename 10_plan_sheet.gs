@@ -68,7 +68,7 @@ function mapPlanRowToRecord_(row, rowNumber) {
 
   return {
     rowNumber: rowNumber,
-    date: _formatDate_(row[0], "yyyy-MM-dd"),
+    date: formatDateKey_(row[0]),
     start: isValidDate(row[1]) ? _formatDate_(row[1], FORMAT.Time) : "",
     end: isValidDate(row[2]) ? _formatDate_(row[2], FORMAT.Time) : "",
     place: String(row[3] || ""),
@@ -158,7 +158,7 @@ function findExistingLinkForYearMonth_(yearMonthKey) {
 
   for (let i = dataRows.length - 1; i >= 0; i--) {
     const dateObj = dataRows[i][0];
-    const link = dataRows[i][6];
+    const link = dataRows[i][PLAN_LINK_COLUMN_ - 1];
     if (!isValidDate(dateObj) || !link) continue;
     if (buildYearMonthKey_(dateObj) === yearMonthKey) {
       return String(link).trim();

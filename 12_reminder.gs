@@ -79,7 +79,7 @@ function getReminderTargetRecords_(records, now) {
 /** 通知済みの記録に使う、予定ごとのキー（日付・時刻・内容・場所・補足） */
 function buildReminderRecordKey_(record) {
   return [
-    _formatDate_(record.date, "yyyy-MM-dd"),
+    formatDateKey_(record.date),
     _formatDate_(record.date, "HH:mm"),
     _formatDate_(record.endDate || record.date, "HH:mm"),
     String(record.memo1 || "").trim(),

@@ -53,9 +53,7 @@ function listPublicPlanRecords_() {
         link: record.link
       };
     })
-    .sort(function (a, b) {
-      return comparePlanRecords_(a, b);
-    });
+    .sort(comparePlanRecords_);
 }
 
 /** 月が変わったら別キーになるよう、年月と更新バージョンをキーに含める */

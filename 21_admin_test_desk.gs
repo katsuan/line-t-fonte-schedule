@@ -11,7 +11,7 @@
 const ADMIN_TEST_TRIGGER_PATTERN_ = /^#(テスト|test)(?:[ \t　]+(.*))?$/i;
 
 /** 見本の返事の送り主 */
-const ADMIN_TEST_SENDER_ = createSender("🧪 T-FONTE テスト", ICONS.Auto);
+const ADMIN_TEST_SENDER_ = createSender(`🧪 ${SERVICE_NAME_.name} テスト`, ICONS.Auto);
 
 /** #テスト のあとに書く言葉と、試せるもの。並びはクイックリプライの並び */
 const ADMIN_TEST_ITEMS_ = [
@@ -193,7 +193,7 @@ function buildAdminTestRegistration_() {
   const rows = records.map(function (record, index) { return { record: record, tag: index === 1 ? "duplicate" : "new" }; });
   const sample = records[2];
   const existing = [{
-    date: _formatDate_(sample.date, "yyyy-MM-dd"), start: "09:00", end: "11:00",
+    date: formatDateKey_(sample.date), start: "09:00", end: "11:00",
     place: sample.place, memo1: sample.memo1, memo2: "", link: ""
   }];
   return [createScheduleConfirmFlexMessage_(rows, {
@@ -322,7 +322,9 @@ function collectAdminSelfChecks_() {
       const calendarId = getCalendarSyncId_();
       if (!calendarId) return { level: "warn", value: "CALENDAR_ID が未設定（同期しません）" };
       const status = props.getProperty(CALENDAR_SYNC_CONFIG.statusProperty) || "まだ同期していません";
-      return { level: isDedicatedCalendarId_(calendarId) ? "ok" : "warn", value: isDedicatedCalendarId_(calendarId) ? status : `${status}（個人のカレンダーなので登録リンクは出しません）` };
+      return isDedicatedCalendarId_(calendarId)
+        ? { value: status }
+        : { level: "warn", value: `${status}（個人のカレンダーなので登録リンクは出しません）` };
     }),
     check("トリガー", function () {
       const handlers = ScriptApp.getProjectTriggers().map(function (trigger) { return trigger.getHandlerFunction(); });

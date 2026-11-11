@@ -53,6 +53,11 @@ function installPlanChangeTrigger() {
 
 // ---------- 人が書きかえる設定 ----------
 
+// <service-names>
+/** 送り主など、LINE に出すこのボットの名前（文に名前を直書きせず、ここを読む） */
+const SERVICE_NAME_ = { name: "T-FONTE" };
+// </service-names>
+
 /** 画面の URL（リッチに送る・管理ページは LIFF、公開カレンダーはそのまま） */
 const LIFF_URLS = {
   FlexSender: "https://liff.line.me/2009927582-9QtOstUK",

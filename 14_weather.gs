@@ -37,7 +37,7 @@ function resolveWeatherSpot_(place) {
 function summarizeWeatherForRecord_(forecast, record) {
   if (!forecast || !forecast.hours || !record.date) return "";
   const start = record.date.getTime();
-  const endAt = record.endDate && record.endDate.getTime() > start ? record.endDate.getTime() : start + DEFAULT_PLAN_DURATION_HOURS * MS_PER_HOUR_;
+  const endAt = resolvePlanEnd_(record.date, record.endDate).getTime();
   const from = Math.floor(start / MS_PER_HOUR_) * MS_PER_HOUR_;
   const hours = forecast.hours.filter(h => h.at >= from && h.at < endAt);
   if (!hours.length) return "";
@@ -57,31 +57,36 @@ function summarizeWeatherForRecord_(forecast, record) {
   return parts.join(" ");
 }
 
-/** 天気の悪さの順（雷 > 雪 > 雨 > 霧 > くもり > 晴れ間 > 晴れ） */
-function weatherSeverity_(code) {
-  if (code >= 95) return 6;
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 5;
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 4;
-  if (code === 45 || code === 48) return 3;
-  if (code === 3) return 2;
-  if (code === 1 || code === 2) return 1;
-  return 0;
+/**
+ * WMO の天気コードの分け方。上ほど悪い天気（雷 > 雪 > 雨 > 霧 > くもり > 晴れ間 > 晴れ）。
+ * severity はいちばん悪い天気を選ぶときの順、label はカードに出す短い文
+ */
+const WEATHER_KINDS_ = [
+  { severity: 6, label: "⛈雷", matches: code => code >= 95 && code <= 99 },
+  { severity: 5, label: "❄雪", matches: code => (code >= 71 && code <= 77) || code === 85 || code === 86 },
+  { severity: 4, label: "☔雨", matches: code => (code >= 51 && code <= 67) || (code >= 80 && code <= 82) },
+  { severity: 3, label: "🌫霧", matches: code => code === 45 || code === 48 },
+  { severity: 2, label: "☁くもり", matches: code => code === 3 },
+  { severity: 1, label: "⛅晴れ", matches: code => code === 1 || code === 2 },
+  { severity: 0, label: "☀晴れ", matches: code => code === 0 }
+];
+
+/** 天気コードに合う分け方（WEATHER_KINDS_ の1つ）。合わなければ undefined */
+function findWeatherKind_(code) {
+  return WEATHER_KINDS_.find(kind => kind.matches(code));
 }
 
-/** 天気の短い文（WMO の天気コードから） */
-function formatWeatherSummaryText_(weatherCode) {
-  if (!isFinite(weatherCode)) {
-    return "";
-  }
+/** 天気の悪さの順（WEATHER_KINDS_ の severity。わからないコードは 0） */
+function weatherSeverity_(code) {
+  const kind = findWeatherKind_(code);
+  return kind ? kind.severity : 0;
+}
 
-  if (weatherCode === 0) return "☀晴れ";
-  if (weatherCode === 1 || weatherCode === 2) return "⛅晴れ";
-  if (weatherCode === 3) return "☁くもり";
-  if (weatherCode === 45 || weatherCode === 48) return "🌫霧";
-  if ((weatherCode >= 51 && weatherCode <= 67) || (weatherCode >= 80 && weatherCode <= 82)) return "☔雨";
-  if ((weatherCode >= 71 && weatherCode <= 77) || weatherCode === 85 || weatherCode === 86) return "❄雪";
-  if (weatherCode >= 95 && weatherCode <= 99) return "⛈雷";
-  return "🌤予報";
+/** 天気の短い文（WMO の天気コードから。数でなければ空、わからないコードは「🌤予報」） */
+function formatWeatherSummaryText_(weatherCode) {
+  if (!isFinite(weatherCode)) return "";
+  const kind = findWeatherKind_(weatherCode);
+  return kind ? kind.label : "🌤予報";
 }
 
 // ---------- 読む ----------
