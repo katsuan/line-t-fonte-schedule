@@ -6,6 +6,7 @@
  * ----------------------------------------------------------------------------
  * 岡山市施設予約サービスの空き状況ページが裏で使っている API（GetDay）から取って、LINE のカードで返す。
  * - 「#灘崎」… 2週間。「19-21」で時間帯、「土日」「土日祝」で曜日、「2-4w」で2週後からの2週間（今日から何週目〜何週目。組み合わせられる）
+ * - 「#灘崎 全部 19-21」… 今日から12週目まで、2週間ずつのカードを横に並べる（入るぶんだけ。サイトは90日ぶんを1回だけ読む）
  * - 「#灘崎 これから 19-21」… 90日先までで空きのある日だけ（ひしょっとは毎日 OURA のうしろに足す: handleAvailabilityDigest）
  * - 「#灘崎 見張り 12/11 12/17」… 見張る日。その日に空きがあれば、これからの空きのカードを目立つ色にする（Script Properties）
  * - 取れないときは「つながらない」「作りが変わった」を分けて返す（エラーの中身は LINE に出さない）
@@ -48,6 +49,10 @@ const AVAILABILITY_DIGEST_DAYS = 90;
  * 終わりは12週目まで（これからの空きの90日の中。先はサイトが予約をまだ受け付けていないことが多い）
  */
 const AVAILABILITY_WEEKS = { width: 2, maxWidth: 2, maxEnd: 12 };
+
+/** 「#灘崎 全部」の言葉と、横に並べるカードの数の上限（LINE は12枚まで） */
+const AVAILABILITY_ALL_WORDS = ['全部', '全期間'];
+const AVAILABILITY_CAROUSEL_MAX_BUBBLES = 12;
 
 /** サイトの返事を CacheService に分けてしまうときの1つの大きさ（字数。1つの値は 100KB までで、日本語は1字3バイトになりうる） */
 const AVAILABILITY_CACHE_CHUNK = 30000;
@@ -270,6 +275,7 @@ function handleAvailabilityCommand_(request, now) {
   const at = now || new Date();
   if (request.watch) return handleAvailabilityWatch_(request, at);
   if (request.badOption) return [buildAvailabilityHelpMessage_(request.facility)];
+  if (request.all) return respondAvailabilityAll_(request, at);
   if (request.digest) {
     const messages = respondAvailability_(asAvailabilityDigest_(request, at), at).slice(0, 1);
     if (messages.length) return messages;
@@ -346,10 +352,16 @@ function respondAvailability_(request, at) {
     }
   }
 
+  return buildAvailabilityCard_(availabilityCardOf_(request, range, view, at));
+}
+
+/** カードのもと（buildAvailabilityCard_・buildAvailabilityBubble_ に渡す形） */
+function availabilityCardOf_(request, range, view, at) {
   const watchDates = request.watchDates || [];
-  return buildAvailabilityCard_({
-    facility: facility,
-    title: title,
+  return {
+    facility: request.facility,
+    fromWeek: request.fromWeek,
+    title: `${buildAvailabilityLabel_(request, range)}空き状況`,
     asOf: Utilities.formatDate(at, 'Asia/Tokyo', 'M/d HH:mm'),
     window: request.window,
     nextText: request.spanDays ? '' : buildAvailabilityNextText_(request),
@@ -359,11 +371,76 @@ function respondAvailability_(request, at) {
     unknownStatuses: view.unknownStatuses,
     watchStatus: view.watchStatus,
     // 見張る日に空きがあるときは、カードを目立つ色にする
-    alert: days.days.some(function (day) { return day.open && watchDates.indexOf(day.date) >= 0; }),
+    alert: view.days.days.some(function (day) { return day.open && watchDates.indexOf(day.date) >= 0; }),
     slots: view.slots,
-    days: days,
-    pageUrl: pageUrl,
+    days: view.days,
+    pageUrl: buildAvailabilityPageUrl_(request.facility, range),
+  };
+}
+
+/**
+ * 「#灘崎 全部」：今日から AVAILABILITY_WEEKS.maxEnd 週目まで、request.weeks 週ずつのカードを横に並べて1通で返す。
+ * サイトは AVAILABILITY_DIGEST_DAYS 日ぶんを1回だけ読んで、そこから切り出す。
+ * LINE の大きさの上限に入るぶんだけ並べ、入らなかった先は、最後のカードの「次の2週間」ボタンで見る。
+ * 1枚目から入らない（時間帯をしぼっていないなど）ときは、ふつうの「#灘崎」と同じ返事にする
+ *
+ * @returns {Object[]}
+ */
+function respondAvailabilityAll_(request, at) {
+  const facility = request.facility;
+  const whole = getAvailabilityRange_(at, 0, AVAILABILITY_DIGEST_DAYS);
+  // spanDays を入れると、見出しに期間の日付が付く
+  const wholeTitle = `${buildAvailabilityLabel_(Object.assign({}, request, { spanDays: 1 }), getAvailabilityRange_(at, 0, AVAILABILITY_WEEKS.maxEnd * 7))}空き状況`;
+  let data;
+  try {
+    data = fetchAvailability_(facility, whole);
+  } catch (err) {
+    logAvailabilityError_(err);
+    return [buildAvailabilityErrorMessage_(facility, wholeTitle, buildAvailabilityPageUrl_(facility, whole), err)];
+  }
+
+  const size = function (x) { return JSON.stringify(x).length; };
+  const cards = [];
+  const bubbles = [];
+  for (let from = 0; from + request.weeks <= AVAILABILITY_WEEKS.maxEnd && bubbles.length < AVAILABILITY_CAROUSEL_MAX_BUBBLES; from += request.weeks) {
+    const part = Object.assign({}, request, { fromWeek: from, all: false, showDates: true });
+    const range = getAvailabilityRange_(at, from * 7, request.weeks * 7);
+    let view;
+    try {
+      view = loadAvailabilityView_(part, range, at, data);
+    } catch (err) {
+      logAvailabilityError_(err);
+      return [buildAvailabilityErrorMessage_(facility, wholeTitle, buildAvailabilityPageUrl_(facility, whole), err)];
+    }
+    const card = availabilityCardOf_(part, range, view, at);
+    card.nextText = ''; // 続きのボタンは、最後のカードにだけ付ける（下）
+    const bubble = buildAvailabilityBubble_(card, card.days.days, false);
+    // 先の日がサイトにまだない（返事が短い）ときと、大きすぎるときは、そこで止める
+    if (!card.days.days.length && !card.slots.length) break;
+    if (size(bubble) > AVAILABILITY_BUBBLE_MAX_BYTES) break;
+    if (size({ type: 'carousel', contents: bubbles.concat(bubble) }) > AVAILABILITY_CAROUSEL_MAX_BYTES) break;
+    cards.push(card);
+    bubbles.push(bubble);
+  }
+  if (!bubbles.length) return respondAvailability_(Object.assign({}, request, { all: false, fromWeek: 0 }), at);
+
+  // 入りきらなかった先があれば、最後のカードに「次の2週間」ボタン（ボタンの文の分だけ大きくなるので、入らなければ付けない）
+  const last = cards[cards.length - 1];
+  last.nextText = buildAvailabilityNextText_(Object.assign({}, request, { fromWeek: last.fromWeek }));
+  if (last.nextText) {
+    const withNext = buildAvailabilityBubble_(last, last.days.days, false);
+    const trial = bubbles.slice(0, -1).concat(withNext);
+    if (size(withNext) <= AVAILABILITY_BUBBLE_MAX_BYTES && size({ type: 'carousel', contents: trial }) <= AVAILABILITY_CAROUSEL_MAX_BYTES) bubbles[bubbles.length - 1] = withNext;
+  }
+
+  // 通知の文には、並べたぶんの空きのある日（見出しは全体の期間）
+  const shownEnd = getAvailabilityRange_(at, last.fromWeek * 7, request.weeks * 7).end;
+  const summary = Object.assign({}, cards[0], {
+    title: `${buildAvailabilityLabel_(Object.assign({}, request, { spanDays: 1 }), { start: whole.start, end: shownEnd })}空き状況`,
+    alert: false,
+    days: Object.assign({}, cards[0].days, { days: [].concat.apply([], cards.map(function (c) { return c.days.days; })) }),
   });
+  return [availabilityFlex_(summary, bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles })];
 }
 
 /** 読めない書き方への返事：書き方の例 */
@@ -377,6 +454,7 @@ function buildAvailabilityHelpMessage_(facility) {
       `#${facility.key} 土日 … 土日の空き（土日祝・平日・月水金 なども）`,
       `#${facility.key} 土日 19-21 … 両方でしぼる`,
       `#${facility.key} 2-4w … 2週後からの2週間（今日から何週目〜何週目。1-3w・4-6w など）`,
+      `#${facility.key} 全部 19-21 … 12週先まで2週間ずつ横に並べる（入るぶんだけ）`,
       `#${facility.key} これから 19-21 … ${AVAILABILITY_DIGEST_DAYS}日先までの空きのある日`,
       `#${facility.key} 見張り … 見張る日（見る・入れかえ・足す・消す）`,
     ].join('\n'),
@@ -394,7 +472,7 @@ function buildAvailabilityErrorMessage_(facility, title, pageUrl, err) {
 /** 「11/22〜12/5 土日 19-21時の」「土曜の」「」（日付は、今日から2週間でないときだけ） */
 function buildAvailabilityLabel_(request, range) {
   const labels = [];
-  if ((request.fromWeek || request.weeks !== AVAILABILITY_WEEKS.width || request.spanDays) && range) {
+  if ((request.fromWeek || request.weeks !== AVAILABILITY_WEEKS.width || request.spanDays || request.showDates) && range) {
     const md = function (ymd) { const p = ymd.split('-').map(Number); return `${p[1]}/${p[2]}`; };
     labels.push(`${md(range.start)}〜${md(range.end)}`);
   }
@@ -445,6 +523,7 @@ function detectAvailabilityFacility_(text) {
   }
   tokens.forEach(function (token) {
     if (token === 'これから' && !request.digest) { request.digest = true; return; }
+    if (AVAILABILITY_ALL_WORDS.indexOf(token) >= 0 && !request.all) { request.all = true; return; }
     const weeks = parseAvailabilityWeeks_(token);
     const days = weeks ? null : parseAvailabilityDays_(token);
     const window = weeks || days ? null : parseAvailabilityWindow_(token);
@@ -453,6 +532,8 @@ function detectAvailabilityFacility_(text) {
     else if (window && !request.window) request.window = window;
     else request.badOption = true;
   });
+  // 「全部」は「これから」「2-4w」とはいっしょにしない（どの期間かがぶつかる）
+  if (request.all && (request.digest || request.weeksSet)) request.badOption = true;
   return request;
 }
 
@@ -722,17 +803,19 @@ function toAvailabilitySlots_(data) {
 }
 
 /**
- * サイトから取って、カードに使う形にまとめる。取れない・作りが変わったときは availabilityError_ を投げる
+ * サイトから取って（given があれば、読んである返事を使って）、カードに使う形にまとめる。取れない・作りが変わったときは availabilityError_ を投げる
  *
  * @returns {{slots: Object[], days: Object, unknownStatuses: string[], watchStatus: (Object[]|null)}}
  */
-function loadAvailabilityView_(request, range, at) {
-  const site = request.cache ? readAvailabilitySiteCached_(request.facility, range, request.cache, at) : null;
-  const data = site ? site.data : fetchAvailability_(request.facility, range);
+function loadAvailabilityView_(request, range, at, given) {
+  const site = !given && request.cache ? readAvailabilitySiteCached_(request.facility, range, request.cache, at) : null;
+  const data = given || (site ? site.data : fetchAvailability_(request.facility, range));
   const holidays = toAvailabilityHolidays_(data);
-  const allSlots = toAvailabilitySlots_(data);
+  const readSlots = toAvailabilitySlots_(data);
   // 応答の形はそれらしくても、枠が1つも読めなければ、サイトの作りが変わったとみなす
-  if (allSlots.length === 0) throw availabilityError_('changed', '枠が1つも読めません');
+  if (readSlots.length === 0) throw availabilityError_('changed', '枠が1つも読めません');
+  // 長い期間の返事（「全部」の90日）から切り出すときもあるので、見る期間の枠だけにする
+  const allSlots = readSlots.filter(function (slot) { return slot.date >= range.start && slot.date <= range.end; });
 
   const unknownStatuses = uniqueAvailabilityValues_(allSlots
     .filter(function (slot) { return slot.unknown; })

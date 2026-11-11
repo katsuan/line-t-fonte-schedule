@@ -129,6 +129,42 @@ test("#灘崎 2-4w は2週後からの2週間を取る（1-3w のように1週�
   assert.equal(next.action.label, "次の2週間");
 });
 
+test("#灘崎 全部 は、12週目まで2週間ずつのカードを横に並べる（サイトは90日ぶんを1回だけ読む）。入らなければ入るぶんだけ", () => {
+  // 11/10 から90日ぶん。土曜の 10-12時だけ空き、ほかは空きなし（本物も、空きなしの日が多い）
+  const days = [];
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(Date.UTC(2026, 10, 10 + i)).toISOString().slice(0, 10);
+    days.push(day(d, i % 7 === 4 ? ["A01", "A01", "R03", "R03"] : ["R03", "R03", "R03", "R03"]));
+  }
+  const site = { timeFrames: SITE.timeFrames, rooms: [{ roomName: "フットサルコート", courts: [{ courtName: "コート1", dayBooks: days }, { courtName: "コート2", dayBooks: days }] }] };
+  const asked = [];
+  const { gas, reply } = setup((url, opt) => {
+    if (!/GetDay/.test(url)) return undefined;
+    asked.push(JSON.parse(opt.payload));
+    return res(200, site);
+  });
+  const [msg] = reply("#灘崎 全部 10-12");
+  assert.equal(msg.contents.type, "carousel");
+  assert.equal(msg.contents.contents.length, 6);
+  assert.deepEqual(asked.map((a) => [a.startDate, a.period]), [["2026-11-10", 90]]);
+  const titles = msg.contents.contents.map((b) => b.body.contents[1].text.split("の空き状況")[0]);
+  assert.deepEqual(titles, ["11/10〜11/23 10-12時", "11/24〜12/7 10-12時", "12/8〜12/21 10-12時", "12/22〜1/4 10-12時", "1/5〜1/18 10-12時", "1/19〜2/1 10-12時"]);
+  assert.match(msg.altText, /11\/10〜2\/1 10-12時の空き状況/);
+  assert.ok(JSON.stringify(msg).length <= 48000);
+
+  // ページへのリンクがないボット（ひしょっと）で入りきらないときは、最後のカードに続きのボタン
+  gas.ctx.availabilityExtraLinks_ = undefined;
+  const [wide] = reply("#灘崎 全部");
+  const bubbles = wide.contents.type === "carousel" ? wide.contents.contents : [wide.contents];
+  assert.ok(JSON.stringify(wide).length <= 48000);
+  if (bubbles.length < 6) {
+    const next = bubbles[bubbles.length - 1].footer.contents.find((b) => b.action.type === "message");
+    assert.equal(next.action.text, `#灘崎 ${bubbles.length * 2}-${bubbles.length * 2 + 2}w`);
+  }
+  // 「全部」と「これから」「2-4w」はいっしょにしない
+  for (const bad of ["#灘崎 全部 2-4w", "#灘崎 全部 これから"]) assert.match(JSON.stringify(reply(bad)), /書き方の例/, bad);
+});
+
 test("時間帯の外側だけ空いていても、時間帯の中がうまっていれば空きなしの日にまとめる", () => {
   const { reply } = setup();
   const rows = grid(reply("#灘崎 13-14")[0].contents);
