@@ -837,7 +837,7 @@ function loadAvailabilityView_(request, range, at, given) {
     days: days,
     unknownStatuses: unknownStatuses,
     watchStatus: request.watchDates && request.watchDates.length
-      ? buildAvailabilityWatchStatus_(request.watchDates, days.days, allSlots, at)
+      ? buildAvailabilityWatchStatus_(request.watchDates, days.days, allSlots, at, holidays)
       : null,
   };
 }
@@ -999,11 +999,12 @@ function readAvailabilityExtraButtons_(facility) {
 }
 
 /**
- * 見張る日（今日から先）の今の様子。毎日のカードの上の「見張る日」の欄に出す
+ * 見張る日（今日から先）の今の様子。毎日のカードの上の「見張る日」の欄に出す。
+ * 表に出ない日（時間・曜日の外）も、サイトの祝日で「・祝」と赤にする
  *
  * @returns {Array<{date: string, label: string, tone: string, open: boolean, text: string}>}
  */
-function buildAvailabilityWatchStatus_(watchDates, days, allSlots, at) {
+function buildAvailabilityWatchStatus_(watchDates, days, allSlots, at, holidays) {
   const today = availabilityYmd_(at);
   const known = allSlots.map(function (slot) { return slot.date; });
   return watchDates.filter(function (date) { return date >= today; }).map(function (date) {
@@ -1013,8 +1014,8 @@ function buildAvailabilityWatchStatus_(watchDates, days, allSlots, at) {
     else if (known.indexOf(date) >= 0) text = 'この時間の枠がありません';
     return {
       date: date,
-      label: day ? day.label : formatAvailabilityDate_(date),
-      tone: day ? day.tone : availabilityDayTone_(date),
+      label: day ? day.label : formatAvailabilityDate_(date, holidays),
+      tone: day ? day.tone : availabilityDayTone_(date, holidays),
       open: Boolean(day && day.open),
       text: text,
     };

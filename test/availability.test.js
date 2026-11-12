@@ -344,6 +344,17 @@ test("過ぎた見張る日は、日がたつと消えていく", () => {
   assert.equal(gas.ctx.PropertiesService.getScriptProperties().getProperty("AVAILABILITY_WATCH_DATES_灘崎"), JSON.stringify(["2026-12-11"]));
 });
 
+test("見張る日が表に出ない日（時間・曜日の外）でも、サイトの祝日なら「・祝」と赤", () => {
+  const site = Object.assign({}, SITE, { holidays: [{ holidayDate: "2026-11-16T00:00:00", holidayName: "ためしの祝日" }] });
+  const { gas } = setup((url) => (/GetDay/.test(url) ? res(200, site) : undefined));
+  plain(gas.call("handleAvailabilityText", "#灘崎 見張り 11/16"));
+  const [card] = plain(gas.call("handleAvailabilityDigest", "#灘崎 20-21"));
+  const box = card.contents.body.contents.find((x) => x.type === "box" && x.contents[0] && x.contents[0].text === "見張る日");
+  const row = box.contents[1];
+  assert.equal(row.contents.map((c) => c.text).join(" "), "11/16(月・祝) この時間の枠がありません");
+  assert.ok(row.contents.some((c) => c.color === "#CF222E"), JSON.stringify(row));
+});
+
 test("見張る日があれば、毎日のカードの上に「見張る日」の欄をいつも出す（空きがなくても返す）", () => {
   const { gas } = setup();
   const reply = (text) => plain(gas.call("handleAvailabilityText", text));
