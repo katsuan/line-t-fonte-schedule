@@ -62,11 +62,24 @@ function placeHasWord_(place, words) {
   return (words || []).some(function (word) { return word && text.indexOf(word) >= 0; });
 }
 
-/** Plan シートの1行を、画面や API に返す文字の形にする（日付のない行は null） */
+/**
+ * リンクの欄に「なし」と書いた予定は、リンクなし（同じ月のリンクで補わない。月の共通リンクを入れなおしても入れない。
+ * 公開カレンダーにも月のリンクを出さない）。空の欄は、まだリンクを決めていない予定（同じ月のリンクで補う）
+ */
+const NO_LINK_MARK_ = "なし";
+
+/** リンクの欄を読む。「なし」なら { link: "", noLink: true } */
+function readPlanLinkCell_(value) {
+  const text = String(value || "");
+  return text.trim() === NO_LINK_MARK_ ? { link: "", noLink: true } : { link: text, noLink: false };
+}
+
+/** Plan シートの1行を、画面や API に返す文字の形にする（日付のない行は null。リンクなしの予定だけ noLink: true） */
 function mapPlanRowToRecord_(row, rowNumber) {
   if (!isValidDate(row[0])) return null;
 
-  return {
+  const cell = readPlanLinkCell_(row[6]);
+  const record = {
     rowNumber: rowNumber,
     date: formatDateKey_(row[0]),
     start: isValidDate(row[1]) ? _formatDate_(row[1], FORMAT.Time) : "",
@@ -74,8 +87,10 @@ function mapPlanRowToRecord_(row, rowNumber) {
     place: String(row[3] || ""),
     memo1: String(row[4] || ""),
     memo2: String(row[5] || ""),
-    link: String(row[6] || "")
+    link: cell.link
   };
+  if (cell.noLink) record.noLink = true;
+  return record;
 }
 
 // ---------- 書く ----------
@@ -89,7 +104,7 @@ function toPlanRow_(record) {
     safeCell_(record.place),
     safeCell_(record.memo1),
     safeCell_(record.memo2 || ""),
-    safeCell_(record.link || "")
+    record.noLink ? NO_LINK_MARK_ : safeCell_(record.link || "")
   ];
 }
 
@@ -136,7 +151,7 @@ function applyExistingMonthlyLinkFallback_(records) {
   let autoFilledCount = 0;
 
   records.forEach(function (record) {
-    if (record.link) return;
+    if (record.link || record.noLink) return;
 
     const yearMonthKey = buildYearMonthKey_(record.date);
     if (!(yearMonthKey in linkByYearMonth)) {
@@ -158,10 +173,10 @@ function findExistingLinkForYearMonth_(yearMonthKey) {
 
   for (let i = dataRows.length - 1; i >= 0; i--) {
     const dateObj = dataRows[i][0];
-    const link = dataRows[i][PLAN_LINK_COLUMN_ - 1];
+    const link = readPlanLinkCell_(dataRows[i][PLAN_LINK_COLUMN_ - 1]).link.trim();
     if (!isValidDate(dateObj) || !link) continue;
     if (buildYearMonthKey_(dateObj) === yearMonthKey) {
-      return String(link).trim();
+      return link;
     }
   }
 

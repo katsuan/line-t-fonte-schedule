@@ -55,7 +55,7 @@ function addAdminPlanRows_(inputs) {
     }
   });
 
-  const withoutLink = records.filter(function (record) { return !record.link; });
+  const withoutLink = records.filter(function (record) { return !record.link && !record.noLink; });
   if (withoutLink.length) applyExistingMonthlyLinkFallback_(withoutLink);
 
   appendScheduleRecordsToSheet_(records);
@@ -75,6 +75,7 @@ function toAdminBulkPreviewRecord_(record, existingKeys) {
     memo2: record.memo2 || "",
     link: record.link || ""
   };
+  if (record.noLink) preview.noLink = true;
   preview.duplicate = !!existingKeys[buildAdminBulkKey_(preview)];
   return preview;
 }

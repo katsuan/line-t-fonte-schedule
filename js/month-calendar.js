@@ -389,12 +389,12 @@ function createRowDateLine(record) {
     return dateLine;
 }
 
-/** 行のリンク（回答リンクとカレンダー追加）。その予定だけ別のリンクならそれを、なければ月の共通リンクを開く */
+/** 行のリンク（回答リンクとカレンダー追加）。その予定だけ別のリンクならそれを、なければ月の共通リンクを開く（リンクなしの予定は出さない） */
 function createRowLinks(record) {
     const links = document.createElement("div");
     links.className = "row-links";
     const baseLink = baseLinkFor(record.date.slice(0, 7));
-    const answerLink = record.link || baseLink;
+    const answerLink = record.noLink ? "" : record.link || baseLink;
     if (answerLink) {
         const isCommon = answerLink === baseLink;
         links.appendChild(createAnswerLink(

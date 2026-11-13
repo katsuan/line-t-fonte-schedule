@@ -132,6 +132,45 @@ test("月の共通リンク：空の行と、これまでの共通リンクの�
   assert.deepEqual(gas.plan.rows.slice(1).map((r) => r[6]), ["https://example.com/new", "https://example.com/new", "https://example.com/own", ""]);
 });
 
+test("リンクなし：共通リンクのある月でも補わず「なし」と書く。一覧・公開カレンダーは noLink、共通リンクの入れなおし・リマインドでも入れない", () => {
+  const gas = make();
+  const added = gas.doPost({ action: "add", accessToken: "t", record: record({ date: "2026-10-30", noLink: true }) });
+  assert.equal(added.ok, true);
+  assert.equal(gas.plan.rows[gas.plan.rows.length - 1][6], "なし");
+  const row = added.records.find((r) => r.date === "2026-10-30");
+  assert.deepEqual([row.link, row.noLink], ["", true]);
+  assert.equal(added.records.find((r) => r.date === "2026-10-24").noLink, undefined); // ふつうの予定には付けない
+  // 共通リンクのない月の空の予定は、いままでどおり空（あとで共通リンクが入る）
+  gas.doPost({ action: "add", accessToken: "t", record: record({ date: "2026-12-05" }) });
+  assert.equal(gas.plan.rows[gas.plan.rows.length - 1][6], "");
+  // 編集：リンクを入れればリンク、リンクなしのままならリンクなし（見ていた内容の確かめも通る）
+  const kept = gas.doPost({ action: "update", accessToken: "t", rowNumber: row.rowNumber, expected: row, record: record({ date: "2026-10-30", memo1: "試合", noLink: true }) });
+  assert.equal(kept.ok, true);
+  const keptRow = kept.records.find((r) => r.date === "2026-10-30");
+  assert.equal(keptRow.noLink, true);
+  assert.equal(gas.doPost({ action: "update", accessToken: "t", rowNumber: keptRow.rowNumber, expected: Object.assign({}, keptRow, { noLink: false }), record: record({ date: "2026-10-30" }) }).code, "stale");
+  // 月の共通リンクを入れなおしても、リンクなしの行はそのまま
+  gas.doPost({ action: "setMonthLink", accessToken: "t", month: "2026-10", fromLink: "https://example.com/oct", link: "https://example.com/oct2" });
+  assert.deepEqual(gas.plan.rows.slice(1).filter((r) => r[0].getMonth() === 9).map((r) => r[6]), ["https://example.com/oct2", "なし"]);
+  // 公開カレンダー
+  const pub = gas.doGet({ action: "plans" }).records;
+  assert.deepEqual(pub.filter((r) => r.noLink).map((r) => [r.date, r.link]), [["2026-10-30", ""]]);
+  // リマインドの文に「なし」を出さない
+  const text = gas.call("buildReminderTextMessageTextFromRecords_", gas.call("extractUpcomingRecordsWithDateObjects"));
+  assert.doesNotMatch(text, /なし/);
+});
+
+test("リンクなし：文章で追加でも、シートからコピーした「なし」の行は補わない", () => {
+  const gas = make();
+  const parsed = gas.doPost({ action: "parseSchedule", accessToken: "t", text: "#予定登録\n10/31\t10:00\t12:00\t公園\t練習\t\tなし\n10/29 10:00〜12:00 公園 練習" });
+  assert.equal(parsed.ok, true);
+  const byDate = Object.fromEntries(parsed.records.map((r) => [r.date, r]));
+  assert.deepEqual([byDate["2026-10-31"].link, byDate["2026-10-31"].noLink], ["", true]);
+  assert.equal(byDate["2026-10-29"].link, "https://example.com/oct"); // ふつうの行は、いままでどおり補う
+  gas.doPost({ action: "addBatch", accessToken: "t", records: parsed.records });
+  assert.deepEqual(gas.plan.rows.slice(-2).map((r) => r[6]).sort(), ["https://example.com/oct", "なし"].sort());
+});
+
 test("思わぬエラーの中身（設定の名前など）は、画面に返さない", () => {
   const gas = make();
   gas.ctx.SHEETS.Plan.getDataRange = () => { throw new Error("Exception: SHEET_ID 1abcSECRET にアクセスできません"); };

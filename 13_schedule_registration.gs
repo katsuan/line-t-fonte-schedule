@@ -473,7 +473,7 @@ function parseScheduleRegistrationLines_(text) {
 
   if (link) {
     records.forEach(function (record) {
-      if (!record.link) record.link = link;
+      if (!record.link && !record.noLink) record.link = link;
     });
   }
 
@@ -516,12 +516,15 @@ function parseScheduleTsvLine_(rawLine) {
   const startParts = parseScheduleTimeToken_(columns[1]);
   if (!startParts) return null;
 
-  return buildScheduleRecord_(dateParts, startParts, parseScheduleTimeToken_(columns[2]), {
+  const cell = readPlanLinkCell_(columns[6]); // 「なし」はリンクなし（シートからコピーした行）
+  const fields = {
     place: columns[3] || '',
     memo1: applyScheduleMemoEmoji_(columns[4] || ''),
     memo2: columns[5] || '',
-    link: columns[6] || ''
-  });
+    link: cell.link
+  };
+  if (cell.noLink) fields.noLink = true;
+  return buildScheduleRecord_(dateParts, startParts, parseScheduleTimeToken_(columns[2]), fields);
 }
 
 /** 自由文の1行を予定にする。読めなければ null */
@@ -668,7 +671,8 @@ function saveSchedulePendingRecords_(sourceId, records, userId) {
         place: record.place,
         memo1: record.memo1,
         memo2: record.memo2 || '',
-        link: record.link || ''
+        link: record.link || '',
+        noLink: record.noLink === true
       };
     })
   });
@@ -702,7 +706,8 @@ function loadSchedulePendingRecords_(sourceId) {
           place: item.place,
           memo1: item.memo1,
           memo2: item.memo2 || '',
-          link: item.link || ''
+          link: item.link || '',
+          noLink: item.noLink === true
         };
       })
     };

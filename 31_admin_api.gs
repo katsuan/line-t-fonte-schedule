@@ -163,10 +163,10 @@ function readAdminAvailability_(fresh) {
   return payload;
 }
 
-/** 予定を1件足す（リンクがなければ同じ月のリンクで補う） */
+/** 予定を1件足す（リンクがなければ同じ月のリンクで補う。リンクなしと選んだ予定は補わない） */
 function addAdminPlanRow_(input) {
   const record = buildAdminRecordFromInput_(input);
-  if (!record.link) applyExistingMonthlyLinkFallback_([record]);
+  if (!record.link && !record.noLink) applyExistingMonthlyLinkFallback_([record]);
   appendScheduleRecordsToSheet_([record]);
 }
 
@@ -188,7 +188,7 @@ function deleteAdminPlanRow_(rowNumber, expected) {
 /**
  * 月の共通リンクを更新する。
  * 対象はその月の予定のうち、リンクが空か、これまでの共通リンク(fromLink)と同じ行だけ。
- * 予定ごとに別のリンクを入れている行は、そのまま残す。
+ * 予定ごとに別のリンクを入れている行と、リンクなし（「なし」）の行は、そのまま残す。
  */
 function setAdminMonthLink_(month, fromLink, link) {
   if (!/^\d{4}-\d{2}$/.test(String(month || ""))) {
@@ -229,7 +229,7 @@ function assertAdminRowUnchanged_(rowNumber, expected) {
   const fields = ["date", "start", "end", "place", "memo1", "memo2", "link"];
   const unchanged = current && fields.every(function (field) {
     return String(current[field]) === String(expected[field] || "");
-  });
+  }) && Boolean(current.noLink) === Boolean(expected.noLink);
 
   if (!unchanged) {
     throw createAdminError_("stale", "シートが更新されています。再読み込みしてください。");
@@ -259,7 +259,9 @@ function buildAdminRecordFromInput_(input) {
     place: texts.place,
     memo1: texts.memo1,
     memo2: texts.memo2,
-    link: link
+    link: link,
+    // 「リンクなし」と選んだとき（リンクを入れていれば、そちら）
+    noLink: !link && source.noLink === true
   };
 }
 

@@ -43,7 +43,7 @@ function listPublicPlanRecords_() {
   return listPlanRecords_()
     .filter(function (record) { return record.date >= monthStart; })
     .map(function (record) {
-      return {
+      const item = {
         date: record.date,
         start: record.start,
         end: record.end,
@@ -52,6 +52,8 @@ function listPublicPlanRecords_() {
         memo2: record.memo2,
         link: record.link
       };
+      if (record.noLink) item.noLink = true; // リンクなし（月の共通リンクも出さない）
+      return item;
     })
     .sort(comparePlanRecords_);
 }

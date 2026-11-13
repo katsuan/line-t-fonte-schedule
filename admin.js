@@ -179,7 +179,7 @@ function createRowItem(record, today) {
 async function editMonthLink(month) {
     const current = baseLinkFor(month);
     const input = prompt(
-        `${monthLabel(month)}の共通リンク\n（別のリンクを入れている予定は、そのままにします）`,
+        `${monthLabel(month)}の共通リンク\n（別のリンクを入れている予定と、リンクなしの予定は、そのままにします）`,
         current
     );
     if (input === null) return;
@@ -405,9 +405,9 @@ function openEditor(record, asCopy, presetDate) {
     setChoiceValue(choices.place, source.place);
     setChoiceValue(choices.memo1, source.memo1);
     $("fMemo2").value = source.memo2 || "";
-    // 回答リンク: 月の共通リンクと同じ（または空）なら「共通リンクを使う」、違えばその予定だけのリンク
+    // 回答リンク: 月の共通リンクと同じ（または空）なら「共通リンクを使う」、違えばその予定だけのリンク。リンクなしの予定は外す
     const linkMonth = (source.date || $("fDate").value).slice(0, 7);
-    commonPref = !record || !source.link || source.link === baseLinkFor(linkMonth);
+    commonPref = !source.noLink && (!record || !source.link || source.link === baseLinkFor(linkMonth));
     $("fLink").value = commonPref ? "" : source.link;
     syncLinkField();
     setFormError("");
@@ -445,22 +445,27 @@ function syncLinkField() {
 
     if (box.checked) {
         note.textContent = base;
-        note.hidden = false;
     } else if (!base) {
         note.textContent = month
-            ? "この月の共通リンクはまだありません。入力したリンクは、この予定だけのリンクになります。"
-            : "日付を選ぶと、その月の共通リンクを使えます。";
-        note.hidden = false;
+            ? "この月の共通リンクはまだありません。入れたリンクは、この予定だけのリンクになります。空のままでも登録できます（あとで共通リンクを入れると、この予定にも入ります）。"
+            : "日付を選ぶと、その月の共通リンクを使えます。リンクは空のままでも登録できます。";
     } else {
-        note.hidden = true;
+        note.textContent = "この予定だけのリンクを入れます。空のままなら、リンクなしで登録します（共通リンクも入れません）。";
     }
+    note.hidden = false;
 }
 
-/** 保存するリンク: 共通リンクを使うならその月の共通リンク、そうでなければ入力したリンク */
+/**
+ * 保存するリンク { link, noLink }: 共通リンクを使うならその月の共通リンク、そうでなければ入力したリンク。
+ * 共通リンクのある月で外して空にしたら、リンクなし（同じ月のリンクで補わない）
+ */
 function readLinkField() {
-    if (!$("fLinkCommon").checked) return $("fLink").value.trim();
     const date = $("fDate").value;
-    return date ? baseLinkFor(date.slice(0, 7)) : "";
+    const base = date ? baseLinkFor(date.slice(0, 7)) : "";
+    if ($("fLinkCommon").checked) return { link: base, noLink: false };
+    const link = $("fLink").value.trim();
+    // 前からリンクなしの予定は、共通リンクのない月でもリンクなしのまま
+    return { link, noLink: !link && (!!base || !!(editing && editing.noLink)) };
 }
 
 /** 入力のまちがいを出す（空なら消す） */
@@ -478,7 +483,7 @@ function readForm() {
         place: getChoiceValue(choices.place),
         memo1: getChoiceValue(choices.memo1),
         memo2: $("fMemo2").value.trim(),
-        link: readLinkField()
+        ...readLinkField()
     };
 }
 
@@ -676,7 +681,7 @@ function updateBulkSubmit() {
 async function submitBulk() {
     const records = bulkRecords.filter(record => record.checked).map(record => ({
         date: record.date, start: record.start, end: record.end,
-        place: record.place, memo1: record.memo1, memo2: record.memo2, link: record.link
+        place: record.place, memo1: record.memo1, memo2: record.memo2, link: record.link, noLink: record.noLink === true
     }));
     if (!records.length) return;
 

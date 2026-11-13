@@ -56,6 +56,8 @@ test("行のリンク：月の共通リンクはうすいボタン、その予�
   assert.deepEqual(linksOf(list[0])[0], ["📝 回答リンク", "btn btn-small btn-answer-soft", common]);
   assert.deepEqual(linksOf(list[2])[0], ["📝 回答リンク", "btn btn-small btn-answer", "https://example.com/special"]);
   assert.deepEqual(linksOf(list[3]).map((l) => l[0]), ["📅 カレンダー追加"]);
+  // リンクなしの予定は、月の共通リンクがあっても出さない
+  assert.deepEqual(linksOf(plan({ date: "2026-11-23", noLink: true })).map((l) => l[0]), ["📅 カレンダー追加"]);
   // 共通リンクのない月には「○月のリンクを開く」を出さない
   assert.equal(page.createMonthLinkFoot("2026-12"), null);
   assert.equal(page.createMonthLinkFoot("2026-11").children[0].textContent, "11月のリンクを開く");
