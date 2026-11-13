@@ -44,7 +44,7 @@ function readUpcomingRecordsFromSheet_() {
 /** Plan シートの1行を、リマインドに使う予定の形にする（過ぎた予定・日時のない行は null） */
 function mapUpcomingRecordRow_(row, now) {
   const [dateObj, startObj, endObj, place, memo1, memo2, linkCell] = row;
-  const link = readPlanLinkCell_(linkCell).link;
+  const { link, noLink } = readPlanLinkCell_(linkCell);
   const safeEndObj = isValidDate(endObj) ? endObj : startObj;
 
   if (!isValidDate(dateObj) || !isValidDate(startObj)) {
@@ -73,7 +73,8 @@ function mapUpcomingRecordRow_(row, now) {
     place,
     memo1,
     memo2,
-    link
+    link,
+    noLink
   };
 }
 

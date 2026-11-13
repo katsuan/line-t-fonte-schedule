@@ -30,7 +30,15 @@ const FLEX_CONFIG = {
   badgeCornerRadius: "100px",
   badgePaddingAll: "2px",
   badgePaddingHorizontal: "7px",
-  badgeOffset: "12px"
+  badgeOffset: "12px",
+  // 月の共通リンクとちがうリンク・リンクなしの予定の1行（ピル）。出すのは上からこの数まで
+  maxLinkRowsPerMonth: 3,
+  linkPillColor: "#4284F3",
+  linkPillTextColor: "#FFFFFF",
+  linkPillOffColor: "#E5E7EB",
+  linkPillOffTextColor: "#9CA3AF",
+  linkPillLabel: "📝 回答する",
+  linkPillOffLabel: "回答なし"
 };
 
 /** カードの通知文（altText）の既定の見出しと、長さの上限 */
@@ -210,7 +218,8 @@ function buildMonthlyFlexGroups_(records, now, nearTermWeatherSummaryMap) {
   return Array.from(groupsByMonth.values()).map(group => ({
     monthLabel: buildMonthLabel_(group.monthDate),
     records: group.records,
-    link: usableCardLink_(findFirstLink_(group.records)), // なければボタンを出さない（シートはサイト作成者だけ）
+    // 月の共通リンク（いちばん多いリンク。公開カレンダーと同じ）。なければボタンを出さない（シートはサイト作成者だけ）
+    link: usableCardLink_(findMonthCommonLink_(buildYearMonthKey_(group.monthDate)) || findFirstLink_(group.records)),
     now,
     nearTermWeatherSummaryMap
   }));
@@ -441,7 +450,7 @@ function createMonthlyFlexBubble_(group) {
       type: "box",
       layout: "vertical",
       spacing: "sm",
-      contents: buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap)
+      contents: buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap).concat(buildMonthlyLinkRows_(records, link))
     },
     body: {
       type: "box",
@@ -489,6 +498,73 @@ function buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap) {
     now,
     nearTermWeatherSummaryMap
   }));
+}
+
+/**
+ * 月の共通リンクとちがうリンクの予定・リンクなしの予定の1行（「11/16(日) 🏆大会」と右にピル）。
+ * ちがうリンクはピルを押すとそのリンク、リンクなしは灰色で押せない。どの予定にもリンクがなければ出さない
+ */
+function buildMonthlyLinkRows_(records, monthLink) {
+  const own = record => usableCardLink_(record.link);
+  if (!monthLink && !records.some(own)) return [];
+  const targets = records.filter(record => record.noLink || (own(record) && own(record) !== monthLink));
+  const rows = targets.slice(0, FLEX_CONFIG.maxLinkRowsPerMonth).map(record => createLinkRow_(record, record.noLink ? "" : own(record)));
+  if (targets.length > rows.length) {
+    rows.push({ type: "text", text: `ほか${targets.length - rows.length}件は、カレンダーで`, size: "xxs", color: FLEX_CONFIG.summaryTextColor, align: "end" });
+  }
+  return rows;
+}
+
+/** 1行の予定とピル（link が空なら灰色で押せない） */
+function createLinkRow_(record, link) {
+  const date = record.date;
+  return {
+    type: "box",
+    layout: "horizontal",
+    alignItems: "center",
+    spacing: "sm",
+    paddingAll: "8px",
+    paddingStart: FLEX_CONFIG.cardPadding,
+    backgroundColor: FLEX_CONFIG.recordBackgroundColor,
+    cornerRadius: FLEX_CONFIG.cardCornerRadius,
+    contents: [
+      {
+        type: "text",
+        text: `${date.getMonth() + 1}/${date.getDate()}(${getJapaneseWeekday_(date)}) ${String(record.memo1 || "").trim() || "予定"}`, // 1行なので、アイコンの絵文字も頭に
+        size: "sm",
+        color: FLEX_CONFIG.textPrimaryColor,
+        flex: 1,
+        wrap: false
+      },
+      createLinkPill_(link)
+    ]
+  };
+}
+
+/** 右のピル「📝 回答する」（押すと link）か、灰色の「回答なし」 */
+function createLinkPill_(link) {
+  const on = Boolean(link);
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 0,
+    paddingTop: "4px",
+    paddingBottom: "4px",
+    paddingStart: "10px",
+    paddingEnd: "10px",
+    cornerRadius: "100px",
+    backgroundColor: on ? FLEX_CONFIG.linkPillColor : FLEX_CONFIG.linkPillOffColor,
+    action: on ? { type: "uri", label: FLEX_CONFIG.linkPillLabel, uri: link } : undefined,
+    contents: [
+      {
+        type: "text",
+        text: on ? FLEX_CONFIG.linkPillLabel : FLEX_CONFIG.linkPillOffLabel,
+        size: "xs",
+        color: on ? FLEX_CONFIG.linkPillTextColor : FLEX_CONFIG.linkPillOffTextColor,
+        align: "center"
+      }
+    ]
+  };
 }
 
 /** 月のカードの下の「以上」か「他○件 (日付)」 */

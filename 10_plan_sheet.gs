@@ -167,6 +167,23 @@ function applyExistingMonthlyLinkFallback_(records) {
   return autoFilledCount;
 }
 
+/**
+ * 月の共通（回答）リンク：その月の予定でいちばん多く使われているリンク（同じ数なら下の行＝あとに登録したもの）。
+ * 公開カレンダー・管理ページ（js/month-calendar.js の baseLinkFor）と同じ決め方。なければ空文字
+ */
+function findMonthCommonLink_(yearMonthKey) {
+  const counts = {};
+  let best = "";
+  readPlanValues_().slice(1).forEach(function (row) {
+    if (!isValidDate(row[0]) || buildYearMonthKey_(row[0]) !== yearMonthKey) return;
+    const link = readPlanLinkCell_(row[PLAN_LINK_COLUMN_ - 1]).link.trim();
+    if (!link) return;
+    counts[link] = (counts[link] || 0) + 1;
+    if (!best || counts[link] >= counts[best]) best = link;
+  });
+  return best;
+}
+
 /** その月の予定で、いちばん下の行のリンク（なければ空文字） */
 function findExistingLinkForYearMonth_(yearMonthKey) {
   const dataRows = readPlanValues_().slice(1);
