@@ -90,13 +90,13 @@ test("日付またぎ：次の日は控えを作り直す", () => {
     plans: [planRow("2026-10-24", "10:00", "12:00", "B", "練習")],
   });
   gas.call("extractUpcomingRecordsWithDateObjects");
-  assert.equal(gas.properties.UPCOMING_RECORDS_CACHE_DATE_V1, "2026-10-23");
+  assert.equal(gas.properties.UPCOMING_RECORDS_CACHE_DATE_V2, "2026-10-23");
   gas.setNow("2026-10-24T00:10:00+09:00");
   gas.plan.rows.push(planRow("2026-10-25", "10:00", "12:00", "C", "練習"));
   gas.call("forgetPlanValues_");
   // 同じ呼び出しの中の控え（メモリ）も、日付が変われば使わない
   assert.deepEqual(gas.call("extractUpcomingRecordsWithDateObjects").map((r) => r.place), ["B", "C"]);
-  assert.equal(gas.properties.UPCOMING_RECORDS_CACHE_DATE_V1, "2026-10-24");
+  assert.equal(gas.properties.UPCOMING_RECORDS_CACHE_DATE_V2, "2026-10-24");
 });
 
 test("通知の文面：直近の予定から RemindNum 日以内をまとめ、先頭のリンクを付ける", () => {

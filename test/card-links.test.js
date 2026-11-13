@@ -45,3 +45,20 @@ test("リンクがどこにもない月は、1行もピルも出さない。共�
   assert.doesNotMatch(same.text, /回答する|回答なし/);
   assert.deepEqual(uris(same.reply), [["11月のリンクを開く", COMMON]]);
 });
+
+test("その日の控え（Script Properties）から読んでも、リンクなしの予定は灰色のピル。前の版（V1）の控えは消す", () => {
+  const now = "2026-11-01T08:00:00+09:00";
+  const plans = [
+    planRow("2026-11-09", "10:00", "12:00", "体育館", "⚽練習", "", COMMON),
+    planRow("2026-11-23", "18:00", "20:00", "店", "🎉打ち上げ", "", "なし"),
+  ];
+  const first = makeGas({ now, plans, properties: { UPCOMING_RECORDS_CACHE_MONTH_V1_2026_11: "[]" } });
+  first.call("handleTextMessage", event("#今後の予定"));
+  const saved = first.ctx.PropertiesService.getScriptProperties().getProperties();
+  assert.equal(Object.keys(saved).some((key) => /_V1/.test(key)), false);
+
+  // シートは同じ（月の共通リンクを決めるのに読む）で、予定は控えから読む別の呼び出し
+  const second = makeGas({ now, plans, properties: saved });
+  const text = JSON.stringify(plain(second.call("handleTextMessage", event("#今後の予定"))));
+  assert.match(text, /11\/23\(月\) 🎉打ち上げ.*回答なし/);
+});

@@ -89,9 +89,9 @@ function buildRecordDateTime_(dateObj, timeObj) {
 
 /** これからの予定の控え（Script Properties）のキーと大きさの上限 */
 const UPCOMING_RECORDS_CACHE_CONFIG = {
-  dateKey: "UPCOMING_RECORDS_CACHE_DATE_V1",
-  monthIndexKey: "UPCOMING_RECORDS_CACHE_MONTH_INDEX_V1",
-  monthPayloadPrefix: "UPCOMING_RECORDS_CACHE_MONTH_V1_",
+  dateKey: "UPCOMING_RECORDS_CACHE_DATE_V2",
+  monthIndexKey: "UPCOMING_RECORDS_CACHE_MONTH_INDEX_V2",
+  monthPayloadPrefix: "UPCOMING_RECORDS_CACHE_MONTH_V2_",
   maxPayloadBytesPerMonth: 40 * 1024,
   maxMonthCaches: 12
 };
@@ -181,8 +181,21 @@ function saveCachedUpcomingRecords_(records) {
     .filter(monthKey => !nextMonthKeys.includes(monthKey))
     .forEach(monthKey => props.deleteProperty(buildMonthPayloadPropertyKey_(monthKey)));
 
+  removeOldUpcomingCacheProperties_(props);
+
   upcomingRecordsMemoryCache_ = records;
   upcomingRecordsMemoryCacheDate_ = todayKey;
+}
+
+/** 前の版（V1）の控えを消す（控えを書くのは1日に1回ほど） */
+function removeOldUpcomingCacheProperties_(props) {
+  try {
+    const keys = typeof props.getKeys === "function" ? props.getKeys() : Object.keys(props.getProperties());
+    keys.filter(key => /^UPCOMING_RECORDS_CACHE_(DATE|MONTH_INDEX|MONTH)_V1(_|$)/.test(key))
+      .forEach(key => props.deleteProperty(key));
+  } catch (err) {
+    Log.debug(`⚠️ old upcoming cache cleanup failed: ${err.message}`);
+  }
 }
 
 /** 予定の並びを、控えに入れる文字（JSON）にする */
@@ -196,7 +209,8 @@ function serializeUpcomingRecords_(records) {
     place: record.place || "",
     memo1: record.memo1 || "",
     memo2: record.memo2 || "",
-    link: record.link || ""
+    link: record.link || "",
+    noLink: record.noLink === true // リンクなし（月の共通リンクも出さない）の印も控えに入れる
   })));
 }
 
@@ -214,7 +228,8 @@ function deserializeUpcomingRecords_(payload) {
     place: item.place || "",
     memo1: item.memo1 || "",
     memo2: item.memo2 || "",
-    link: item.link || ""
+    link: item.link || "",
+    noLink: item.noLink === true
   }));
 }
 
