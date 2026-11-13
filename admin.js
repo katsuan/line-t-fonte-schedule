@@ -487,6 +487,29 @@ function readForm() {
     };
 }
 
+/**
+ * 送っているあいだ、ボタンにくるくると「保存中…」を出し、その画面の入力とボタンを止める（数秒かかるので、動いているとわかるように）。
+ * 戻す関数を返す
+ */
+function startBusy(button, label) {
+    const text = button.textContent;
+    const box = button.closest("dialog");
+    const controls = box ? Array.from(box.querySelectorAll("input, select, textarea, button")) : [button];
+    const wasDisabled = controls.map(el => el.disabled);
+    controls.forEach(el => { el.disabled = true; });
+    if (box) box.classList.add("is-busy");
+    const spin = document.createElement("span");
+    spin.className = "spinner";
+    button.replaceChildren(spin, document.createTextNode(label));
+    button.classList.add("is-busy");
+    return () => {
+        button.classList.remove("is-busy");
+        button.textContent = text;
+        controls.forEach((el, i) => { el.disabled = wasDisabled[i]; });
+        if (box) box.classList.remove("is-busy");
+    };
+}
+
 /** 「保存」を押したとき：追加か編集を GAS に送る */
 async function saveForm(event) {
     event.preventDefault();
@@ -495,7 +518,7 @@ async function saveForm(event) {
         return setFormError("日付・開始・場所・内容は必須です。");
     }
 
-    els.saveBtn.disabled = true;
+    const stopBusy = startBusy(els.saveBtn, "保存中…");
     setFormError("");
     try {
         const result = editing
@@ -511,7 +534,7 @@ async function saveForm(event) {
         console.error(err);
         setFormError("通信に失敗しました。もう一度お試しください。");
     } finally {
-        els.saveBtn.disabled = false;
+        stopBusy();
     }
 }
 
@@ -685,10 +708,11 @@ async function submitBulk() {
     }));
     if (!records.length) return;
 
-    $("bulkSubmit").disabled = true;
+    const stopBusy = startBusy($("bulkSubmit"), "登録中…");
     setBulkMessage("bulkConfirmError", "");
     try {
         const result = await callApi("addBatch", { records });
+        stopBusy();
         if (!result.ok) {
             setBulkMessage("bulkConfirmError", result.message || "登録できませんでした。");
             return updateBulkSubmit();
@@ -700,6 +724,7 @@ async function submitBulk() {
         showSaved(`${records.length}件を登録しました`, result);
     } catch (err) {
         console.error(err);
+        stopBusy();
         setBulkMessage("bulkConfirmError", "通信に失敗しました。もう一度お試しください。");
         updateBulkSubmit();
     }
@@ -739,6 +764,10 @@ function showToast(message, isError = false) {
     els.toast.textContent = message;
     els.toast.className = `toast${isError ? " error" : ""}`;
     els.toast.hidden = false;
+    // 続けて出したときも、下からふわっと出す
+    els.toast.style.animation = "none";
+    void els.toast.offsetWidth;
+    els.toast.style.animation = "";
     toastTimer = setTimeout(() => { els.toast.hidden = true; }, 2800);
 }
 
@@ -755,6 +784,10 @@ $("fLinkCommon").addEventListener("change", () => {
     if (!commonPref) $("fLink").focus();
 });
 $("cancelBtn").addEventListener("click", () => els.editor.close());
+// 保存中は Esc で閉じない（閉じても保存は進むので、終わったかわからなくなる）
+[els.editor, $("bulkDialog")].forEach(box => box.addEventListener("cancel", event => {
+    if (box.classList.contains("is-busy")) event.preventDefault();
+}));
 els.addBtn.addEventListener("click", () => openEditor(null, false, view === "calendar" ? selectedDate : ""));
 setupCalendarSwipe($("calendar"), delta => shiftCalMonth(delta));
 $("tabList").addEventListener("click", () => setView("list"));

@@ -522,6 +522,40 @@ dialog::backdrop {
     background: rgba(185, 28, 28, 0.95);
 }
 
+.toast:not([hidden]) {
+    animation: toastIn .28s ease-out;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 12px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+/* 保存・登録を送っているあいだ：ボタンにくるくる。入力はうすくして止める */
+.btn.is-busy:disabled {
+    opacity: 1;
+    cursor: progress;
+}
+
+.btn-primary .spinner {
+    width: 14px;
+    height: 14px;
+    margin-right: 0;
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.4);
+    border-top-color: #ffffff;
+}
+
+dialog.is-busy :is(input, select, textarea, .btn:not(.is-busy)) {
+    opacity: .5;
+}
+
 /* ---------- ⚽ 空き（灘崎の今日から90日） ---------- */
 
 .tabs.tabs-3 {
