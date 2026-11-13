@@ -333,10 +333,12 @@ function createBubblePreview(bubble, className) {
     wrapper.className = "preview-lines bubble-body";
 
     const scheduleItems = extractScheduleItems(bubble);
-    if (scheduleItems.length) {
+    const linkRows = extractLinkRows(bubble);
+    if (scheduleItems.length || linkRows.length) {
         const list = document.createElement("div");
         list.className = "schedule-list";
         scheduleItems.forEach(item => list.appendChild(createSchedulePreviewItem(item)));
+        linkRows.forEach(row => list.appendChild(createLinkRowPreview(row)));
         wrapper.appendChild(list);
     }
 
@@ -476,9 +478,48 @@ function extractSummaryNote(bubble) {
     return fallbackNode ? fallbackNode.text : "";
 }
 
-/** 予定1件の箱から、見本に出すものを読み取る */
+/**
+ * 回答リンクの1行（GAS の createLinkRow_：横の箱に、左の文字と右の丸いピル）か。
+ * ピルは押すとその予定のリンク（action に label あり）、灰色は押せない
+ */
+function isLinkRow_(box) {
+    const contents = box?.type === "box" && box.layout === "horizontal" ? box.contents : null;
+    return Array.isArray(contents) && contents.length === 2 &&
+        contents[0]?.type === "text" && contents[1]?.type === "box" && contents[1].cornerRadius === "100px";
+}
+
+/** カードの回答リンクの1行 [{ text, pill, uri }]（uri が空なら押せないピル） */
+function extractLinkRows(bubble) {
+    const contents = bubble?.hero?.contents;
+    if (!Array.isArray(contents)) return [];
+    return contents.filter(isLinkRow_).map(box => {
+        const pill = box.contents[1];
+        return {
+            text: box.contents[0].text || "",
+            pill: extractTexts(pill)[0] || "",
+            uri: pill.action?.type === "uri" ? pill.action.uri : ""
+        };
+    });
+}
+
+/** 回答リンクの1行の見本（左に予定、右にピル。押せないピルは灰色） */
+function createLinkRowPreview(row) {
+    const line = document.createElement("div");
+    line.className = "schedule-item link-row";
+    line.appendChild(createTextElement("span", "link-row-text", row.text));
+    const pill = createTextElement(row.uri ? "a" : "span", row.uri ? "link-pill" : "link-pill is-off", row.pill);
+    if (row.uri) {
+        pill.href = row.uri;
+        pill.target = "_blank";
+        pill.rel = "noopener noreferrer";
+    }
+    line.appendChild(pill);
+    return line;
+}
+
+/** 予定1件の箱から、見本に出すものを読み取る（回答リンクの1行は extractLinkRows で別に読む） */
 function extractScheduleItemFromBox(box) {
-    if (!box || box.type !== "box" || !Array.isArray(box.contents)) {
+    if (!box || box.type !== "box" || !Array.isArray(box.contents) || isLinkRow_(box)) {
         return null;
     }
 
@@ -827,7 +868,8 @@ function sanitizeNodeForShareTargetPicker_(node, context = {}) {
             if (!insideFooter || node.action.type !== "uri") {
                 return null;
             }
-        } else {
+        } else if (!(node.action.type === "uri" && node.action.label)) {
+            // 回答リンクのピル（label つきの uri）は、送ったカードでも押せるように残す。ほかの箱の action は外す
             delete node.action;
         }
     }
