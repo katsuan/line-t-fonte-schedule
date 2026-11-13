@@ -68,15 +68,15 @@ test("月のボタンは、いちばん多いリンク。ちがうリンクの�
   ]);
   assert.deepEqual(checkMessages(reply).filter((p) => p.level === "error"), []);
   assert.deepEqual(uris(reply), [["📝 回答する", SPECIAL], ["11月のリンクを開く", COMMON]]);
-  assert.deepEqual(pillsOf(reply), [["大会", "📝 回答する"], ["練習", ""], ["練習", ""], ["打ち上げ", "リンク別"]]); // 共通リンクの予定にはピルなし
+  assert.deepEqual(pillsOf(reply), [["大会", "📝 回答する"], ["練習", ""], ["練習", ""], ["打ち上げ", "リンクなし"]]); // 共通リンクの予定にはピルなし
   assert.doesNotMatch(text, /11\/2\(月\) /); // 箱の下の1行は、もう出さない
 });
 
 test("リンクがどこにもない月は、1行もピルも出さない。共通リンクだけの月も出さない", () => {
   const none = cardsFor([planRow("2026-11-02", "10:00", "12:00", "体育館", "⚽練習"), planRow("2026-11-09", "10:00", "12:00", "体育館", "⚽練習", "", "なし")]);
-  assert.doesNotMatch(none.text, /回答する|リンク別/);
+  assert.doesNotMatch(none.text, /回答する|リンクなし/);
   const same = cardsFor([planRow("2026-11-02", "10:00", "12:00", "体育館", "⚽練習", "", COMMON), planRow("2026-11-09", "10:00", "12:00", "体育館", "⚽練習")]);
-  assert.doesNotMatch(same.text, /回答する|リンク別/);
+  assert.doesNotMatch(same.text, /回答する|リンクなし/);
   assert.deepEqual(uris(same.reply), [["11月のリンクを開く", COMMON]]);
 });
 
@@ -94,5 +94,5 @@ test("その日の控え（Script Properties）から読んでも、リンクな
   // シートは同じ（月の共通リンクを決めるのに読む）で、予定は控えから読む別の呼び出し
   const second = makeGas({ now, plans, properties: saved });
   const reply = plain(second.call("handleTextMessage", event("#今後の予定")));
-  assert.deepEqual(pillsOf(reply), [["練習", ""], ["打ち上げ", "リンク別"]]);
+  assert.deepEqual(pillsOf(reply), [["練習", ""], ["打ち上げ", "リンクなし"]]);
 });

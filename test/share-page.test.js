@@ -38,7 +38,7 @@ test("シェア用のカード：先頭の送信ガイドだけを外し、月�
 test("シェア用のカード：予定の箱の中の回答リンクのピル（label つきの uri）は押せるまま。アイコンの箱の action は外す", () => {
   const app = loadApp();
   const pill = { type: "box", layout: "vertical", cornerRadius: "100px", action: { type: "uri", label: "📝 回答する", uri: "https://example.com/cup" }, contents: [{ type: "text", text: "📝 回答する" }] };
-  const off = { type: "box", layout: "vertical", cornerRadius: "100px", contents: [{ type: "text", text: "リンク別" }] };
+  const off = { type: "box", layout: "vertical", cornerRadius: "100px", contents: [{ type: "text", text: "リンクなし" }] };
   const icon = { type: "box", layout: "vertical", action: { type: "uri", uri: "https://calendar.google.com/x" }, contents: [{ type: "text", text: "⚽" }] };
   const recordBox = (title, place, pillBox) => ({ type: "box", layout: "vertical", contents: [
     { type: "box", layout: "horizontal", contents: [icon, { type: "box", layout: "vertical", flex: 1, contents: [
@@ -62,7 +62,7 @@ test("シェア用のカード：予定の箱の中の回答リンクのピル�
   const items = card.hero.contents.map((box) => JSON.parse(JSON.stringify(app.extractScheduleItemFromBox(box))));
   assert.deepEqual(items.map((item) => [item.title, item.placeLine, item.linkPill || null]), [
     ["大会", "体育館", { text: "📝 回答する", uri: "https://example.com/cup" }],
-    ["打ち上げ", "店", { text: "リンク別", uri: "" }],
+    ["打ち上げ", "店", { text: "リンクなし", uri: "" }],
     ["練習", "体育館", null],
   ]);
 });
