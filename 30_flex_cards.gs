@@ -32,13 +32,12 @@ const FLEX_CONFIG = {
   badgePaddingHorizontal: "7px",
   badgeOffset: "12px",
   // 月の共通リンクとちがうリンク・リンクなしの予定の1行（ピル）。出すのは上からこの数まで
-  maxLinkRowsPerMonth: 3,
   linkPillColor: "#4284F3",
   linkPillTextColor: "#FFFFFF",
   linkPillOffColor: "#E5E7EB",
   linkPillOffTextColor: "#9CA3AF",
   linkPillLabel: "📝 回答する",
-  linkPillOffLabel: "回答なし"
+  linkPillOffLabel: "リンク別"
 };
 
 /** カードの通知文（altText）の既定の見出しと、長さの上限 */
@@ -450,7 +449,7 @@ function createMonthlyFlexBubble_(group) {
       type: "box",
       layout: "vertical",
       spacing: "sm",
-      contents: buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap).concat(buildMonthlyLinkRows_(records, link))
+      contents: buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap, link)
     },
     body: {
       type: "box",
@@ -491,57 +490,28 @@ function createMonthlyFlexBubble_(group) {
   };
 }
 
-/** 月のカードに並べる予定（上から決めた数まで） */
-function buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap) {
+/** 月のカードに並べる予定（上から決めた数まで）。monthLink は月の共通リンク（ピルを付けるかを決める） */
+function buildMonthlyRecordContents_(records, now, nearTermWeatherSummaryMap, monthLink) {
   const visibleRecords = records.slice(0, FLEX_CONFIG.maxVisibleRecordsPerMonth);
+  const anyLink = Boolean(monthLink) || records.some(record => usableCardLink_(record.link));
   return visibleRecords.map(record => createRecordBox_(record, {
     now,
-    nearTermWeatherSummaryMap
+    nearTermWeatherSummaryMap,
+    pillLink: anyLink ? recordPillLink_(record, monthLink) : undefined
   }));
 }
 
 /**
- * 月の共通リンクとちがうリンクの予定・リンクなしの予定の1行（「11/16(日) 🏆大会」と右にピル）。
- * ちがうリンクはピルを押すとそのリンク、リンクなしは灰色で押せない。どの予定にもリンクがなければ出さない
+ * 予定の箱に入れるピルのリンク。月の共通リンクとちがうリンクならそのリンク、リンクなしなら ""（灰色で押せない）、
+ * 共通リンクの予定はピルなし（undefined。月のボタンで開く）
  */
-function buildMonthlyLinkRows_(records, monthLink) {
-  const own = record => usableCardLink_(record.link);
-  if (!monthLink && !records.some(own)) return [];
-  const targets = records.filter(record => record.noLink || (own(record) && own(record) !== monthLink));
-  const rows = targets.slice(0, FLEX_CONFIG.maxLinkRowsPerMonth).map(record => createLinkRow_(record, record.noLink ? "" : own(record)));
-  if (targets.length > rows.length) {
-    rows.push({ type: "text", text: `ほか${targets.length - rows.length}件は、カレンダーで`, size: "xxs", color: FLEX_CONFIG.summaryTextColor, align: "end" });
-  }
-  return rows;
+function recordPillLink_(record, monthLink) {
+  if (record.noLink) return "";
+  const own = usableCardLink_(record.link);
+  return own && own !== monthLink ? own : undefined;
 }
 
-/** 1行の予定とピル（link が空なら灰色で押せない） */
-function createLinkRow_(record, link) {
-  const date = record.date;
-  return {
-    type: "box",
-    layout: "horizontal",
-    alignItems: "center",
-    spacing: "sm",
-    paddingAll: "8px",
-    paddingStart: FLEX_CONFIG.cardPadding,
-    backgroundColor: FLEX_CONFIG.recordBackgroundColor,
-    cornerRadius: FLEX_CONFIG.cardCornerRadius,
-    contents: [
-      {
-        type: "text",
-        text: `${date.getMonth() + 1}/${date.getDate()}(${getJapaneseWeekday_(date)}) ${String(record.memo1 || "").trim() || "予定"}`, // 1行なので、アイコンの絵文字も頭に
-        size: "sm",
-        color: FLEX_CONFIG.textPrimaryColor,
-        flex: 1,
-        wrap: false
-      },
-      createLinkPill_(link)
-    ]
-  };
-}
-
-/** 右のピル「📝 回答する」（押すと link）か、灰色の「回答なし」 */
+/** 予定の箱の中のピル「📝 回答する」（押すと link）か、灰色で押せない「リンク別」 */
 function createLinkPill_(link) {
   const on = Boolean(link);
   return {
@@ -588,7 +558,7 @@ function buildMonthlySummaryText_(records) {
 
 /** 予定1件の箱（アイコン・内容・日時・場所・もうすぐの印） */
 function createRecordBox_(record, options) {
-  const { now, nearTermWeatherSummaryMap } = options;
+  const { now, nearTermWeatherSummaryMap, pillLink } = options;
   const isNearTerm = isNearTermDate_(record.date, now, FLEX_CONFIG.nearTermDays);
   const weatherSummary = isNearTerm
     ? (nearTermWeatherSummaryMap && nearTermWeatherSummaryMap[buildWeatherRecordKey_(record)]) || ""
@@ -606,7 +576,7 @@ function createRecordBox_(record, options) {
         type: "box",
         layout: "horizontal",
         spacing: "sm",
-        contents: [createRecordIconBox_(record), createRecordDetailBox_(record, weatherSummary)]
+        contents: [createRecordIconBox_(record), createRecordDetailBox_(record, weatherSummary, pillLink)]
       },
       isNearTerm ? createNearTermBadge_() : null
     ].filter(Boolean)
@@ -643,8 +613,8 @@ function createRecordIconBox_(record) {
   };
 }
 
-/** 予定の右側：内容・日時・天気（あれば）・場所と補足（あれば） */
-function createRecordDetailBox_(record, weatherSummary) {
+/** 予定の右側：内容・日時・天気（あれば）・場所と補足（あれば）・回答リンクのピル（pillLink が undefined でなければ） */
+function createRecordDetailBox_(record, weatherSummary, pillLink) {
   const locationText = [record.place, record.memo2].filter(Boolean).join(" ");
   return {
     type: "box",
@@ -672,6 +642,10 @@ function createRecordDetailBox_(record, weatherSummary) {
         : null,
       locationText
         ? { type: "text", text: locationText, size: "sm", color: FLEX_CONFIG.textSecondaryColor, wrap: true }
+        : null,
+      // ピルは横の箱に入れて、文字の長さの幅で左に寄せる
+      pillLink !== undefined
+        ? { type: "box", layout: "horizontal", paddingTop: "4px", contents: [createLinkPill_(pillLink)] }
         : null
     ].filter(Boolean)
   };

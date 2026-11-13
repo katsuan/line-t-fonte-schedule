@@ -35,27 +35,34 @@ test("シェア用のカード：先頭の送信ガイドだけを外し、月�
   assert.deepEqual(titlesOf(app.buildShareTargetPickerMessages_(carousel("10月の予定"))), ["10月の予定"]);
 });
 
-test("シェア用のカード：回答リンクのピル（label つきの uri）は押せるまま。アイコンの箱の action は外す", () => {
+test("シェア用のカード：予定の箱の中の回答リンクのピル（label つきの uri）は押せるまま。アイコンの箱の action は外す", () => {
   const app = loadApp();
   const pill = { type: "box", layout: "vertical", cornerRadius: "100px", action: { type: "uri", label: "📝 回答する", uri: "https://example.com/cup" }, contents: [{ type: "text", text: "📝 回答する" }] };
-  const off = { type: "box", layout: "vertical", cornerRadius: "100px", contents: [{ type: "text", text: "回答なし" }] };
+  const off = { type: "box", layout: "vertical", cornerRadius: "100px", contents: [{ type: "text", text: "リンク別" }] };
   const icon = { type: "box", layout: "vertical", action: { type: "uri", uri: "https://calendar.google.com/x" }, contents: [{ type: "text", text: "⚽" }] };
+  const recordBox = (title, place, pillBox) => ({ type: "box", layout: "vertical", contents: [
+    { type: "box", layout: "horizontal", contents: [icon, { type: "box", layout: "vertical", flex: 1, contents: [
+      { type: "text", text: title },
+      { type: "box", layout: "horizontal", contents: [{ type: "text", text: "11月2日(" }, { type: "text", text: "月" }, { type: "text", text: ") 10:00-12:00" }] },
+      { type: "text", text: place },
+      pillBox ? { type: "box", layout: "horizontal", contents: [pillBox] } : null,
+    ].filter(Boolean) }] },
+  ] });
   const card = {
     type: "bubble",
     header: { type: "box", layout: "vertical", contents: [{ type: "text", text: "11月の予定" }] },
-    hero: { type: "box", layout: "vertical", contents: [
-      { type: "box", layout: "horizontal", contents: [icon, { type: "text", text: "大会" }] },
-      { type: "box", layout: "horizontal", contents: [{ type: "text", text: "11/2(月) 🏆大会" }, pill] },
-      { type: "box", layout: "horizontal", contents: [{ type: "text", text: "11/23(月) 🎉打ち上げ" }, off] },
-    ] },
+    hero: { type: "box", layout: "vertical", contents: [recordBox("大会", "体育館", pill), recordBox("打ち上げ", "店", off), recordBox("練習", "体育館")] },
   };
   const sent = app.buildShareTargetPickerMessages_([{ type: "flex", altText: "予定", contents: { type: "carousel", contents: [card] } }]);
   const hero = JSON.parse(JSON.stringify(sent[0].contents.contents ? sent[0].contents.contents[0].hero : sent[0].contents.hero));
-  assert.equal(hero.contents[0].contents[0].action, undefined);
-  assert.deepEqual(hero.contents[1].contents[1].action, { type: "uri", label: "📝 回答する", uri: "https://example.com/cup" });
-  assert.deepEqual(JSON.parse(JSON.stringify(app.extractLinkRows(card))), [
-    { text: "11/2(月) 🏆大会", pill: "📝 回答する", uri: "https://example.com/cup" },
-    { text: "11/23(月) 🎉打ち上げ", pill: "回答なし", uri: "" },
+  const row = hero.contents[0].contents[0];
+  assert.equal(row.contents[0].action, undefined);
+  assert.deepEqual(row.contents[1].contents[3].contents[0].action, { type: "uri", label: "📝 回答する", uri: "https://example.com/cup" });
+
+  const items = card.hero.contents.map((box) => JSON.parse(JSON.stringify(app.extractScheduleItemFromBox(box))));
+  assert.deepEqual(items.map((item) => [item.title, item.placeLine, item.linkPill || null]), [
+    ["大会", "体育館", { text: "📝 回答する", uri: "https://example.com/cup" }],
+    ["打ち上げ", "店", { text: "リンク別", uri: "" }],
+    ["練習", "体育館", null],
   ]);
-  assert.equal(app.extractScheduleItemFromBox(card.hero.contents[1]), null); // 予定としては読まない
 });

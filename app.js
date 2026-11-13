@@ -333,12 +333,10 @@ function createBubblePreview(bubble, className) {
     wrapper.className = "preview-lines bubble-body";
 
     const scheduleItems = extractScheduleItems(bubble);
-    const linkRows = extractLinkRows(bubble);
-    if (scheduleItems.length || linkRows.length) {
+    if (scheduleItems.length) {
         const list = document.createElement("div");
         list.className = "schedule-list";
         scheduleItems.forEach(item => list.appendChild(createSchedulePreviewItem(item)));
-        linkRows.forEach(row => list.appendChild(createLinkRowPreview(row)));
         wrapper.appendChild(list);
     }
 
@@ -406,7 +404,7 @@ function getFirstBubble(message) {
     return getFlexBubbles(message)[0] || null;
 }
 
-/** 見本の予定1件（アイコン・内容・日時・天気・場所・もうすぐ） */
+/** 見本の予定1件（アイコン・内容・日時・天気・場所・回答リンクのピル・もうすぐ） */
 function createSchedulePreviewItem(item) {
     const article = document.createElement("article");
     article.className = `schedule-item${item.isNear ? " near" : ""}`;
@@ -427,6 +425,12 @@ function createSchedulePreviewItem(item) {
     if (item.dateLine) content.appendChild(createScheduleDateLine(item));
     if (item.weatherText) content.appendChild(createTextElement("p", "schedule-weather", item.weatherText));
     if (item.placeLine) content.appendChild(createTextElement("p", "schedule-place", item.placeLine));
+    if (item.linkPill) {
+        const pillLine = document.createElement("p");
+        pillLine.className = "schedule-pill";
+        pillLine.appendChild(createLinkPillPreview(item.linkPill));
+        content.appendChild(pillLine);
+    }
 
     layout.appendChild(content);
     article.appendChild(layout);
@@ -479,47 +483,32 @@ function extractSummaryNote(bubble) {
 }
 
 /**
- * 回答リンクの1行（GAS の createLinkRow_：横の箱に、左の文字と右の丸いピル）か。
- * ピルは押すとその予定のリンク（action に label あり）、灰色は押せない
+ * 予定の右側の回答リンクのピル（GAS の createLinkPill_：丸い箱）。{ text, uri } か null。
+ * uri があれば押すとその予定のリンク、空なら灰色で押せない
  */
-function isLinkRow_(box) {
-    const contents = box?.type === "box" && box.layout === "horizontal" ? box.contents : null;
-    return Array.isArray(contents) && contents.length === 2 &&
-        contents[0]?.type === "text" && contents[1]?.type === "box" && contents[1].cornerRadius === "100px";
+function extractLinkPill_(detailColumn) {
+    const holder = (detailColumn?.contents || []).find(item =>
+        item?.type === "box" && Array.isArray(item.contents) && item.contents[0]?.cornerRadius === "100px"
+    );
+    if (!holder) return null;
+    const pill = holder.contents[0];
+    return { text: extractTexts(pill)[0] || "", uri: pill.action?.type === "uri" ? pill.action.uri : "" };
 }
 
-/** カードの回答リンクの1行 [{ text, pill, uri }]（uri が空なら押せないピル） */
-function extractLinkRows(bubble) {
-    const contents = bubble?.hero?.contents;
-    if (!Array.isArray(contents)) return [];
-    return contents.filter(isLinkRow_).map(box => {
-        const pill = box.contents[1];
-        return {
-            text: box.contents[0].text || "",
-            pill: extractTexts(pill)[0] || "",
-            uri: pill.action?.type === "uri" ? pill.action.uri : ""
-        };
-    });
-}
-
-/** 回答リンクの1行の見本（左に予定、右にピル。押せないピルは灰色） */
-function createLinkRowPreview(row) {
-    const line = document.createElement("div");
-    line.className = "schedule-item link-row";
-    line.appendChild(createTextElement("span", "link-row-text", row.text));
-    const pill = createTextElement(row.uri ? "a" : "span", row.uri ? "link-pill" : "link-pill is-off", row.pill);
-    if (row.uri) {
-        pill.href = row.uri;
-        pill.target = "_blank";
-        pill.rel = "noopener noreferrer";
+/** 回答リンクのピルの見本（押せないピルは灰色） */
+function createLinkPillPreview(pill) {
+    const element = createTextElement(pill.uri ? "a" : "span", pill.uri ? "link-pill" : "link-pill is-off", pill.text);
+    if (pill.uri) {
+        element.href = pill.uri;
+        element.target = "_blank";
+        element.rel = "noopener noreferrer";
     }
-    line.appendChild(pill);
-    return line;
+    return element;
 }
 
-/** 予定1件の箱から、見本に出すものを読み取る（回答リンクの1行は extractLinkRows で別に読む） */
+/** 予定1件の箱から、見本に出すものを読み取る */
 function extractScheduleItemFromBox(box) {
-    if (!box || box.type !== "box" || !Array.isArray(box.contents) || isLinkRow_(box)) {
+    if (!box || box.type !== "box" || !Array.isArray(box.contents)) {
         return null;
     }
 
@@ -543,6 +532,7 @@ function extractScheduleItemFromBox(box) {
         item.text !== "もうすぐ"
     );
     const placeLine = placeTextNode ? placeTextNode.text : "";
+    const linkPill = extractLinkPill_(detailColumn);
 
     if (!title && !dateLine && !placeLine) {
         return null;
@@ -555,7 +545,8 @@ function extractScheduleItemFromBox(box) {
         weatherText,
         dateMeta,
         dateLine,
-        placeLine
+        placeLine,
+        linkPill
     };
 }
 

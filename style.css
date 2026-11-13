@@ -297,24 +297,13 @@ body {
     padding: 8px 10px;
 }
 
-/* 回答リンクの1行（左に予定、右にピル。押せないピルは灰色） */
-.schedule-item.link-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.link-row-text {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: 13px;
+/* 予定の中の回答リンクのピル（押せないピルは灰色） */
+.schedule-pill {
+    margin: 4px 0 0;
 }
 
 .link-pill {
-    flex: none;
+    display: inline-block;
     padding: 4px 10px;
     border-radius: 999px;
     background: #4284f3;
