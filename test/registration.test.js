@@ -226,12 +226,19 @@ test("振り分け：中でエラーが起きても、エラーの中身は LINE
   assert.doesNotMatch(reply[0].text, /SECRET/);
 });
 
-test("DebugLog に LINE の ID をそのまま残さない", () => {
+test("DebugLog：関係ない文では書かない。返事を作ったら1行（かかった時間つき）。LINE の ID はそのまま残さない", () => {
   const gas = makeGas({ now: "2026-10-23T08:00:00+09:00" });
-  gas.call("handleTextMessage", { type: "message", source: { type: "user", userId: "U1234567890abcdef" }, message: { type: "text", text: "こんにちは" } });
-  const log = gas.ctx.SpreadsheetApp.openById(gas.sheetId).getSheetByName("DebugLog");
-  assert.ok(log.rows.length > 1);
-  assert.doesNotMatch(JSON.stringify(log.rows), /U1234567890abcdef/);
+  const source = { type: "user", userId: "U1234567890abcdef" };
+  gas.call("handleTextMessage", { type: "message", source, message: { type: "text", text: "こんにちは" } });
+  const sheetOf = () => gas.ctx.SpreadsheetApp.openById(gas.sheetId).getSheetByName("DebugLog");
+  assert.ok(!sheetOf() || sheetOf().rows.length <= 1);
+
+  gas.call("handleTextMessage", { type: "message", source, message: { type: "text", text: "#予定登録\n11/2 10:00〜12:00 公園 練習" } });
+  const rows = sheetOf().rows.slice(1);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0][1], "routeTextMessage:success");
+  assert.match(rows[0][2], /"ms":\d+/);
+  assert.doesNotMatch(JSON.stringify(sheetOf().rows), /U1234567890abcdef/);
 });
 
 test("確認カード：あとからほかの人が #予定登録 を送ったとき、前の人が押すと「別の人が送ったので取り消された」と返す", () => {

@@ -30,25 +30,29 @@ function routeTextMessage_(text, event) {
     return handler.matches(text);
   });
 
-  if (!matchedHandler) {
-    logScheduleDebug_('routeTextMessage:no-match', { text: text });
-    return undefined;
-  }
+  if (!matchedHandler) return undefined;
 
+  const startedAt = Date.now();
+  const where = {
+    sourceType: event && event.source && event.source.type,
+    sourceId: hashForLog_(resolveScheduleSourceId_(event))
+  };
   try {
     let messages = matchedHandler.createMessages(text, event);
     if (!matchedHandler.noOwnerItems) messages = appendOwnerQuickReply_(messages, event);
-    logScheduleDebug_('routeTextMessage:success', {
+    logScheduleDebug_('routeTextMessage:success', Object.assign({
       text: text,
-      messageCount: Array.isArray(messages) ? messages.length : 0
-    });
+      messageCount: Array.isArray(messages) ? messages.length : 0,
+      ms: Date.now() - startedAt // 返事を作るのにかかった時間（親のボットが LINE に送るまでは入らない）
+    }, where));
     return messages;
   } catch (err) {
-    logScheduleDebug_('routeTextMessage:error', {
+    logScheduleDebug_('routeTextMessage:error', Object.assign({
       text: text,
       message: err && err.message, // qcheck-ok: G2 DebugLog（管理者だけが見るシート）だけ
-      stack: err && err.stack
-    });
+      stack: err && err.stack,
+      ms: Date.now() - startedAt
+    }, where));
 
     // エラーの中身は LINE に出さず、DebugLog（上）にだけ残す
     return [{
