@@ -3,8 +3,39 @@
 // どのファイルも使う共通の定数。ほかのファイルより先に読まれる（GAS はファイルを名前の順に読む）。
 // 人が書きかえる設定は 00_setup.gs に置く
 
-/** ログ（親プロジェクトと同じ LoggerLib） */
-const Log = LoggerLib.createLogger(LoggerLib.createLogger().LEVEL.DEBUG);
+/**
+ * ログ。GAS の実行ログ（console）にだけ出す。
+ * 前は LoggerLib（ライブラリ）だったが、1回ごとに別のスプレッドシートを開いて書くので返事が遅くなっていた。
+ * start・finish は、かかった時間を出す
+ */
+const Log = (function () {
+  const started = [];
+  return {
+    debug: function () { console.log.apply(console, arguments); },
+    error: function () { console.error.apply(console, arguments); },
+    start: function () { started.push(Date.now()); },
+    finish: function () {
+      const at = started.pop();
+      if (at !== undefined) console.log(`⏱ ${Date.now() - at}ms`);
+    }
+  };
+})();
+
+/**
+ * クイックリプライの1つ（前の LINE_func.createQuickReply と同じ形）。
+ * type は message（text がなければ label を送る）・uri・clipboard
+ */
+function createQuickReply_(label, options) {
+  const { type = 'message', text, uri, imageUrl } = options || {};
+  const action = { type: type, label: label };
+  if (type === 'message') action.text = text || label;
+  else if (type === 'uri') action.uri = uri;
+  else if (type === 'clipboard') action.clipboardText = text || label;
+  else throw new Error(`unknown quick reply type: ${type}`);
+  const item = { type: 'action', action: action };
+  if (imageUrl) item.imageUrl = imageUrl;
+  return item;
+}
 
 // ==========[ 初期化：スプレッドシート ]==========
 const prop = PropertiesService.getScriptProperties();
@@ -106,13 +137,13 @@ const OWNER_ONLY_MARK = '🔑';
 
 /** クイックリプライの部品 */
 const ACTIONS = {
-  FlexSender: LINE_func.createQuickReply('リッチに送る', { type: 'uri', uri: LIFF_URLS.FlexSender }),
-  Admin: LINE_func.createQuickReply('予定を管理', { type: 'uri', uri: LIFF_URLS.Admin }),
-  Calendar: LINE_func.createQuickReply('カレンダー', { type: 'uri', uri: LIFF_URLS.Calendar }),
+  FlexSender: createQuickReply_('リッチに送る', { type: 'uri', uri: LIFF_URLS.FlexSender }),
+  Admin: createQuickReply_('予定を管理', { type: 'uri', uri: LIFF_URLS.Admin }),
+  Calendar: createQuickReply_('カレンダー', { type: 'uri', uri: LIFF_URLS.Calendar }),
   /** @param {string} text コピーする文 */
-  Copy: (text = '') => (LINE_func.createQuickReply('コピー', { type: 'clipboard', text: text, imageUrl: ICONS.Copy })),
-  SS: LINE_func.createQuickReply(`${OWNER_ONLY_MARK}シート`, { type: 'uri', imageUrl: ICONS.SS, uri: SETTING.SheetLink }),
-  Plan: LINE_func.createQuickReply('予定', { text: '#今後の予定', imageUrl: ICONS.Soccer })
+  Copy: (text = '') => (createQuickReply_('コピー', { type: 'clipboard', text: text, imageUrl: ICONS.Copy })),
+  SS: createQuickReply_(`${OWNER_ONLY_MARK}シート`, { type: 'uri', imageUrl: ICONS.SS, uri: SETTING.SheetLink }),
+  Plan: createQuickReply_('予定', { text: '#今後の予定', imageUrl: ICONS.Soccer })
 }
 
 /**

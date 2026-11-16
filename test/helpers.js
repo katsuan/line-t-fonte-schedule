@@ -1,5 +1,5 @@
 // テストの共通部分：偽物の GAS（q-oqrn の tools/qtest/fake-gas.js）に、このプロジェクトの .gs を読ませる。
-// - 親プロジェクトから渡されるライブラリ（LINE_func・LoggerLib など）は、ここで小さな偽物を置く
+// - ライブラリは使わない（偽物も置かない。残っていたら試験で見つかる）
 // - いまの時刻は setNow で決められる（日付またぎ・月末のテスト用）
 "use strict";
 process.env.TZ = "Asia/Tokyo";
@@ -26,24 +26,6 @@ const PRELUDE = `
   }
   globalThis.Date = FakeDate;
 })();
-var LINE_func = {
-  createQuickReply: function (label, opt) {
-    opt = opt || {};
-    var action = { type: opt.type || 'message', label: label };
-    if (action.type === 'uri') action.uri = opt.uri;
-    else if (action.type === 'clipboard') action.clipboardText = opt.text;
-    else action.text = opt.text;
-    var item = { type: 'action', action: action };
-    if (opt.imageUrl) item.imageUrl = opt.imageUrl;
-    return item;
-  }
-};
-var LineApiDriver = {};
-var LoggerLib = {
-  createLogger: function () {
-    return { LEVEL: { DEBUG: 0 }, start: function () {}, finish: function () {}, debug: function () {} };
-  }
-};
 SpreadsheetApp.openById('${SHEET_ID}').insertSheet('Plan');
 (function () {
   // fake-gas の範囲には getDisplayValue（1つのセル）がないので足す

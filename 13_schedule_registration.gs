@@ -154,7 +154,7 @@ function createScheduleConfirmMessages_(text, event) {
       type: 'text',
       text: '⚠️ ほかの登録の途中です。少し待ってから、もう一度「登録する」を押してください。',
       sender: SENDERS.Error,
-      quickReply: scheduleQuickReply_([LINE_func.createQuickReply('登録する', { text: String(text || '#予定確定').trim() })])
+      quickReply: scheduleQuickReply_([createQuickReply_('登録する', { text: String(text || '#予定確定').trim() })])
     }];
   }
 
@@ -405,8 +405,8 @@ function formatScheduleDateRange_(records) {
 /** 確認カードと同じ「登録する」「キャンセル」のクイックリプライ */
 function createScheduleDraftQuickReplyItems_(actions) {
   return [
-    LINE_func.createQuickReply('登録する', { text: actions.confirmText }),
-    LINE_func.createQuickReply('キャンセル', { text: actions.cancelText })
+    createQuickReply_('登録する', { text: actions.confirmText }),
+    createQuickReply_('キャンセル', { text: actions.cancelText })
   ];
 }
 

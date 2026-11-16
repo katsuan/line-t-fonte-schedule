@@ -120,7 +120,7 @@ node ~/GitHub/q-oqrn/tools/qtest/check-code.mjs .
 ## Config And Dependencies
 
 - タイムゾーンは `Asia/Tokyo`
-- 外部ライブラリは `LINE_func`, `LineApiDriver`, `LoggerLib`
+- 外部ライブラリは使わない（ログは実行ログだけ・クイックリプライも中で作る。前の LoggerLib はログのたびに別のシートへ書いて遅かった）
 - 環境依存値は `SETTING`, `SHEETS`, `ACTIONS`, `SENDERS`, `LIFF_URLS`, `WEATHER_CONFIG` などの設定側で管理する前提
 - Script Properties にはキャッシュや送信済みキーを保存する
 

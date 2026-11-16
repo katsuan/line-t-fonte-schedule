@@ -90,9 +90,9 @@ function createAdminTestMenu_() {
 function attachAdminTestMenuQuickReply_(messages) {
   if (!messages.length) return messages;
   const items = ADMIN_TEST_ITEMS_.map(function (item) {
-    return LINE_func.createQuickReply(item.label, { text: `#テスト ${item.key}` });
+    return createQuickReply_(item.label, { text: `#テスト ${item.key}` });
   });
-  items.push(LINE_func.createQuickReply("テストの一覧", { text: "#テスト" }));
+  items.push(createQuickReply_("テストの一覧", { text: "#テスト" }));
   messages[messages.length - 1].quickReply = { items: items };
   return messages;
 }

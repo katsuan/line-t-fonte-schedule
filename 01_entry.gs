@@ -72,8 +72,7 @@ function doPost(e) {
 
 /** 親のボットから呼ばれる。トークの文字に合う返事（メッセージの並び）を返す。合わなければ undefined */
 function handleTextMessage(event) {
-  // DebugLog（シート）には、返事を作ったときとエラーのときだけ書く（routeTextMessage_）。
-  // シートに書くのは遅く、グループの文はたいてい関係ないので、届いただけでは書かない
+  // DebugLog（シート）には、エラーのときだけ書く（routeTextMessage_）。シートに書くと返事が遅くなる
   if (!event || !event.message || event.message.type !== 'text' || typeof event.message.text !== 'string') {
     return;
   }

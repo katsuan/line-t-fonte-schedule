@@ -40,11 +40,8 @@ function routeTextMessage_(text, event) {
   try {
     let messages = matchedHandler.createMessages(text, event);
     if (!matchedHandler.noOwnerItems) messages = appendOwnerQuickReply_(messages, event);
-    logScheduleDebug_('routeTextMessage:success', Object.assign({
-      text: text,
-      messageCount: Array.isArray(messages) ? messages.length : 0,
-      ms: Date.now() - startedAt // 返事を作るのにかかった時間（親のボットが LINE に送るまでは入らない）
-    }, where));
+    // うまくいったときは実行ログだけ（シートに書くと返事が遅くなる）。かかった時間は、親のボットが LINE に送るまでは入らない
+    Log.debug(`✅ ${text.split('\n')[0]} ${Date.now() - startedAt}ms`);
     return messages;
   } catch (err) {
     logScheduleDebug_('routeTextMessage:error', Object.assign({

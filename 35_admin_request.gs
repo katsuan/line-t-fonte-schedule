@@ -91,7 +91,7 @@ function approveAdminRequest_(userId) {
 
 /** クイックリプライの「承認する」 */
 function approveQuickReplyItem_(userId) {
-  return LINE_func.createQuickReply(`${OWNER_ONLY_MARK}承認する`, { text: `${ADMIN_REQUEST_CONFIG.approveWord} ${userId}` });
+  return createQuickReply_(`${OWNER_ONLY_MARK}承認する`, { text: `${ADMIN_REQUEST_CONFIG.approveWord} ${userId}` });
 }
 
 /** 「もう管理者です」 */

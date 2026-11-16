@@ -15,8 +15,6 @@ test(".gs を名前の順に1つずつ読んでも、読みこみでエラーに
   const gas = createGas({
     properties: { SHEET_ID: "S" },
     source: `
-      var LINE_func = { createQuickReply: function () { return {}; } };
-      var LoggerLib = { createLogger: function () { return { LEVEL: {}, start: function () {}, finish: function () {}, debug: function () {} }; } };
       SpreadsheetApp.openById("S").insertSheet("Plan");
       (function () {
         var sheet = SpreadsheetApp.openById("S").insertSheet("Setting");
