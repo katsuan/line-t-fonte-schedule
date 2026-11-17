@@ -37,7 +37,7 @@ const FLEX_CONFIG = {
   linkPillOffColor: "#E5E7EB",
   linkPillOffTextColor: "#9CA3AF",
   linkPillLabel: "📝 回答する",
-  linkPillOffLabel: "リンクなし"
+  linkPillOffLabel: "回答箇所別"
 };
 
 /** カードの通知文（altText）の既定の見出しと、長さの上限 */
@@ -511,7 +511,7 @@ function recordPillLink_(record, monthLink) {
   return own && own !== monthLink ? own : undefined;
 }
 
-/** 予定の箱の中のピル「📝 回答する」（押すと link）か、灰色で押せない「リンクなし」 */
+/** 予定の箱の中のピル「📝 回答する」（押すと link）か、灰色で押せない「回答箇所別」 */
 function createLinkPill_(link) {
   const on = Boolean(link);
   return {
