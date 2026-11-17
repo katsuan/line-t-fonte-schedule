@@ -173,8 +173,7 @@ function buildAdminTestAutoReminder_() {
   return buildReminderFlexMessages_(records, {
     forceRefresh: false,
     noWeather: true, // 見本は外に問い合わせない
-    includeGuideBubble: true,
-    reminderText: buildReminderTextMessageTextFromRecords_(records)
+    includeGuideBubble: true
   });
 }
 

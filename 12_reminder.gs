@@ -165,8 +165,8 @@ function cleanupAutoReminderSentKeyMap_(sentKeyMap, shouldPersist) {
 
 // ---------- 文面 ----------
 
-/** リマインドの文面（テキスト）を作る。予定がなければ空文字 */
-function buildReminderTextMessageTextFromRecords_(records) {
+/** リマインドの文面（テキスト）を作る。weatherSummaryMap（予定 → 天気の文）を渡すと、近い予定に「予報: 」の行を足す。予定がなければ空文字 */
+function buildReminderTextMessageTextFromRecords_(records, weatherSummaryMap) {
   if (!records.length) return "";
 
   const merged = mergeRecordsWithinReminderWindow_(records);
@@ -186,6 +186,9 @@ function buildReminderTextMessageTextFromRecords_(records) {
     messageLines.push(`${record.memo1}`);
     messageLines.push(`　${record.formatted.date} ${record.formatted.start}-${record.formatted.end}`);
     messageLines.push(`　${record.place}${record.memo2}`);
+    // 天気（近い予定だけ。カードの「予報: 」と同じ文）。渡されなければ入れない
+    const weather = weatherSummaryMap && weatherSummaryMap[buildWeatherRecordKey_(record)];
+    if (weather) messageLines.push(`　予報: ${weather}`);
   }
 
   messageLines.push(randomClosing);

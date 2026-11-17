@@ -71,11 +71,9 @@ const LINE_URI_MAX_CHARS_ = 1000;
 /** 管理者への通知・#今後の予定 の返事：送信ガイド＋月ごとの予定カード */
 function createAutoReminderFlexMessages_() {
   const records = extractUpcomingRecordsWithDateObjects();
-  const reminderText = buildReminderTextMessageTextFromRecords_(records);
   const messages = buildReminderFlexMessages_(records, {
     forceRefresh: false,
-    includeGuideBubble: true,
-    reminderText
+    includeGuideBubble: true
   });
   return attachReminderQuickReply_(messages);
 }
@@ -92,11 +90,9 @@ function createShareFlexMessages_(forceRefresh) {
 /** 画面（リッチに送る）に返す中身：見本とシェア用のカード（送信ガイドは作ってから外す。管理者向けのため） */
 function createLiffPayload_(forceRefresh) {
   const records = extractUpcomingRecordsWithDateObjects(forceRefresh);
-  const reminderText = buildReminderTextMessageTextFromRecords_(records);
   const viewModel = buildReminderFlexViewModel_(records, {
     forceRefresh: !!forceRefresh,
-    includeGuideBubble: true,
-    reminderText: reminderText
+    includeGuideBubble: true
   });
 
   if (viewModel.errorMessage) {
@@ -137,7 +133,7 @@ function buildReminderFlexMessages_(records, options) {
 
 /** カード（と近い予定の日付）を作る。予定がなければ errorMessage を返す */
 function buildReminderFlexViewModel_(records, options) {
-  const { forceRefresh, includeGuideBubble, reminderText, noWeather } = options || {};
+  const { forceRefresh, includeGuideBubble, noWeather } = options || {};
   const now = new Date();
 
   if (!records.length) {
@@ -160,7 +156,9 @@ function buildReminderFlexViewModel_(records, options) {
   const bubbleEntries = buildBubbleEntriesFromGroups_(groups);
   const guideAltText = trimAltText_(buildCarouselAltText_(bubbleEntries));
 
-  if (includeGuideBubble && reminderText) {
+  // 送信ガイドの文面にも、予定のカードと同じ天気を入れる
+  const reminderText = includeGuideBubble ? buildReminderTextMessageTextFromRecords_(records, nearTermWeatherSummaryMap) : "";
+  if (reminderText) {
     bubbleEntries.unshift({
       bubble: createAutoReminderGuideBubble_(reminderText, guideAltText),
       nearTermDates: []
